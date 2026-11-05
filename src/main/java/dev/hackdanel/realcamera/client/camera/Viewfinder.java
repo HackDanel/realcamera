@@ -3,6 +3,7 @@ package dev.hackdanel.realcamera.client.camera;
 import dev.hackdanel.realcamera.ClientBridge;
 import dev.hackdanel.realcamera.RealCamera;
 import dev.hackdanel.realcamera.camera.CameraHelper;
+import dev.hackdanel.realcamera.camera.CameraRef;
 import dev.hackdanel.realcamera.camera.OpticalChain;
 import dev.hackdanel.realcamera.client.RCKeys;
 import dev.hackdanel.realcamera.client.capture.PhotoCapture;
@@ -53,7 +54,7 @@ public final class Viewfinder {
     private static final float MAGNIFY = 5f;
 
     private static boolean active;
-    private static InteractionHand hand = InteractionHand.MAIN_HAND;
+    private static CameraRef ref = CameraRef.hand(InteractionHand.MAIN_HAND);
     private static CameraSettings settings = CameraSettings.DEFAULT;
     private static int settingsDirtyTicks = -1;
     private static OpticalChain chain;
@@ -81,6 +82,9 @@ public final class Viewfinder {
     private static long nextBurstMs;
     private static long timerFireMs = -1;
     private static long bulbStartMs = -1;
+
+    // flash
+    private static long flashReadyMs;
 
     // camera motion (deg/s), smoothed, for shake/pan blur and rolling shutter
     private static float lastYaw, lastPitch;
@@ -115,8 +119,8 @@ public final class Viewfinder {
         return chain.sensor();
     }
 
-    public static InteractionHand hand() {
-        return hand;
+    public static CameraRef ref() {
+        return ref;
     }
 
     public static Exposure.Result exposure() {
@@ -125,6 +129,35 @@ public final class Viewfinder {
 
     public static double meteredEv() {
         return meteredEv;
+    }
+
+    /** The camera meters through the lens, so a filter's light loss is already in the reading. */
+    public static double meteredThroughFilter() {
+        return meteredEv - filterLossEv();
+    }
+
+    public static double filterLossEv() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return 0;
+        return dev.hackdanel.realcamera.camera.Specs.filter(mc.level.registryAccess(), CameraHelper.parts(camera()).filter())
+                .map(f -> (double) f.lightLossEv()).orElse(0.0);
+    }
+
+    /** Guide number of the flash that would fire now (hot shoe, else built-in), or 0. */
+    public static float flashGn() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || chain == null) return 0;
+        var parts = CameraHelper.parts(camera());
+        var hotShoe = dev.hackdanel.realcamera.camera.Specs.flash(mc.level.registryAccess(), parts.flash());
+        if (hotShoe.isPresent()) {
+            var c = parts.flash().get(dev.hackdanel.realcamera.registry.RCComponents.CHARGE.get());
+            return c != null && c.charge() > 0 ? hotShoe.get().gn() : 0;
+        }
+        return body().flash().builtInGn();
+    }
+
+    public static boolean flashReady() {
+        return System.currentTimeMillis() >= flashReadyMs;
     }
 
     public static boolean blockLit() {
@@ -177,7 +210,13 @@ public final class Viewfinder {
 
     public static ItemStack camera() {
         Player p = Minecraft.getInstance().player;
-        return p == null ? ItemStack.EMPTY : p.getItemInHand(hand);
+        if (p == null) return ItemStack.EMPTY;
+        if (ref.isTripod()) {
+            return Minecraft.getInstance().level != null
+                    && Minecraft.getInstance().level.getEntity(ref.tripodId()) instanceof dev.hackdanel.realcamera.entity.TripodEntity t
+                    ? t.camera() : ItemStack.EMPTY;
+        }
+        return p.getItemInHand(ref.hand());
     }
 
     /** Vertical FOV of the (effective) sensor: what the photo covers. */
@@ -225,15 +264,20 @@ public final class Viewfinder {
         lastYaw = yaw;
         lastPitch = pitch;
 
-        // Looking through the camera only makes sense from the photographer's eye (first person).
-        boolean using = player.isUsingItem() && CameraHelper.isCamera(player.getUseItem())
-                && mc.options.getCameraType().isFirstPerson();
-        if (using && !active) {
-            activate(player.getUsedItemHand());
+        // Looking through the camera only makes sense from the photographer's eye (first person),
+        // or through a tripod-mounted camera.
+        var tripod = TripodView.tripod();
+        boolean using = tripod != null || (player.isUsingItem() && CameraHelper.isCamera(player.getUseItem())
+                && mc.options.getCameraType().isFirstPerson());
+        CameraRef wanted = tripod != null ? CameraRef.tripod(tripod.getId()) : CameraRef.hand(player.getUsedItemHand());
+        if (using && (!active || !wanted.equals(ref))) {
+            if (active) deactivate();
+            activate(wanted);
         } else if (!using && active) {
             deactivate();
         }
-        boolean holding = CameraHelper.handHoldingCamera(player).isPresent();
+        tickTimer(mc);
+        boolean holding = CameraHelper.handHoldingCamera(player).isPresent() || tripod != null;
         if (holding) {
             // P is also vanilla "social interactions": the camera's playback button wins while holding it.
             while (mc.options.keySocialInteractions.consumeClick()) {
@@ -241,15 +285,16 @@ public final class Viewfinder {
             }
         }
         if (holding && mc.screen == null) {
-            InteractionHand h = CameraHelper.handHoldingCamera(player).get();
+            CameraRef r = tripod != null ? CameraRef.tripod(tripod.getId())
+                    : CameraRef.hand(CameraHelper.handHoldingCamera(player).get());
             while (RCKeys.PLAYBACK.consumeClick()) {
-                if (!active) hand = h;
+                if (!active) ref = r;
                 ClientBridge.get().openPlayback();
             }
             while (RCKeys.MENU.consumeClick()) {
                 if (!active) {
-                    hand = h;
-                    settings = CameraHelper.settings(player.getItemInHand(h));
+                    ref = r;
+                    settings = CameraHelper.settings(camera());
                 }
                 ClientBridge.get().openCameraMenu();
             }
@@ -267,14 +312,13 @@ public final class Viewfinder {
         }
     }
 
-    private static void activate(InteractionHand h) {
-        hand = h;
+    private static void activate(CameraRef r) {
+        ref = r;
         settings = CameraHelper.settings(camera());
         focusDistance = settings.focusDistance();
         afState = AF_IDLE;
         subject = null;
         magnified = false;
-        timerFireMs = -1;
         bulbStartMs = -1;
         active = true;
         attackWasDown = true; // ignore a click held from before raising the camera
@@ -286,7 +330,6 @@ public final class Viewfinder {
         shootWhenFocused = false;
         afState = AF_IDLE;
         magnified = false;
-        timerFireMs = -1;
         if (bulbStartMs >= 0) {
             PhotoCapture.stopBulb();
             bulbStartMs = -1;
@@ -314,7 +357,7 @@ public final class Viewfinder {
         if (tick % 4 == 0) {
             meter(mc);
         }
-        exposure = Exposure.solve(settings.mode(), meteredEv, settings.evComp() / 3.0, settings.apertureIndex(),
+        exposure = Exposure.solve(settings.mode(), meteredThroughFilter(), settings.evComp() / 3.0, settings.apertureIndex(),
                 Math.min(settings.shutterIndex(), ExposureScales.BULB_INDEX - 1), settings.isoIndex(), limits());
         updateFocus(mc);
         boolean manual = settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable();
@@ -342,12 +385,6 @@ public final class Viewfinder {
             fire(mc);
         }
         attackWasDown = attackDown;
-        if (timerFireMs >= 0 && System.currentTimeMillis() >= timerFireMs) {
-            timerFireMs = -1;
-            fire(mc);
-        } else if (timerFireMs >= 0 && tick % 20 == 0) {
-            mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_HAT.value(), 2f, 0.5f));
-        }
         // vanilla would otherwise queue an attack when the camera is lowered
         while (mc.options.keyAttack.consumeClick()) {
             // swallowed
@@ -594,6 +631,7 @@ public final class Viewfinder {
         magnified = false; // half-press leaves magnified view, as on real cameras
         if (timerFireMs >= 0) {
             timerFireMs = -1; // pressing again cancels the self-timer
+            armed = null;
             return;
         }
         boolean mf = settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable();
@@ -605,41 +643,141 @@ public final class Viewfinder {
         }
     }
 
-    /** Focus is done: start the timer or fire now. */
+    /** Focus is done: start the timer (with the shot already composed) or fire now. */
     private static void release(Minecraft mc) {
         int drive = settings.drive();
         if (drive == CameraSettings.DRIVE_TIMER_2 || drive == CameraSettings.DRIVE_TIMER_10) {
-            timerFireMs = System.currentTimeMillis() + (drive == CameraSettings.DRIVE_TIMER_2 ? 2000 : 10000);
+            armed = prepare(mc);
+            if (armed != null) {
+                timerFireMs = System.currentTimeMillis() + (drive == CameraSettings.DRIVE_TIMER_2 ? 2000 : 10000);
+            }
             return;
         }
         fire(mc);
     }
 
-    private static void fire(Minecraft mc) {
-        if (exposure == null || !PhotoCapture.canAccept()) {
+    /** A composed exposure waiting to be released (now, or when the self-timer runs out). */
+    private record Release(PhotoCapture.Shot shot, int shutterType, boolean flash, boolean bulb, String soundSet) {}
+
+    @Nullable
+    private static Release armed;
+
+    /** The self-timer keeps running after the photographer walks away from a tripod (selfies). */
+    private static void tickTimer(Minecraft mc) {
+        if (armed == null || timerFireMs < 0) {
             return;
+        }
+        if (System.currentTimeMillis() >= timerFireMs) {
+            Release r = armed;
+            armed = null;
+            timerFireMs = -1;
+            if (PhotoCapture.canAccept()) {
+                dispatch(mc, r);
+            }
+        } else if (tick % 20 == 0) {
+            mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_HAT.value(), 2f, 0.5f));
+        }
+    }
+
+    private static void fire(Minecraft mc) {
+        Release r = prepare(mc);
+        if (r != null) {
+            dispatch(mc, r);
+        }
+    }
+
+    @Nullable
+    private static Release prepare(Minecraft mc) {
+        if (exposure == null || !PhotoCapture.canAccept()) {
+            return null;
+        }
+        var wear = CameraHelper.wear(camera());
+        if (wear.shutterJammed() && !electronic()) {
+            mc.player.displayClientMessage(Component.translatable("message.realcamera.shutter_jammed"), true);
+            return null;
         }
         boolean bulb = settings.mode() == CameraSettings.MODE_M && settings.shutterIndex() >= ExposureScales.BULB_INDEX;
         double seconds = bulb ? -1 : exposure.seconds();
-        boolean silent = electronic();
         int type = electronic() ? CameraSettings.SHUTTER_ELECTRONIC : settings.shutterType();
-        if (!silent) {
+        ImageParams.Extras extras = extras(mc, seconds < 0 ? 1 : seconds);
+        var cam = mc.gameRenderer.getMainCamera();
+        PhotoCapture.Shot shot = new PhotoCapture.Shot(ref, chain, settings, exposure, focal(), focusDistance, meteredEv,
+                blockLit, CameraHelper.shutterCount(camera()) + 1, camera().getHoverName().getString(),
+                CameraHelper.parts(camera()).lens().getHoverName().getString(), seconds, motion(seconds),
+                SunTracker.sun(mc.level, mc.getCameraEntity(), cam, sensorVfov(), sensor().aspect()), extras);
+        return new Release(shot, type, extras.flashAt1m() > 0, bulb, body().shutter().sound());
+    }
+
+    private static void dispatch(Minecraft mc, Release r) {
+        int type = r.shutterType();
+        if (type != CameraSettings.SHUTTER_ELECTRONIC) {
             float volume = type == CameraSettings.SHUTTER_EFCS ? 0.6f : 1f;
-            mc.getSoundManager().play(SimpleSoundInstance.forUI(RCSounds.shutter(body().shutter().sound()),
+            mc.getSoundManager().play(SimpleSoundInstance.forUI(RCSounds.shutter(r.soundSet()),
                     type == CameraSettings.SHUTTER_EFCS ? 1.15f : 1f, 0.9f * volume));
         }
-        PacketDistributor.sendToServer(new Payloads.Shutter(hand, type));
+        PacketDistributor.sendToServer(new Payloads.Shutter(r.shot().ref(), type, r.flash()));
         if (isBurst()) {
             nextBurstMs = System.currentTimeMillis() + (long) (1000 / Math.max(0.5, burstFps()));
         }
-        if (bulb) {
+        if (r.bulb()) {
             bulbStartMs = System.currentTimeMillis();
         }
-        var cam = mc.gameRenderer.getMainCamera();
-        PhotoCapture.request(new PhotoCapture.Shot(hand, chain, settings, exposure, focal(), focusDistance, meteredEv,
-                blockLit, CameraHelper.shutterCount(camera()) + 1, camera().getHoverName().getString(),
-                CameraHelper.parts(camera()).lens().getHoverName().getString(), seconds, motion(seconds),
-                SunTracker.sun(mc.level, mc.getCameraEntity(), cam, sensorVfov(), sensor().aspect())));
+        PhotoCapture.request(r.shot());
+    }
+
+    /** Flash (TTL power, sync), filters and wear for this exposure. */
+    private static ImageParams.Extras extras(Minecraft mc, double seconds) {
+        var parts = CameraHelper.parts(camera());
+        var regs = mc.level.registryAccess();
+        var wear = CameraHelper.wear(camera());
+        // filter
+        var filter = dev.hackdanel.realcamera.camera.Specs.filter(regs, parts.filter()).orElse(null);
+        boolean cracked = parts.filter().getOrDefault(dev.hackdanel.realcamera.registry.RCComponents.DAMAGE.get(), 0f) > 0;
+        boolean cpl = filter != null && "cpl".equals(filter.kind());
+        double fr = 1, fg = 1, fb = 1;
+        if (filter != null && "color".equals(filter.kind())) {
+            fr = filter.r();
+            fg = filter.g();
+            fb = filter.b();
+        }
+        double fog = Math.max(0, Math.min(1, (wear.moisture() - 40) / 60.0)) + (cracked ? 0.25 : 0);
+        double decenter = parts.lens().getOrDefault(dev.hackdanel.realcamera.registry.RCComponents.DAMAGE.get(), 0f);
+        float[] dust = new float[wear.dust().size() * 3];
+        for (int i = 0; i < wear.dust().size(); i++) {
+            var d = wear.dust().get(i);
+            dust[i * 3] = d.x();
+            dust[i * 3 + 1] = d.y();
+            dust[i * 3 + 2] = d.r();
+        }
+        // flash
+        double flashAt1m = 0, flashTop = 1;
+        int mode = settings.flashMode();
+        boolean wanted = mode == CameraSettings.FLASH_FILL || mode == CameraSettings.FLASH_REAR
+                || (mode == CameraSettings.FLASH_AUTO && meteredEv < 8);
+        float gn = flashGn();
+        if (wanted && gn > 0 && !electronic() && flashReady()) {
+            double iso = exposure.iso(), n = exposure.fNumber();
+            double gnIso = gn * Math.sqrt(iso / 100);
+            double d = Math.max(0.5, focusDistance);
+            double full = Math.pow(gnIso / (n * d), 2); // exposure at the subject at full power
+            double target = Math.pow(2, settings.flashComp() / 3.0) * (meteredEv > 10 ? 0.5 : 1.0); // fill vs main light
+            double power = Math.max(1 / 128.0, Math.min(1, target / full));
+            flashAt1m = power * Math.pow(gnIso / n, 2);
+            double sync = body().flash().sync();
+            boolean leaf = "leaf".equals(body().shutter().sound());
+            boolean hss = !parts.flash().isEmpty() && dev.hackdanel.realcamera.camera.Specs.flash(regs, parts.flash())
+                    .map(f -> f.hss()).orElse(false);
+            if (seconds < sync && !leaf) {
+                if (hss) {
+                    flashAt1m *= seconds / sync; // high-speed sync: pulsed, much weaker
+                } else {
+                    flashTop = seconds / sync; // the second curtain shades the rest of the frame
+                }
+            }
+            double recycle = dev.hackdanel.realcamera.camera.Specs.flash(regs, parts.flash()).map(f -> f.recycleS()).orElse(3f);
+            flashReadyMs = System.currentTimeMillis() + (long) (recycle * 1000 * Math.max(0.1, power));
+        }
+        return new ImageParams.Extras(flashAt1m, flashTop, cpl, fr, fg, fb, Math.min(1, fog), decenter, dust);
     }
 
     /**
@@ -653,7 +791,8 @@ public final class Viewfinder {
         double focal35 = Optics.focal35(focal(), sensor().cropFactor());
         double stab = settings.stabilization() ? chain.stabilizationStops() : 0;
         double limit = Optics.handheldLimit(focal35, stab);
-        double shake = (1.0 / 1500) * (t / limit) * (0.5 + SHAKE.nextDouble());
+        // on a tripod there is no hand shake at all
+        double shake = ref.isTripod() ? 0 : (1.0 / 1500) * (t / limit) * (0.5 + SHAKE.nextDouble());
         double angle = SHAKE.nextDouble() * Math.PI;
         double bx = shake * Math.cos(angle) * 0.7, by = shake * Math.sin(angle);
         boolean accumulated = seconds < 0 || seconds >= PhotoCapture.LONG_EXPOSURE_S;
@@ -692,6 +831,9 @@ public final class Viewfinder {
             if (settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable()) {
                 magnified = !magnified;
             }
+        }
+        while (RCKeys.FLASH.consumeClick()) {
+            update(settings.withFlashMode((settings.flashMode() + 1) % CameraSettings.FLASH_MODE_COUNT));
         }
         while (RCKeys.DRIVE.consumeClick()) {
             update(settings.withDrive((settings.drive() + 1) % CameraSettings.DRIVE_COUNT));
@@ -798,8 +940,8 @@ public final class Viewfinder {
     }
 
     /** Used by the camera menu screen when the camera is not raised. */
-    public static void setSettingsAndSend(InteractionHand h, CameraSettings next) {
-        hand = h;
+    public static void setSettingsAndSend(CameraRef r, CameraSettings next) {
+        ref = r;
         settings = next;
         sendSettings();
     }
@@ -808,10 +950,10 @@ public final class Viewfinder {
         settingsDirtyTicks = -1;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
-        ItemStack cam = mc.player.getItemInHand(hand);
+        ItemStack cam = camera();
         if (!CameraHelper.isCamera(cam)) return;
         CameraSettings toSend = settings.withFocusDistance(focusDistance);
-        PacketDistributor.sendToServer(new Payloads.UpdateSettings(hand, toSend));
+        PacketDistributor.sendToServer(new Payloads.UpdateSettings(ref, toSend));
     }
 
     /** Dev/autotest hook: behaves like a click on the shutter button. */

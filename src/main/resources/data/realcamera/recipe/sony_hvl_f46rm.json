@@ -1,0 +1,29 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:plastic",
+      "count": 2
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    },
+    {
+      "item": "minecraft:glowstone_dust",
+      "count": 3
+    },
+    {
+      "item": "realcamera:battery_cell",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:flash",
+    "count": 1,
+    "components": {
+      "realcamera:flash_type": "realcamera:sony_hvl_f46rm"
+    }
+  },
+  "time": 160
+}

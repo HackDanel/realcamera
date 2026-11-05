@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:leather",
+      "count": 4
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 2
+    },
+    {
+      "item": "minecraft:string",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:camera_bag",
+    "count": 1
+  },
+  "time": 80
+}

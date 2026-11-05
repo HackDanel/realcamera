@@ -285,6 +285,43 @@ def card_icon(body, stripe):
     return f
 
 
+def draw_flash_icon(img, d):
+    outline_rect(d, [5, 6, 10, 14], rgba("#222222"), rgba("#000000"))
+    outline_rect(d, [3, 1, 12, 6], rgba("#2c2c2c"), rgba("#000000"))
+    d.rectangle([4, 2, 11, 4], fill=rgba("#f0f0ea"))
+
+
+def filter_generic(img, d):
+    d.ellipse([1, 1, 14, 14], fill=rgba("#1c1c1c"))
+    d.ellipse([3, 3, 12, 12], fill=rgba("#7090c0", 120))
+    d.line([(5, 5), (7, 4)], fill=rgba("#ffffff", 200))
+
+
+def draw_grip_icon(img, d):
+    outline_rect(d, [3, 2, 12, 13], rgba("#222222"), rgba("#000000"))
+    d.rectangle([9, 2, 12, 13], fill=rgba("#141414"))
+    d.rectangle([10, 4, 11, 5], fill=rgba("#c03020"))
+
+
+def draw_tripod_icon(img, d):
+    d.line([(7, 3), (2, 15)], fill=rgba("#2a2a2a"), width=1)
+    d.line([(8, 3), (8, 15)], fill=rgba("#2a2a2a"), width=1)
+    d.line([(8, 3), (13, 15)], fill=rgba("#2a2a2a"), width=1)
+    d.rectangle([5, 1, 10, 3], fill=rgba("#444444"))
+
+
+def draw_bag_icon(img, d):
+    outline_rect(d, [2, 5, 13, 14], rgba("#3d3326"), rgba("#1f1a12"))
+    d.arc([5, 1, 10, 8], 180, 360, fill=rgba("#1f1a12"))
+    d.rectangle([4, 8, 11, 9], fill=rgba("#c0a060"))
+
+
+def draw_kit_icon(img, d):
+    d.ellipse([2, 6, 8, 13], fill=rgba("#2a2a2a"))
+    d.rectangle([4, 2, 6, 6], fill=rgba("#555555"))
+    d.rectangle([9, 4, 13, 13], fill=rgba("#e8e8e0"), outline=rgba("#a0a098"))
+
+
 # ----------------------------------------------------------------------------- 3D model building
 
 def face_uv(region, scale=0.25):
@@ -457,6 +494,43 @@ def ring_part(name, folder, length_units, radius, colour):
         return els
     save_json(model(tex, build(8, 8, 8 + length_units / 2), LENS_DISPLAY), f"models/item/{folder}", name + ".json")
     save_json(model(tex, build(MOUNT_X, MOUNT_Y, MOUNT_Z)), f"models/item/{folder}", name + "_mounted.json")
+
+
+def flash_part(name, colour, head_text):
+    """Hot-shoe speedlight: flat icon + a model standing on the camera's top (mounted)."""
+    t = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    noise_fill(t, (0, 0, 32, 16), colour, 5, seed=41)
+    noise_fill(t, (32, 0, 64, 16), (235, 235, 230), 4, seed=42)      # diffuser window
+    noise_fill(t, (0, 16, 32, 32), (20, 20, 22), 4, seed=43)          # rear panel
+    ImageDraw.Draw(t).rectangle([4, 19, 20, 27], fill=(30, 60, 50, 255))
+    save_png(t, "textures/item/flash", name + ".png")
+    tex = f"{NS}:item/flash/{name}"
+    R = {"body": (0, 0, 32, 16), "window": (32, 0, 64, 16), "rear": (0, 16, 32, 32)}
+
+    def build(x, y, z):
+        foot = element([x - 1.2, y, z - 1.2], [x + 1.2, y + 0.6, z + 1.2], all_faces(R["rear"]))
+        body = element([x - 1.6, y + 0.6, z - 1.4], [x + 1.6, y + 4.6, z + 1.6], all_faces(R["body"], {"south": R["rear"]}))
+        head = element([x - 2.0, y + 4.6, z - 2.2], [x + 2.0, y + 6.6, z + 1.0],
+                       all_faces(R["body"], {"north": R["window"]}))
+        return [foot, body, head]
+    save_json(model(tex, build(8, 4.5, 8), LENS_DISPLAY), "models/item/flash", name + ".json")
+    save_json(model(tex, build(6.5, 13.6, 11.2)), "models/item/flash", name + "_mounted.json")
+
+
+def grip_part(name, colour):
+    """Vertical battery grip under the body."""
+    t = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    noise_fill(t, (0, 0, 32, 16), colour, 6, seed=51)
+    noise_fill(t, (32, 0, 64, 16), (18, 18, 19), 9, seed=52)
+    save_png(t, "textures/item/grip", name + ".png")
+    tex = f"{NS}:item/grip/{name}"
+    R = {"body": (0, 0, 32, 16), "rubber": (32, 0, 64, 16)}
+
+    def build(y_top):
+        return [element([1.5, y_top - 3.0, 9.0], [14.5, y_top, 13.5], all_faces(R["body"])),
+                element([11.0, y_top - 3.0, 6.8], [14.5, y_top, 9.0], all_faces(R["rubber"]))]
+    save_json(model(tex, [e for e in build(9.5)], LENS_DISPLAY), "models/item/grip", name + ".json")
+    save_json(model(tex, build(3.0)), "models/item/grip", name + "_mounted.json")
 
 
 def lens_texture(label, ring_color=None, gm=False):
@@ -839,6 +913,33 @@ def main():
     flat("battery", "bp_scl7", battery_icon(rgba("#3a3a3c"), rgba("#d02020")))
     icon(draw_lens_icon, "mount_adapter")
     icon(draw_lens_icon, "teleconverter")
+    # stage 3 accessories
+    flash_part("sony_hvl_f46rm", (28, 28, 30), "SONY")
+    flash_part("nikon_sb700", (24, 24, 26), "NIKON")
+    flash_part("canon_el5", (30, 30, 32), "CANON")
+    flash_part("fuji_ef60", (34, 34, 36), "FUJI")
+    flash_part("godox_v1", (22, 22, 24), "GODOX")
+    grip_part("sony_vg_c4em", (32, 32, 34))
+    grip_part("nikon_mb_d16", (30, 30, 32))
+
+    def filter_icon(tint, alpha=110):
+        def f(img, d):
+            d.ellipse([1, 1, 14, 14], fill=rgba("#1c1c1c"))
+            d.ellipse([3, 3, 12, 12], fill=tint[:3] + (alpha,))
+            d.line([(5, 5), (7, 4)], fill=rgba("#ffffff", 200))
+        return f
+    for name, tint, alpha in (("nd8_82", rgba("#555555"), 120), ("nd64_82", rgba("#333333"), 170),
+                              ("nd1000_82", rgba("#111111"), 230), ("cpl_82", rgba("#3a4a66"), 140),
+                              ("uv_82", rgba("#ccd8ff"), 60), ("yellow_82", rgba("#ffd800"), 150),
+                              ("orange_82", rgba("#ff8a00"), 160), ("red_82", rgba("#d01818"), 170),
+                              ("cpl_95", rgba("#3a4a66"), 140)):
+        flat("filter", name, filter_icon(tint, alpha))
+    icon(draw_flash_icon, "flash")
+    icon(filter_generic, "filter")
+    icon(draw_grip_icon, "battery_grip")
+    icon(draw_tripod_icon, "tripod")
+    icon(draw_bag_icon, "camera_bag")
+    icon(draw_kit_icon, "cleaning_kit")
 
     block_textures()
     block_models()

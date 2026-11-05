@@ -51,6 +51,18 @@ public final class Specs {
         return lookup(r, RCRegistries.TELECONVERTER, stack.get(RCComponents.TELECONVERTER.get()));
     }
 
+    public static Optional<dev.hackdanel.realcamera.spec.FlashSpec> flash(HolderLookup.Provider r, ItemStack stack) {
+        return lookup(r, RCRegistries.FLASH_TYPE, stack.get(RCComponents.FLASH_TYPE.get()));
+    }
+
+    public static Optional<dev.hackdanel.realcamera.spec.FilterSpec> filter(HolderLookup.Provider r, ItemStack stack) {
+        return lookup(r, RCRegistries.FILTER_TYPE, stack.get(RCComponents.FILTER_TYPE.get()));
+    }
+
+    public static Optional<dev.hackdanel.realcamera.spec.GripSpec> grip(HolderLookup.Provider r, ItemStack stack) {
+        return lookup(r, RCRegistries.GRIP_TYPE, stack.get(RCComponents.GRIP_TYPE.get()));
+    }
+
     public static Optional<ColorProfileSpec> profile(HolderLookup.Provider r, CameraBodySpec body, int index) {
         if (body.colorProfiles().isEmpty()) {
             return Optional.empty();

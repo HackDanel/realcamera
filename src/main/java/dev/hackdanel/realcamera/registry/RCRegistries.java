@@ -31,6 +31,9 @@ public final class RCRegistries {
     public static final ResourceKey<Registry<ColorProfileSpec>> COLOR_PROFILE = key("color_profile");
     public static final ResourceKey<Registry<AdapterSpec>> MOUNT_ADAPTER = key("mount_adapter");
     public static final ResourceKey<Registry<TeleconverterSpec>> TELECONVERTER = key("teleconverter");
+    public static final ResourceKey<Registry<dev.hackdanel.realcamera.spec.FlashSpec>> FLASH_TYPE = key("flash_type");
+    public static final ResourceKey<Registry<dev.hackdanel.realcamera.spec.FilterSpec>> FILTER_TYPE = key("filter_type");
+    public static final ResourceKey<Registry<dev.hackdanel.realcamera.spec.GripSpec>> GRIP_TYPE = key("grip_type");
 
     private RCRegistries() {}
 
@@ -48,6 +51,9 @@ public final class RCRegistries {
         event.dataPackRegistry(COLOR_PROFILE, ColorProfileSpec.CODEC, ColorProfileSpec.CODEC);
         event.dataPackRegistry(MOUNT_ADAPTER, AdapterSpec.CODEC, AdapterSpec.CODEC);
         event.dataPackRegistry(TELECONVERTER, TeleconverterSpec.CODEC, TeleconverterSpec.CODEC);
+        event.dataPackRegistry(FLASH_TYPE, dev.hackdanel.realcamera.spec.FlashSpec.CODEC, dev.hackdanel.realcamera.spec.FlashSpec.CODEC);
+        event.dataPackRegistry(FILTER_TYPE, dev.hackdanel.realcamera.spec.FilterSpec.CODEC, dev.hackdanel.realcamera.spec.FilterSpec.CODEC);
+        event.dataPackRegistry(GRIP_TYPE, dev.hackdanel.realcamera.spec.GripSpec.CODEC, dev.hackdanel.realcamera.spec.GripSpec.CODEC);
     }
 
     public static <T> Optional<T> get(RegistryAccess access, ResourceKey<Registry<T>> registry, ResourceKey<T> key) {

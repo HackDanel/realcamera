@@ -14,7 +14,7 @@ import net.minecraft.network.codec.StreamCodec;
  * isoIndex -1 = Auto ISO; evComp is in 1/3 EV; focal 0 = lens minimum; afX/afY are the AF point in
  * frame coordinates (-1..1).
  */
-public record CameraSettings(int mode, int shutterIndex, int apertureIndex, int isoIndex, int evComp, int whiteBalance, int kelvin, int metering, int focusMode, float focusDistance, float focal, int quality, int profile, int disp, int selectedParam, int shutterType, int drive, int fileFormat, int afArea, float afX, float afY, boolean subjectDetect, boolean peaking, boolean stabilization, int cropMode, boolean lensCorrection) {
+public record CameraSettings(int mode, int shutterIndex, int apertureIndex, int isoIndex, int evComp, int whiteBalance, int kelvin, int metering, int focusMode, float focusDistance, float focal, int quality, int profile, int disp, int selectedParam, int shutterType, int drive, int fileFormat, int afArea, float afX, float afY, boolean subjectDetect, boolean peaking, boolean stabilization, int cropMode, boolean lensCorrection, int flashMode, int flashComp) {
     public static final int MODE_AUTO = 0, MODE_P = 1, MODE_A = 2, MODE_S = 3, MODE_M = 4, MODE_COUNT = 5;
     public static final int FOCUS_AFS = 0, FOCUS_AFC = 1, FOCUS_MF = 2, FOCUS_COUNT = 3;
     public static final int METER_MATRIX = 0, METER_CENTER = 1, METER_SPOT = 2, METER_COUNT = 3;
@@ -31,10 +31,12 @@ public record CameraSettings(int mode, int shutterIndex, int apertureIndex, int 
     public static final int FORMAT_JPEG = 0, FORMAT_RAW = 1, FORMAT_RAW_JPEG = 2, FORMAT_COUNT = 3;
     public static final int AF_WIDE = 0, AF_ZONE = 1, AF_POINT = 2, AF_TRACKING = 3, AF_AREA_COUNT = 4;
     public static final int CROP_AUTO = 0, CROP_OFF = 1, CROP_COUNT = 2;
+    /** Flash: off, fill (every shot), rear-curtain sync, auto (only when dark). */
+    public static final int FLASH_OFF = 0, FLASH_FILL = 1, FLASH_REAR = 2, FLASH_AUTO = 3, FLASH_MODE_COUNT = 4;
 
-    public static final CameraSettings DEFAULT = new CameraSettings(MODE_P, 24, 12, -1, 0, WB_AUTO, 5500, METER_MATRIX, FOCUS_AFS, 3f, 0f, QUALITY_FINE, 0, DISP_FULL, PARAM_SHUTTER, SHUTTER_MECH, DRIVE_SINGLE, FORMAT_JPEG, AF_WIDE, 0f, 0f, true, true, true, CROP_AUTO, true);
+    public static final CameraSettings DEFAULT = new CameraSettings(MODE_P, 24, 12, -1, 0, WB_AUTO, 5500, METER_MATRIX, FOCUS_AFS, 3f, 0f, QUALITY_FINE, 0, DISP_FULL, PARAM_SHUTTER, SHUTTER_MECH, DRIVE_SINGLE, FORMAT_JPEG, AF_WIDE, 0f, 0f, true, true, true, CROP_AUTO, true, FLASH_OFF, 0);
 
-    private record G0(int mode, int shutterIndex, int apertureIndex, int isoIndex, int evComp, int whiteBalance, int kelvin, int metering, int focusMode, float focusDistance, float focal, int quality, int profile) {
+    private record G0(int mode, int shutterIndex, int apertureIndex, int isoIndex, int evComp, int whiteBalance, int kelvin, int metering, int focusMode, float focusDistance, float focal, int quality, int profile, int disp) {
         static final MapCodec<G0> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
                 Codec.INT.optionalFieldOf("mode", DEFAULT.mode()).forGetter(G0::mode),
                 Codec.INT.optionalFieldOf("shutter", DEFAULT.shutterIndex()).forGetter(G0::shutterIndex),
@@ -48,13 +50,13 @@ public record CameraSettings(int mode, int shutterIndex, int apertureIndex, int 
                 Codec.FLOAT.optionalFieldOf("focus_distance", DEFAULT.focusDistance()).forGetter(G0::focusDistance),
                 Codec.FLOAT.optionalFieldOf("focal", DEFAULT.focal()).forGetter(G0::focal),
                 Codec.INT.optionalFieldOf("quality", DEFAULT.quality()).forGetter(G0::quality),
-                Codec.INT.optionalFieldOf("profile", DEFAULT.profile()).forGetter(G0::profile)
+                Codec.INT.optionalFieldOf("profile", DEFAULT.profile()).forGetter(G0::profile),
+                Codec.INT.optionalFieldOf("disp", DEFAULT.disp()).forGetter(G0::disp)
         ).apply(i, G0::new));
     }
 
-    private record G1(int disp, int selectedParam, int shutterType, int drive, int fileFormat, int afArea, float afX, float afY, boolean subjectDetect, boolean peaking, boolean stabilization, int cropMode, boolean lensCorrection) {
+    private record G1(int selectedParam, int shutterType, int drive, int fileFormat, int afArea, float afX, float afY, boolean subjectDetect, boolean peaking, boolean stabilization, int cropMode, boolean lensCorrection, int flashMode, int flashComp) {
         static final MapCodec<G1> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
-                Codec.INT.optionalFieldOf("disp", DEFAULT.disp()).forGetter(G1::disp),
                 Codec.INT.optionalFieldOf("selected_param", DEFAULT.selectedParam()).forGetter(G1::selectedParam),
                 Codec.INT.optionalFieldOf("shutter_type", DEFAULT.shutterType()).forGetter(G1::shutterType),
                 Codec.INT.optionalFieldOf("drive", DEFAULT.drive()).forGetter(G1::drive),
@@ -66,19 +68,21 @@ public record CameraSettings(int mode, int shutterIndex, int apertureIndex, int 
                 Codec.BOOL.optionalFieldOf("peaking", DEFAULT.peaking()).forGetter(G1::peaking),
                 Codec.BOOL.optionalFieldOf("stabilization", DEFAULT.stabilization()).forGetter(G1::stabilization),
                 Codec.INT.optionalFieldOf("crop_mode", DEFAULT.cropMode()).forGetter(G1::cropMode),
-                Codec.BOOL.optionalFieldOf("lens_correction", DEFAULT.lensCorrection()).forGetter(G1::lensCorrection)
+                Codec.BOOL.optionalFieldOf("lens_correction", DEFAULT.lensCorrection()).forGetter(G1::lensCorrection),
+                Codec.INT.optionalFieldOf("flash_mode", DEFAULT.flashMode()).forGetter(G1::flashMode),
+                Codec.INT.optionalFieldOf("flash_comp", DEFAULT.flashComp()).forGetter(G1::flashComp)
         ).apply(i, G1::new));
     }
 
     public static final Codec<CameraSettings> CODEC = Codec.mapPair(G0.CODEC, G1.CODEC).xmap(
-            p -> new CameraSettings(p.getFirst().mode(), p.getFirst().shutterIndex(), p.getFirst().apertureIndex(), p.getFirst().isoIndex(), p.getFirst().evComp(), p.getFirst().whiteBalance(), p.getFirst().kelvin(), p.getFirst().metering(), p.getFirst().focusMode(), p.getFirst().focusDistance(), p.getFirst().focal(), p.getFirst().quality(), p.getFirst().profile(),
-                    p.getSecond().disp(), p.getSecond().selectedParam(), p.getSecond().shutterType(), p.getSecond().drive(), p.getSecond().fileFormat(), p.getSecond().afArea(), p.getSecond().afX(), p.getSecond().afY(), p.getSecond().subjectDetect(), p.getSecond().peaking(), p.getSecond().stabilization(), p.getSecond().cropMode(), p.getSecond().lensCorrection()),
-            s -> Pair.of(new G0(s.mode, s.shutterIndex, s.apertureIndex, s.isoIndex, s.evComp, s.whiteBalance, s.kelvin, s.metering, s.focusMode, s.focusDistance, s.focal, s.quality, s.profile), new G1(s.disp, s.selectedParam, s.shutterType, s.drive, s.fileFormat, s.afArea, s.afX, s.afY, s.subjectDetect, s.peaking, s.stabilization, s.cropMode, s.lensCorrection))).codec();
+            p -> new CameraSettings(p.getFirst().mode(), p.getFirst().shutterIndex(), p.getFirst().apertureIndex(), p.getFirst().isoIndex(), p.getFirst().evComp(), p.getFirst().whiteBalance(), p.getFirst().kelvin(), p.getFirst().metering(), p.getFirst().focusMode(), p.getFirst().focusDistance(), p.getFirst().focal(), p.getFirst().quality(), p.getFirst().profile(), p.getFirst().disp(),
+                    p.getSecond().selectedParam(), p.getSecond().shutterType(), p.getSecond().drive(), p.getSecond().fileFormat(), p.getSecond().afArea(), p.getSecond().afX(), p.getSecond().afY(), p.getSecond().subjectDetect(), p.getSecond().peaking(), p.getSecond().stabilization(), p.getSecond().cropMode(), p.getSecond().lensCorrection(), p.getSecond().flashMode(), p.getSecond().flashComp()),
+            s -> Pair.of(new G0(s.mode, s.shutterIndex, s.apertureIndex, s.isoIndex, s.evComp, s.whiteBalance, s.kelvin, s.metering, s.focusMode, s.focusDistance, s.focal, s.quality, s.profile, s.disp), new G1(s.selectedParam, s.shutterType, s.drive, s.fileFormat, s.afArea, s.afX, s.afY, s.subjectDetect, s.peaking, s.stabilization, s.cropMode, s.lensCorrection, s.flashMode, s.flashComp))).codec();
 
     public static final StreamCodec<ByteBuf, CameraSettings> STREAM_CODEC = new StreamCodec<>() {
         @Override
         public CameraSettings decode(ByteBuf buf) {
-            return new CameraSettings(buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readFloat(), buf.readFloat(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readFloat(), buf.readFloat(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readBoolean());
+            return new CameraSettings(buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readFloat(), buf.readFloat(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readFloat(), buf.readFloat(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readBoolean(), buf.readInt(), buf.readInt());
         }
 
         @Override
@@ -109,111 +113,121 @@ public record CameraSettings(int mode, int shutterIndex, int apertureIndex, int 
             buf.writeBoolean(s.stabilization);
             buf.writeInt(s.cropMode);
             buf.writeBoolean(s.lensCorrection);
+            buf.writeInt(s.flashMode);
+            buf.writeInt(s.flashComp);
         }
     };
 
     public CameraSettings withMode(int v) {
-        return new CameraSettings(v, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(v, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withShutterIndex(int v) {
-        return new CameraSettings(mode, v, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, v, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withApertureIndex(int v) {
-        return new CameraSettings(mode, shutterIndex, v, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, v, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withIsoIndex(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, v, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, v, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withEvComp(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, v, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, v, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withWhiteBalance(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, v, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, v, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withKelvin(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, v, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, v, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withMetering(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, v, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, v, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withFocusMode(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, v, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, v, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withFocusDistance(float v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, v, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, v, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withFocal(float v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, v, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, v, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withQuality(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, v, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, v, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withProfile(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, v, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, v, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withDisp(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, v, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, v, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withSelectedParam(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, v, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, v, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withShutterType(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, v, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, v, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withDrive(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, v, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, v, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withFileFormat(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, v, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, v, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withAfArea(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, v, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, v, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withAfX(float v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, v, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, v, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withAfY(float v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, v, subjectDetect, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, v, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withSubjectDetect(boolean v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, v, peaking, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, v, peaking, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withPeaking(boolean v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, v, stabilization, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, v, stabilization, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withStabilization(boolean v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, v, cropMode, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, v, cropMode, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withCropMode(int v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, v, lensCorrection);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, v, lensCorrection, flashMode, flashComp);
     }
 
     public CameraSettings withLensCorrection(boolean v) {
-        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, v);
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, v, flashMode, flashComp);
+    }
+
+    public CameraSettings withFlashMode(int v) {
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, v, flashComp);
+    }
+
+    public CameraSettings withFlashComp(int v) {
+        return new CameraSettings(mode, shutterIndex, apertureIndex, isoIndex, evComp, whiteBalance, kelvin, metering, focusMode, focusDistance, focal, quality, profile, disp, selectedParam, shutterType, drive, fileFormat, afArea, afX, afY, subjectDetect, peaking, stabilization, cropMode, lensCorrection, flashMode, v);
     }
 
     // compatibility helpers used across the code base

@@ -34,6 +34,9 @@ FIELDS = [
     ("stabilization", "boolean", "stabilization", "true"),
     ("cropMode", "int", "crop_mode", "CROP_AUTO"),
     ("lensCorrection", "boolean", "lens_correction", "true"),
+    # stage 3
+    ("flashMode", "int", "flash_mode", "FLASH_OFF"),
+    ("flashComp", "int", "flash_comp", "0"),
 ]
 
 CONSTANTS = """    public static final int MODE_AUTO = 0, MODE_P = 1, MODE_A = 2, MODE_S = 3, MODE_M = 4, MODE_COUNT = 5;
@@ -52,6 +55,8 @@ CONSTANTS = """    public static final int MODE_AUTO = 0, MODE_P = 1, MODE_A = 2
     public static final int FORMAT_JPEG = 0, FORMAT_RAW = 1, FORMAT_RAW_JPEG = 2, FORMAT_COUNT = 3;
     public static final int AF_WIDE = 0, AF_ZONE = 1, AF_POINT = 2, AF_TRACKING = 3, AF_AREA_COUNT = 4;
     public static final int CROP_AUTO = 0, CROP_OFF = 1, CROP_COUNT = 2;
+    /** Flash: off, fill (every shot), rear-curtain sync, auto (only when dark). */
+    public static final int FLASH_OFF = 0, FLASH_FILL = 1, FLASH_REAR = 2, FLASH_AUTO = 3, FLASH_MODE_COUNT = 4;
 """
 
 
@@ -64,7 +69,7 @@ def codec_type(t):
 
 
 def main():
-    half = 13
+    half = 14
     groups = [FIELDS[:half], FIELDS[half:]]
     lines = []
     w = lines.append

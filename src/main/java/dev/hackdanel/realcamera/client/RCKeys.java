@@ -40,6 +40,7 @@ public final class RCKeys {
     public static final KeyMapping MENU = key("menu", GLFW.GLFW_KEY_G);
     public static final KeyMapping MAGNIFY = key("magnify", GLFW.GLFW_KEY_H);
     public static final KeyMapping DRIVE = key("drive", GLFW.GLFW_KEY_B);
+    public static final KeyMapping FLASH = key("flash", GLFW.GLFW_KEY_V);
     public static final KeyMapping AF_AREA = key("af_area", GLFW.GLFW_KEY_N);
     public static final KeyMapping AF_LEFT = key("af_left", GLFW.GLFW_KEY_LEFT);
     public static final KeyMapping AF_RIGHT = key("af_right", GLFW.GLFW_KEY_RIGHT);
@@ -47,7 +48,7 @@ public final class RCKeys {
     public static final KeyMapping AF_DOWN = key("af_down", GLFW.GLFW_KEY_DOWN);
 
     /** Keys that only do something with the camera at the eye (drained otherwise). */
-    public static final KeyMapping[] VIEWFINDER_KEYS = {PREV_PARAM, NEXT_PARAM, MODE, FOCUS_MODE, DISP, MAGNIFY, DRIVE,
+    public static final KeyMapping[] VIEWFINDER_KEYS = {PREV_PARAM, NEXT_PARAM, MODE, FOCUS_MODE, DISP, MAGNIFY, DRIVE, FLASH,
             AF_AREA, AF_LEFT, AF_RIGHT, AF_UP, AF_DOWN};
 
     private RCKeys() {}
@@ -67,6 +68,7 @@ public final class RCKeys {
         event.register(MENU);
         event.register(MAGNIFY);
         event.register(DRIVE);
+        event.register(FLASH);
         event.register(AF_AREA);
         event.register(AF_LEFT);
         event.register(AF_RIGHT);

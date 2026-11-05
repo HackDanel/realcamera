@@ -32,7 +32,8 @@ import net.neoforged.neoforge.client.model.BakedModelWrapper;
  */
 @EventBusSubscriber(modid = RealCamera.MODID, value = Dist.CLIENT)
 public final class SpecItemModels {
-    private static final String[] FOLDERS = {"body", "lens", "battery", "card", "adapter", "teleconverter"};
+    private static final String[] FOLDERS = {"body", "lens", "battery", "card", "adapter", "teleconverter", "flash",
+            "filter", "grip"};
 
     private SpecItemModels() {}
 
@@ -56,6 +57,9 @@ public final class SpecItemModels {
         wrap(models, RCItems.MEMORY_CARD.get(), (r, s) -> Specs.card(r, s).map(c -> c.model()).orElse(null), false);
         wrap(models, RCItems.MOUNT_ADAPTER.get(), (r, s) -> Specs.adapter(r, s).map(a -> a.model()).orElse(null), false);
         wrap(models, RCItems.TELECONVERTER.get(), (r, s) -> Specs.teleconverter(r, s).map(t -> t.model()).orElse(null), false);
+        wrap(models, RCItems.FLASH.get(), (r, s) -> Specs.flash(r, s).map(f -> f.model()).orElse(null), false);
+        wrap(models, RCItems.FILTER.get(), (r, s) -> Specs.filter(r, s).map(f -> f.model()).orElse(null), false);
+        wrap(models, RCItems.BATTERY_GRIP.get(), (r, s) -> Specs.grip(r, s).map(g -> g.model()).orElse(null), false);
     }
 
     private static void wrap(Map<ModelResourceLocation, BakedModel> models, Item item,
@@ -178,8 +182,11 @@ public final class SpecItemModels {
             var adapter = Specs.adapter(r, parts.adapter()).orElse(null);
             var tc = Specs.teleconverter(r, parts.teleconverter()).orElse(null);
             var lens = Specs.lens(r, parts.lens()).orElse(null);
+            var flash = Specs.flash(r, parts.flash()).orElse(null);
+            var grip = Specs.grip(r, parts.grip()).orElse(null);
             String key = rl + "|" + (adapter == null ? "" : adapter.model()) + "|" + (tc == null ? "" : tc.model()) + "|"
-                    + (lens == null ? "" : lens.model());
+                    + (lens == null ? "" : lens.model()) + "|" + (flash == null ? "" : flash.model()) + "|"
+                    + (grip == null ? "" : grip.model());
             return composites.computeIfAbsent(key, k -> {
                 java.util.List<BakedModel> chain = new java.util.ArrayList<>();
                 float offset = 0;
@@ -197,6 +204,15 @@ public final class SpecItemModels {
                 if (lens != null) {
                     BakedModel m = standalone(lens.model().withSuffix("_mounted"));
                     if (m != null) chain.add(offset == 0 ? m : new Shifted(m, offset));
+                }
+                // accessories that sit on the body itself (hot shoe on top, grip underneath)
+                if (flash != null) {
+                    BakedModel m = standalone(flash.model().withSuffix("_mounted"));
+                    if (m != null) chain.add(m);
+                }
+                if (grip != null) {
+                    BakedModel m = standalone(grip.model().withSuffix("_mounted"));
+                    if (m != null) chain.add(m);
                 }
                 return chain.isEmpty() ? own : new Composite(own, chain);
             });

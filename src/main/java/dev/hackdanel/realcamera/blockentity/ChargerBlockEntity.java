@@ -30,7 +30,8 @@ public class ChargerBlockEntity extends MachineBlockEntity {
 
     @Override
     protected boolean isItemValid(int slot, ItemStack stack) {
-        return stack.getItem() instanceof BatteryItem;
+        // batteries, battery grips and flashes (rechargeable AA cells) all carry a charge
+        return stack.getItem() instanceof BatteryItem || stack.has(dev.hackdanel.realcamera.registry.RCComponents.CHARGE.get());
     }
 
     @Override

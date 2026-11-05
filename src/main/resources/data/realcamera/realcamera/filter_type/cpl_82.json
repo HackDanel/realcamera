@@ -1,0 +1,10 @@
+{
+  "name": "CPL 82mm",
+  "kind": "cpl",
+  "nd_stops": 0,
+  "r": 1,
+  "g": 1,
+  "b": 1,
+  "diameter_mm": 82,
+  "model": "realcamera:item/filter/cpl_82"
+}

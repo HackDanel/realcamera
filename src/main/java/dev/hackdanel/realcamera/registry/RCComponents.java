@@ -46,6 +46,22 @@ public final class RCComponents {
             "teleconverter", b -> b.persistent(ResourceKey.codec(RCRegistries.TELECONVERTER))
                     .networkSynchronized(ResourceKey.streamCodec(RCRegistries.TELECONVERTER)));
 
+    public static final Supplier<DataComponentType<ResourceKey<dev.hackdanel.realcamera.spec.FlashSpec>>> FLASH_TYPE = REGISTER.registerComponentType(
+            "flash_type", b -> b.persistent(ResourceKey.codec(RCRegistries.FLASH_TYPE))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.FLASH_TYPE)));
+    public static final Supplier<DataComponentType<ResourceKey<dev.hackdanel.realcamera.spec.FilterSpec>>> FILTER_TYPE = REGISTER.registerComponentType(
+            "filter_type", b -> b.persistent(ResourceKey.codec(RCRegistries.FILTER_TYPE))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.FILTER_TYPE)));
+    public static final Supplier<DataComponentType<ResourceKey<dev.hackdanel.realcamera.spec.GripSpec>>> GRIP_TYPE = REGISTER.registerComponentType(
+            "grip_type", b -> b.persistent(ResourceKey.codec(RCRegistries.GRIP_TYPE))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.GRIP_TYPE)));
+    public static final Supplier<DataComponentType<dev.hackdanel.realcamera.component.CameraWear>> WEAR = REGISTER.registerComponentType(
+            "wear", b -> b.persistent(dev.hackdanel.realcamera.component.CameraWear.CODEC)
+                    .networkSynchronized(dev.hackdanel.realcamera.component.CameraWear.STREAM_CODEC));
+    /** Lens decentring after a fall (0 = fine .. 1 = badly knocked), cracked filter glass, etc. */
+    public static final Supplier<DataComponentType<Float>> DAMAGE = REGISTER.registerComponentType(
+            "damage", b -> b.persistent(Codec.FLOAT).networkSynchronized(ByteBufCodecs.FLOAT));
+
     public static final Supplier<DataComponentType<CameraParts>> CAMERA_PARTS = REGISTER.registerComponentType(
             "camera_parts", b -> b.persistent(CameraParts.CODEC).networkSynchronized(CameraParts.STREAM_CODEC).cacheEncoding());
     public static final Supplier<DataComponentType<CameraSettings>> CAMERA_SETTINGS = REGISTER.registerComponentType(

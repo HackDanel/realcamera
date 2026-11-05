@@ -1,0 +1,8 @@
+{
+  "name": "Canon Speedlite EL-5",
+  "gn": 60,
+  "recycle_s": 1.2,
+  "hss": true,
+  "capacity": 350,
+  "model": "realcamera:item/flash/canon_el5"
+}

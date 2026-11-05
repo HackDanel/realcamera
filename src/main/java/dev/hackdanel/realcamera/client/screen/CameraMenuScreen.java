@@ -21,19 +21,19 @@ import net.minecraft.world.item.ItemStack;
 
 /** The camera's menu (G): settings that live in menus on a real body rather than on dials. */
 public class CameraMenuScreen extends Screen {
-    private final InteractionHand hand;
+    private final dev.hackdanel.realcamera.camera.CameraRef hand;
     private CameraSettings settings;
     private final List<Row> rows = new ArrayList<>();
 
     private record Row(String key, Function<CameraSettings, Component> value, UnaryOperator<CameraSettings> next) {}
 
-    public CameraMenuScreen(InteractionHand hand) {
+    public CameraMenuScreen(dev.hackdanel.realcamera.camera.CameraRef hand) {
         super(Component.translatable("gui.realcamera.camera_menu"));
         this.hand = hand;
     }
 
     private ItemStack camera() {
-        return minecraft == null || minecraft.player == null ? ItemStack.EMPTY : minecraft.player.getItemInHand(hand);
+        return Viewfinder.camera();
     }
 
     @Override
@@ -70,6 +70,10 @@ public class CameraMenuScreen extends Screen {
         rows.add(new Row("stabilization", s -> onOff(s.stabilization()), s -> s.withStabilization(!s.stabilization())));
         rows.add(new Row("crop_mode", s -> Component.translatable("gui.realcamera.crop_mode." + s.cropMode()),
                 s -> s.withCropMode((s.cropMode() + 1) % CameraSettings.CROP_COUNT)));
+        rows.add(new Row("flash_mode", s -> Component.translatable("gui.realcamera.flash_mode." + s.flashMode()),
+                s -> s.withFlashMode((s.flashMode() + 1) % CameraSettings.FLASH_MODE_COUNT)));
+        rows.add(new Row("flash_comp", s -> Component.literal(dev.hackdanel.realcamera.optics.ExposureScales.evCompLabel(s.flashComp())),
+                s -> s.withFlashComp(s.flashComp() >= 6 ? -6 : s.flashComp() + 1)));
         rows.add(new Row("lens_correction", s -> onOff(s.lensCorrection()), s -> s.withLensCorrection(!s.lensCorrection())));
 
         // two columns so all settings fit on small screens

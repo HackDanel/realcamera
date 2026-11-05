@@ -4,6 +4,7 @@ import dev.hackdanel.realcamera.component.BatteryCharge;
 import dev.hackdanel.realcamera.component.CameraParts;
 import dev.hackdanel.realcamera.component.CameraSettings;
 import dev.hackdanel.realcamera.component.CardData;
+import dev.hackdanel.realcamera.component.CameraWear;
 import dev.hackdanel.realcamera.item.CameraBodyItem;
 import dev.hackdanel.realcamera.registry.RCComponents;
 import dev.hackdanel.realcamera.spec.CameraBodySpec;
@@ -49,21 +50,50 @@ public final class CameraHelper {
         return parts(camera).battery().get(RCComponents.CHARGE.get());
     }
 
-    public static boolean hasPower(ItemStack camera) {
-        BatteryCharge c = charge(camera);
-        return c != null && c.charge() > 0;
+    public static BatteryCharge gripCharge(ItemStack camera) {
+        return parts(camera).grip().get(RCComponents.CHARGE.get());
     }
 
-    /** Remove {@code amount} charge units from the inserted battery. Returns false if it was already empty. */
+    public static boolean hasPower(ItemStack camera) {
+        if (wear(camera).dead()) {
+            return false;
+        }
+        BatteryCharge c = charge(camera), g = gripCharge(camera);
+        return (c != null && c.charge() > 0) || (g != null && g.charge() > 0);
+    }
+
+    public static CameraWear wear(ItemStack camera) {
+        return camera.getOrDefault(RCComponents.WEAR.get(), CameraWear.NEW);
+    }
+
+    /**
+     * Remove {@code amount} charge units: the battery grip is used first, then the body battery.
+     * Returns false if there was no charge at all.
+     */
     public static boolean drain(ItemStack camera, int amount) {
         CameraParts parts = parts(camera);
-        ItemStack battery = parts.battery().copy();
-        BatteryCharge c = battery.get(RCComponents.CHARGE.get());
+        for (int slot : new int[]{CameraParts.SLOT_GRIP, CameraParts.SLOT_BATTERY}) {
+            ItemStack power = parts.get(slot).copy();
+            BatteryCharge c = power.get(RCComponents.CHARGE.get());
+            if (c != null && c.charge() > 0) {
+                power.set(RCComponents.CHARGE.get(), c.withCharge(c.charge() - amount));
+                setParts(camera, parts.with(slot, power));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Use one charge of the hot-shoe flash's batteries; false if it is flat. */
+    public static boolean drainFlash(ItemStack camera) {
+        CameraParts parts = parts(camera);
+        ItemStack flash = parts.flash().copy();
+        BatteryCharge c = flash.get(RCComponents.CHARGE.get());
         if (c == null || c.charge() <= 0) {
             return false;
         }
-        battery.set(RCComponents.CHARGE.get(), c.withCharge(c.charge() - amount));
-        setParts(camera, parts.with(CameraParts.SLOT_BATTERY, battery));
+        flash.set(RCComponents.CHARGE.get(), c.withCharge(c.charge() - 1));
+        setParts(camera, parts.with(CameraParts.SLOT_FLASH, flash));
         return true;
     }
 

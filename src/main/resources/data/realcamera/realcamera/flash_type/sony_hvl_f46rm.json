@@ -1,0 +1,8 @@
+{
+  "name": "Sony HVL-F46RM",
+  "gn": 46,
+  "recycle_s": 1.7,
+  "hss": true,
+  "capacity": 320,
+  "model": "realcamera:item/flash/sony_hvl_f46rm"
+}

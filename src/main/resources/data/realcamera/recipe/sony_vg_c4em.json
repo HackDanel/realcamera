@@ -1,0 +1,29 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 2
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    },
+    {
+      "item": "realcamera:battery_cell",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:battery_grip",
+    "count": 1,
+    "components": {
+      "realcamera:grip_type": "realcamera:sony_vg_c4em",
+      "realcamera:charge": {
+        "charge": 290,
+        "capacity": 580
+      }
+    }
+  },
+  "time": 160
+}

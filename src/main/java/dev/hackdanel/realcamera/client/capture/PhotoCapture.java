@@ -73,10 +73,10 @@ public final class PhotoCapture {
      * Everything frozen at the moment the shutter fired. seconds = -1 for bulb. motion is in fractions
      * of the image width.
      */
-    public record Shot(InteractionHand hand, OpticalChain chain, CameraSettings settings, Exposure.Result exposure,
+    public record Shot(dev.hackdanel.realcamera.camera.CameraRef ref, OpticalChain chain, CameraSettings settings, Exposure.Result exposure,
                        float focal, float focusDistance, double sceneEv, boolean blockLit, int frameNumber,
                        String cameraName, String lensName, double seconds, ImageParams.Motion motion,
-                       ImageParams.Sun sun) {
+                       ImageParams.Sun sun, ImageParams.Extras extras) {
         boolean longExposure() {
             return seconds < 0 || seconds >= LONG_EXPOSURE_S;
         }
@@ -97,6 +97,7 @@ public final class PhotoCapture {
     private static final class Active {
         final Shot shot;
         final boolean savedHideGui;
+        final net.minecraft.world.entity.Entity savedCamera;
         final int origW, origH, w, h;
         int warmup = WARMUP_FRAMES;
         // long exposure
@@ -104,12 +105,13 @@ public final class PhotoCapture {
         final int[] pbo = new int[2];
         float[] sum;
         int frameIndex, accumulated;
-        float[] depthGrid;
+        float[] depthGrid, lightGrid;
         int gw, gh;
 
-        Active(Shot shot, boolean savedHideGui, int origW, int origH, int w, int h) {
+        Active(Shot shot, boolean savedHideGui, net.minecraft.world.entity.Entity savedCamera, int origW, int origH, int w, int h) {
             this.shot = shot;
             this.savedHideGui = savedHideGui;
+            this.savedCamera = savedCamera;
             this.origW = origW;
             this.origH = origH;
             this.w = w;
@@ -147,6 +149,15 @@ public final class PhotoCapture {
         return developing + PhotoUploader.pending();
     }
 
+    /** The photo covers exactly the shot's sensor frame, whatever the viewfinder state is now. */
+    @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.LOWEST)
+    static void onFov(net.neoforged.neoforge.client.event.ViewportEvent.ComputeFov event) {
+        Active a = active;
+        if (a != null && event.usedConfiguredFov()) {
+            event.setFOV(Optics.verticalFovDeg(a.shot.chain().sensor().heightMm(), a.shot.focal()));
+        }
+    }
+
     @SubscribeEvent
     static void onFramePre(RenderFrameEvent.Pre event) {
         Minecraft mc = Minecraft.getInstance();
@@ -160,7 +171,11 @@ public final class PhotoCapture {
         float aspect = shot.chain().sensor().aspect();
         int w = aspect >= 1 ? longSide : Math.round(longSide * aspect);
         int h = aspect >= 1 ? Math.round(longSide / aspect) : longSide;
-        active = new Active(shot, mc.options.hideGui, window.getWidth(), window.getHeight(), w, h);
+        active = new Active(shot, mc.options.hideGui, mc.getCameraEntity(), window.getWidth(), window.getHeight(), w, h);
+        if (shot.ref().isTripod() && mc.level.getEntity(shot.ref().tripodId()) instanceof net.minecraft.world.entity.Entity tripod) {
+            // the tripod's camera takes the picture, wherever the photographer is (self-timer selfies)
+            mc.setCameraEntity(tripod);
+        }
         resize(mc, w, h);
         mc.options.hideGui = true;
     }
@@ -179,11 +194,11 @@ public final class PhotoCapture {
             active = null;
             NativeImage image = Screenshot.takeScreenshot(mc.getMainRenderTarget());
             int gw = 192, gh = Math.max(1, Math.round(gw / a.shot.chain().sensor().aspect()));
-            float[] grid = depthGrid(mc, a.shot, gw, gh);
+            float[][] grids = grids(mc, a.shot, gw, gh);
             finish(mc, a);
             int[] rgb = toRgb(image);
             image.close();
-            submit(mc, a.shot, rgb, null, a.w, a.h, grid, gw, gh, a.shot.seconds());
+            submit(mc, a.shot, rgb, null, a.w, a.h, grids[0], grids[1], gw, gh, a.shot.seconds());
             return;
         }
         accumulateFrame(mc, a);
@@ -198,7 +213,9 @@ public final class PhotoCapture {
             a.sum = new float[a.w * a.h * 3];
             a.gw = 192;
             a.gh = Math.max(1, Math.round(a.gw / a.shot.chain().sensor().aspect()));
-            a.depthGrid = depthGrid(mc, a.shot, a.gw, a.gh);
+            float[][] grids = grids(mc, a.shot, a.gw, a.gh);
+            a.depthGrid = grids[0];
+            a.lightGrid = grids[1];
             for (int i = 0; i < 2; i++) {
                 a.pbo[i] = GL15.glGenBuffers();
                 GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, a.pbo[i]);
@@ -238,7 +255,7 @@ public final class PhotoCapture {
             linear[i] *= inv;
         }
         RealCamera.LOGGER.debug("Long exposure {} s: {} frames", String.format("%.2f", elapsed), a.accumulated);
-        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.gw, a.gh, elapsed);
+        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.gw, a.gh, elapsed);
     }
 
     /** Sum one frame (GL rows are bottom-up) into the float buffer in linear light. */
@@ -265,14 +282,17 @@ public final class PhotoCapture {
 
     // ------------------------------------------------------------------ helpers (render thread)
 
-    private static float[] depthGrid(Minecraft mc, Shot s, int gw, int gh) {
+    private static float[][] grids(Minecraft mc, Shot s, int gw, int gh) {
         return new CameraRays(mc.level, mc.getCameraEntity(), mc.gameRenderer.getMainCamera(),
                 Optics.verticalFovDeg(s.chain().sensor().heightMm(), s.focal()), s.chain().sensor().aspect(), 512)
-                .depthGrid(gw, gh);
+                .grids(gw, gh, s.extras().flashAt1m() > 0);
     }
 
     private static void finish(Minecraft mc, Active a) {
         mc.options.hideGui = a.savedHideGui;
+        if (a.savedCamera != null && mc.getCameraEntity() != a.savedCamera) {
+            mc.setCameraEntity(a.savedCamera);
+        }
         resize(mc, a.origW, a.origH); // resizing clears the buffer: the screen blacks out like a real EVF
     }
 
@@ -296,30 +316,32 @@ public final class PhotoCapture {
         return rgb;
     }
 
-    private static void submit(Minecraft mc, Shot shot, int[] rgb, float[] linear, int w, int h, float[] grid, int gw,
-                               int gh, double actualSeconds) {
+    private static void submit(Minecraft mc, Shot shot, int[] rgb, float[] linear, int w, int h, float[] grid,
+                               float[] lightGrid, int gw, int gh, double actualSeconds) {
         ColorProfileSpec profile = Specs.profile(mc.level.registryAccess(), shot.chain().body(), shot.settings().profile())
                 .orElse(null);
         String artist = mc.getUser().getName();
         int maxUpload = ServerConfig.MAX_UPLOAD_RESOLUTION.get();
         developing++;
-        WORKER.execute(() -> develop(shot, rgb, linear, w, h, grid, gw, gh, actualSeconds, profile, artist, maxUpload));
+        WORKER.execute(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, gw, gh, actualSeconds, profile, artist,
+                maxUpload));
     }
 
     // ------------------------------------------------------------------ worker thread
 
-    private static void develop(Shot s, int[] rgb, float[] linear, int w, int h, float[] grid, int gw, int gh,
-                                double seconds, ColorProfileSpec profile, String artist, int maxUpload) {
+    private static void develop(Shot s, int[] rgb, float[] linear, int w, int h, float[] grid, float[] lightGrid,
+                                int gw, int gh, double seconds, ColorProfileSpec profile, String artist, int maxUpload) {
         long t0 = System.nanoTime();
         try {
             int[] guide = rgb != null ? rgb : ImagePipeline.toSrgb(linear);
             float[] depth = DepthUpsampler.upsample(grid, gw, gh, guide, w, h);
+            float[] light = lightGrid == null ? null : DepthUpsampler.upsample(lightGrid, gw, gh, guide, w, h);
             ImageParams params = params(s, profile, w, h, seconds);
             if (Boolean.getBoolean("realcamera.debugDumps")) {
                 debugDump(guide, depth, w, h);
             }
             float[] img = linear != null ? linear : ImagePipeline.toLinear(rgb);
-            int[] developed = ImagePipeline.toSrgb(ImagePipeline.developLinear(img, depth, w, h, params));
+            int[] developed = ImagePipeline.toSrgb(ImagePipeline.developLinear(img, depth, light, w, h, params));
 
             int format = s.settings().fileFormat();
             float quality = s.settings().quality() == CameraSettings.QUALITY_NORMAL ? 0.8f : 0.93f;
@@ -343,7 +365,7 @@ public final class PhotoCapture {
                     (System.nanoTime() - t0) / 1_000_000, upload.length / 1024);
             Minecraft.getInstance().execute(() -> {
                 developing--;
-                PhotoUploader.upload(s.hand(), meta, upload, s.settings().quality(), format);
+                PhotoUploader.upload(s.ref(), meta, upload, s.settings().quality(), format);
             });
         } catch (IOException | RuntimeException e) {
             RealCamera.LOGGER.error("Developing photo failed", e);
@@ -397,7 +419,7 @@ public final class PhotoCapture {
                         profile != null && profile.monochrome(), profile == null ? 1 : profile.tintR(),
                         profile == null ? 1 : profile.tintG(), profile == null ? 1 : profile.tintB(),
                         profile == null ? 0 : profile.shadowLift()),
-                System.nanoTime());
+                s.extras(), System.nanoTime());
     }
 
     private static double nominalSeconds(Shot s, double seconds) {

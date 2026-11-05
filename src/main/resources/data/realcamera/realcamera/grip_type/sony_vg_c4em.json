@@ -1,0 +1,8 @@
+{
+  "name": "Sony VG-C4EM",
+  "bodies": [
+    "realcamera:sony_a7iv"
+  ],
+  "battery_type": "realcamera:np_fz100",
+  "model": "realcamera:item/grip/sony_vg_c4em"
+}

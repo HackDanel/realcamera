@@ -1,0 +1,8 @@
+{
+  "name": "Nikon SB-700",
+  "gn": 28,
+  "recycle_s": 2.5,
+  "hss": true,
+  "capacity": 160,
+  "model": "realcamera:item/flash/nikon_sb700"
+}

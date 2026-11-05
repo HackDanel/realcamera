@@ -1,0 +1,29 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 2
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    },
+    {
+      "item": "realcamera:battery_cell",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:battery_grip",
+    "count": 1,
+    "components": {
+      "realcamera:grip_type": "realcamera:nikon_mb_d16",
+      "realcamera:charge": {
+        "charge": 615,
+        "capacity": 1230
+      }
+    }
+  },
+  "time": 160
+}

@@ -48,5 +48,9 @@
     "realcamera:leica_vivid",
     "realcamera:leica_mono"
   ],
-  "model": "realcamera:item/body/leica_m11"
+  "model": "realcamera:item/body/leica_m11",
+  "flash": {
+    "built_in_gn": 0,
+    "sync": 0.005555555555555556
+  }
 }

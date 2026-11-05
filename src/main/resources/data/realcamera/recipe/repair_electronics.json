@@ -1,0 +1,23 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:camera_body",
+      "count": 1
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 2
+    },
+    {
+      "item": "realcamera:processor",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:camera_body",
+    "count": 1
+  },
+  "time": 200,
+  "repair": "electronics"
+}

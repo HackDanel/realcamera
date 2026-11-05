@@ -1,0 +1,8 @@
+{
+  "name": "Godox V1",
+  "gn": 76,
+  "recycle_s": 1.5,
+  "hss": true,
+  "capacity": 480,
+  "model": "realcamera:item/flash/godox_v1"
+}

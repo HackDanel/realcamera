@@ -51,5 +51,9 @@
     "realcamera:sony_fl",
     "realcamera:sony_bw"
   ],
-  "model": "realcamera:item/body/sony_a7iv"
+  "model": "realcamera:item/body/sony_a7iv",
+  "flash": {
+    "built_in_gn": 0,
+    "sync": 0.004
+  }
 }

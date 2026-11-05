@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:slime_ball",
+      "count": 1
+    },
+    {
+      "item": "minecraft:paper",
+      "count": 2
+    },
+    {
+      "item": "minecraft:glass_bottle",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:cleaning_kit",
+    "count": 1
+  },
+  "time": 40
+}

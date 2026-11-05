@@ -53,6 +53,10 @@ public class CameraBodyItem extends Item {
             return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
         }
         CameraParts parts = CameraHelper.parts(stack);
+        if (CameraHelper.wear(stack).dead()) {
+            player.displayClientMessage(Component.translatable("message.realcamera.camera_dead"), true);
+            return InteractionResultHolder.fail(stack);
+        }
         if (parts.lens().isEmpty()) {
             player.displayClientMessage(Component.translatable("message.realcamera.no_lens"), true);
             return InteractionResultHolder.fail(stack);
@@ -124,6 +128,12 @@ public class CameraBodyItem extends Item {
         lines.add(left < 0
                 ? Component.translatable("tooltip.realcamera.no_card").withStyle(ChatFormatting.DARK_GRAY)
                 : Component.translatable("tooltip.realcamera.shots_left", left).withStyle(ChatFormatting.GRAY));
+        var wear = CameraHelper.wear(stack);
+        if (wear.dead()) lines.add(Component.translatable("tooltip.realcamera.wear.dead").withStyle(ChatFormatting.RED));
+        if (wear.shutterJammed()) lines.add(Component.translatable("tooltip.realcamera.wear.jammed").withStyle(ChatFormatting.RED));
+        if (wear.moisture() >= 40) lines.add(Component.translatable("tooltip.realcamera.wear.moist").withStyle(ChatFormatting.BLUE));
+        if (!wear.dust().isEmpty()) lines.add(Component.translatable("tooltip.realcamera.wear.dust", wear.dust().size())
+                .withStyle(ChatFormatting.GOLD));
         if (flag.isAdvanced()) {
             lines.add(Component.translatable("tooltip.realcamera.shutter_count", CameraHelper.shutterCount(stack))
                     .withStyle(ChatFormatting.DARK_GRAY));

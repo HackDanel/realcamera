@@ -22,17 +22,24 @@ import net.neoforged.neoforge.common.crafting.SizedIngredient;
  * Photo workshop recipe: a shapeless list of ingredients with counts, a result that may carry data
  * components (e.g. which camera model), and an assembly time in ticks.
  */
-public record AssemblyRecipe(List<SizedIngredient> inputs, ItemStack result, int time) implements Recipe<AssemblyInput> {
+public record AssemblyRecipe(List<SizedIngredient> inputs, ItemStack result, int time, String repair)
+        implements Recipe<AssemblyInput> {
+    /**
+     * repair: "" for normal recipes; "shutter", "electronics", "lens" or "filter" make the result a
+     * repaired copy of the matching input item (keeping its components).
+     */
     public static final MapCodec<AssemblyRecipe> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             SizedIngredient.FLAT_CODEC.listOf(1, 6).fieldOf("ingredients").forGetter(AssemblyRecipe::inputs),
             ItemStack.STRICT_CODEC.fieldOf("result").forGetter(AssemblyRecipe::result),
-            Codec.INT.optionalFieldOf("time", 100).forGetter(AssemblyRecipe::time)
+            Codec.INT.optionalFieldOf("time", 100).forGetter(AssemblyRecipe::time),
+            Codec.STRING.optionalFieldOf("repair", "").forGetter(AssemblyRecipe::repair)
     ).apply(i, AssemblyRecipe::new));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, AssemblyRecipe> STREAM_CODEC = StreamCodec.composite(
             SizedIngredient.STREAM_CODEC.apply(ByteBufCodecs.list()), AssemblyRecipe::inputs,
             ItemStack.STREAM_CODEC, AssemblyRecipe::result,
             ByteBufCodecs.VAR_INT, AssemblyRecipe::time,
+            ByteBufCodecs.STRING_UTF8, AssemblyRecipe::repair,
             AssemblyRecipe::new);
 
     @Override
@@ -70,6 +77,26 @@ public record AssemblyRecipe(List<SizedIngredient> inputs, ItemStack result, int
 
     @Override
     public ItemStack assemble(AssemblyInput input, HolderLookup.Provider registries) {
+        if (repair.isEmpty()) {
+            return result.copy();
+        }
+        for (int s = 0; s < input.size(); s++) {
+            ItemStack stack = input.getItem(s);
+            if (!stack.is(result.getItem())) continue;
+            ItemStack fixed = stack.copyWithCount(1);
+            var wear = fixed.getOrDefault(dev.hackdanel.realcamera.registry.RCComponents.WEAR.get(),
+                    dev.hackdanel.realcamera.component.CameraWear.NEW);
+            switch (repair) {
+                case "shutter" -> {
+                    fixed.set(dev.hackdanel.realcamera.registry.RCComponents.WEAR.get(), wear.withJammed(false));
+                    fixed.set(dev.hackdanel.realcamera.registry.RCComponents.SHUTTER_COUNT.get(), 0);
+                }
+                case "electronics" -> fixed.set(dev.hackdanel.realcamera.registry.RCComponents.WEAR.get(),
+                        wear.withDead(false).withMoisture(0));
+                default -> fixed.remove(dev.hackdanel.realcamera.registry.RCComponents.DAMAGE.get());
+            }
+            return fixed;
+        }
         return result.copy();
     }
 

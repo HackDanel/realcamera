@@ -237,7 +237,7 @@ public final class Stage1Autotest {
                 wait = 20;
             }
             case 18 -> {
-                mc.setScreen(new dev.hackdanel.realcamera.client.screen.PlaybackScreen(InteractionHand.MAIN_HAND));
+                mc.setScreen(new dev.hackdanel.realcamera.client.screen.PlaybackScreen(dev.hackdanel.realcamera.camera.CameraRef.hand(InteractionHand.MAIN_HAND)));
                 wait = 40;
             }
             case 19 -> {
@@ -245,7 +245,7 @@ public final class Stage1Autotest {
                 wait = 5;
             }
             case 20 -> {
-                mc.setScreen(new dev.hackdanel.realcamera.client.screen.CameraMenuScreen(InteractionHand.MAIN_HAND));
+                mc.setScreen(new dev.hackdanel.realcamera.client.screen.CameraMenuScreen(dev.hackdanel.realcamera.camera.CameraRef.hand(InteractionHand.MAIN_HAND)));
                 wait = 10;
             }
             case 21 -> {

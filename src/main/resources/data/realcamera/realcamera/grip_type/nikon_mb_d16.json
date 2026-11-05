@@ -1,0 +1,8 @@
+{
+  "name": "Nikon MB-D16",
+  "bodies": [
+    "realcamera:nikon_d750"
+  ],
+  "battery_type": "realcamera:en_el15c",
+  "model": "realcamera:item/grip/nikon_mb_d16"
+}

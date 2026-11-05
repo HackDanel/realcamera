@@ -1,0 +1,269 @@
+{
+  "texture_size": [
+    64,
+    64
+  ],
+  "textures": {
+    "t": "realcamera:item/grip/sony_vg_c4em",
+    "particle": "realcamera:item/grip/sony_vg_c4em"
+  },
+  "elements": [
+    {
+      "from": [
+        1.5,
+        6.5,
+        9.0
+      ],
+      "to": [
+        14.5,
+        9.5,
+        13.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0.0,
+            0.0,
+            8.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "south": {
+          "uv": [
+            0.0,
+            0.0,
+            8.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "east": {
+          "uv": [
+            0.0,
+            0.0,
+            8.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "west": {
+          "uv": [
+            0.0,
+            0.0,
+            8.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "up": {
+          "uv": [
+            0.0,
+            0.0,
+            8.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "down": {
+          "uv": [
+            0.0,
+            0.0,
+            8.0,
+            4.0
+          ],
+          "texture": "#t"
+        }
+      }
+    },
+    {
+      "from": [
+        11.0,
+        6.5,
+        6.8
+      ],
+      "to": [
+        14.5,
+        9.5,
+        9.0
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.0,
+            0.0,
+            16.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "south": {
+          "uv": [
+            8.0,
+            0.0,
+            16.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "east": {
+          "uv": [
+            8.0,
+            0.0,
+            16.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "west": {
+          "uv": [
+            8.0,
+            0.0,
+            16.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "up": {
+          "uv": [
+            8.0,
+            0.0,
+            16.0,
+            4.0
+          ],
+          "texture": "#t"
+        },
+        "down": {
+          "uv": [
+            8.0,
+            0.0,
+            16.0,
+            4.0
+          ],
+          "texture": "#t"
+        }
+      }
+    }
+  ],
+  "display": {
+    "gui": {
+      "rotation": [
+        25,
+        -40,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.75,
+        0.75,
+        0.75
+      ]
+    },
+    "ground": {
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        2,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "fixed": {
+      "rotation": [
+        0,
+        180,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.75,
+        0.75,
+        0.75
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.45,
+        0.45,
+        0.45
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        75,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.45,
+        0.45,
+        0.45
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        -30,
+        0
+      ],
+      "translation": [
+        1,
+        2,
+        0
+      ],
+      "scale": [
+        0.55,
+        0.55,
+        0.55
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        0,
+        30,
+        0
+      ],
+      "translation": [
+        1,
+        2,
+        0
+      ],
+      "scale": [
+        0.55,
+        0.55,
+        0.55
+      ]
+    }
+  }
+}

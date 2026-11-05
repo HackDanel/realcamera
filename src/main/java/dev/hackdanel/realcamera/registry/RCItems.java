@@ -27,6 +27,18 @@ public final class RCItems {
             "mount_adapter", () -> new dev.hackdanel.realcamera.item.OpticalAccessoryItem(new Item.Properties(), false));
     public static final DeferredItem<dev.hackdanel.realcamera.item.OpticalAccessoryItem> TELECONVERTER = REGISTER.register(
             "teleconverter", () -> new dev.hackdanel.realcamera.item.OpticalAccessoryItem(new Item.Properties(), true));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.AccessoryItem> FLASH = REGISTER.register("flash",
+            () -> new dev.hackdanel.realcamera.item.AccessoryItem(new Item.Properties(), "flash_type"));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.AccessoryItem> FILTER = REGISTER.register("filter",
+            () -> new dev.hackdanel.realcamera.item.AccessoryItem(new Item.Properties(), "filter_type"));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.AccessoryItem> BATTERY_GRIP = REGISTER.register("battery_grip",
+            () -> new dev.hackdanel.realcamera.item.AccessoryItem(new Item.Properties(), "grip_type"));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.CleaningKitItem> CLEANING_KIT = REGISTER.register("cleaning_kit",
+            () -> new dev.hackdanel.realcamera.item.CleaningKitItem(new Item.Properties().durability(16)));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.CameraBagItem> CAMERA_BAG = REGISTER.register("camera_bag",
+            () -> new dev.hackdanel.realcamera.item.CameraBagItem(new Item.Properties().stacksTo(1)));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.TripodItem> TRIPOD = REGISTER.register("tripod",
+            () -> new dev.hackdanel.realcamera.item.TripodItem(new Item.Properties()));
     public static final DeferredItem<BatteryItem> BATTERY = REGISTER.register("battery",
             () -> new BatteryItem(new Item.Properties()));
     public static final DeferredItem<MemoryCardItem> MEMORY_CARD = REGISTER.register("memory_card",

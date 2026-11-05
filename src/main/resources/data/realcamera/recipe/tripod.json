@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 3
+    },
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 2
+    },
+    {
+      "item": "minecraft:leather",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:tripod",
+    "count": 1
+  },
+  "time": 120
+}

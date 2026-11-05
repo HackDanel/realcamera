@@ -79,16 +79,40 @@ public final class CameraRays {
 
     /** Depth map (metres along the axis) on a gw x gh grid, row-major top-down. Sky = 10 km. */
     public float[] depthGrid(int gw, int gh) {
+        return grids(gw, gh, false)[0];
+    }
+
+    /**
+     * Depth and, optionally, how brightly the game lit each surface (0..1, the light map curve of the
+     * air block in front of the hit). The light grid lets the flash recover surface colour.
+     */
+    public float[][] grids(int gw, int gh, boolean withLight) {
         float[] depth = new float[gw * gh];
+        float[] light = withLight ? new float[gw * gh] : null;
+        float skyFactor = level.getSkyDarken(1f);
         for (int y = 0; y < gh; y++) {
             double v = 1 - (y + 0.5) * 2 / gh;
             for (int x = 0; x < gw; x++) {
                 double u = (x + 0.5) * 2 / gw - 1;
                 Vec3 dir = direction(u, v);
-                double d = planeDistance(cast(dir), dir);
+                HitResult hit = cast(dir);
+                double d = planeDistance(hit, dir);
                 depth[y * gw + x] = (float) (Double.isInfinite(d) ? 10_000 : Math.max(0.05, d));
+                if (light != null) {
+                    light[y * gw + x] = hit.getType() == HitResult.Type.MISS ? 1f : lightAt(hit, skyFactor);
+                }
             }
         }
-        return depth;
+        return new float[][]{depth, light};
+    }
+
+    private float lightAt(HitResult hit, float skyFactor) {
+        net.minecraft.core.BlockPos pos = hit instanceof BlockHitResult b
+                ? b.getBlockPos().relative(b.getDirection())
+                : net.minecraft.core.BlockPos.containing(hit.getLocation());
+        float sky = level.getBrightness(net.minecraft.world.level.LightLayer.SKY, pos) * skyFactor;
+        float block = level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, pos);
+        float f = Math.max(sky, block) / 15f;
+        return 0.05f + 0.95f * f / (4 - 3 * f);
     }
 }

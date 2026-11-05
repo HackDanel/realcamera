@@ -21,8 +21,18 @@ public record CameraBodySpec(
         List<String> cardForms,
         int weatherSealing,
         List<ResourceKey<ColorProfileSpec>> colorProfiles,
+        Flash flash,
         ResourceLocation model
 ) {
+    /** Built-in flash guide number (0 = none) and the fastest shutter speed a flash syncs at (s). */
+    public record Flash(float builtInGn, float sync) {
+        public static final Codec<Flash> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.FLOAT.optionalFieldOf("built_in_gn", 0f).forGetter(Flash::builtInGn),
+                Codec.FLOAT.optionalFieldOf("sync", 1 / 250f).forGetter(Flash::sync)
+        ).apply(i, Flash::new));
+        public static final Flash DEFAULT = new Flash(0, 1 / 250f);
+    }
+
     /** Identity: brand, EXIF Make/Model written into exported JPEGs, tier and body type. */
     public record Info(String brand, String exifMake, String exifModel, String tier, String type) {
         public static final Codec<Info> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -81,6 +91,7 @@ public record CameraBodySpec(
             Codec.STRING.listOf().fieldOf("card_forms").forGetter(CameraBodySpec::cardForms),
             Codec.INT.optionalFieldOf("weather_sealing", 0).forGetter(CameraBodySpec::weatherSealing),
             ResourceKey.codec(RCRegistries.COLOR_PROFILE).listOf().fieldOf("color_profiles").forGetter(CameraBodySpec::colorProfiles),
+            Flash.CODEC.optionalFieldOf("flash", Flash.DEFAULT).forGetter(CameraBodySpec::flash),
             ResourceLocation.CODEC.fieldOf("model").forGetter(CameraBodySpec::model)
     ).apply(i, CameraBodySpec::new));
 }

@@ -26,7 +26,7 @@ final class ClientBridgeImpl implements ClientBridge {
 
     @Override
     public void openCameraMenu() {
-        Minecraft.getInstance().setScreen(new CameraMenuScreen(Viewfinder.hand()));
+        Minecraft.getInstance().setScreen(new CameraMenuScreen(Viewfinder.ref()));
     }
 
     @Override

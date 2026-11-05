@@ -128,6 +128,33 @@ def main():
     assembly("bp_scl7", [(rc("battery_cell"), 2), (rc("magnesium_alloy"), 1), (rc("circuit_board"), 1)],
              rc("battery"), 1, 100, {f"{NS}:battery_type": f"{NS}:bp_scl7", f"{NS}:charge": {"charge": 350, "capacity": 700}})
 
+    # --- stage 3: accessories
+    for name, gn_items in (("sony_hvl_f46rm", 3), ("nikon_sb700", 2), ("canon_el5", 3), ("fuji_ef60", 3), ("godox_v1", 4)):
+        assembly(name, [(rc("plastic"), 2), (rc("circuit_board"), 1), (mc("glowstone_dust"), gn_items), (rc("battery_cell"), 2)],
+                 rc("flash"), 1, 160, {f"{NS}:flash_type": f"{NS}:{name}"})
+    for name, extra in (("nd8_82", (mc("black_dye"), 1)), ("nd64_82", (mc("black_dye"), 2)), ("nd1000_82", (mc("black_dye"), 4)),
+                        ("cpl_82", (mc("amethyst_shard"), 1)), ("uv_82", (mc("quartz"), 1)), ("yellow_82", (mc("yellow_dye"), 1)),
+                        ("orange_82", (mc("orange_dye"), 1)), ("red_82", (mc("red_dye"), 1)), ("cpl_95", (mc("amethyst_shard"), 2))):
+        assembly(name, [(rc("optical_glass"), 1), (mc("iron_nugget"), 2), extra], rc("filter"), 1, 60,
+                 {f"{NS}:filter_type": f"{NS}:{name}"})
+    assembly("sony_vg_c4em", [(rc("magnesium_alloy"), 2), (rc("circuit_board"), 1), (rc("battery_cell"), 2)], rc("battery_grip"), 1,
+             160, {f"{NS}:grip_type": f"{NS}:sony_vg_c4em", f"{NS}:charge": {"charge": 290, "capacity": 580}})
+    assembly("nikon_mb_d16", [(rc("magnesium_alloy"), 2), (rc("circuit_board"), 1), (rc("battery_cell"), 2)], rc("battery_grip"), 1,
+             160, {f"{NS}:grip_type": f"{NS}:nikon_mb_d16", f"{NS}:charge": {"charge": 615, "capacity": 1230}})
+    assembly("tripod", [(mc("iron_ingot"), 3), (rc("magnesium_alloy"), 2), (mc("leather"), 1)], rc("tripod"), 1, 120)
+    assembly("camera_bag", [(mc("leather"), 4), (mc("white_wool"), 2), (mc("string"), 2)], rc("camera_bag"), 1, 80)
+    assembly("cleaning_kit", [(mc("slime_ball"), 1), (mc("paper"), 2), (mc("glass_bottle"), 1)], rc("cleaning_kit"), 1, 40)
+
+    # --- repairs (the result is a repaired copy of the input item)
+    def repair(name, kind, ingredients, result):
+        save(name, {"type": f"{NS}:assembly", "ingredients": [{"item": i, "count": n} for i, n in ingredients],
+                    "result": {"id": result, "count": 1}, "time": 200, "repair": kind})
+    repair("repair_shutter", "shutter", [(rc("camera_body"), 1), (rc("shutter_unit"), 1)], rc("camera_body"))
+    repair("repair_electronics", "electronics", [(rc("camera_body"), 1), (rc("circuit_board"), 2), (rc("processor"), 1)],
+           rc("camera_body"))
+    repair("repair_lens", "lens", [(rc("lens"), 1), (rc("lens_element"), 1)], rc("lens"))
+    repair("repair_filter", "filter", [(rc("filter"), 1), (rc("optical_glass"), 1)], rc("filter"))
+
     # --- devices
     assembly("battery_charger", [(rc("plastic"), 3), (rc("circuit_board"), 1), (mc("copper_ingot"), 2), (mc("redstone"), 1)],
              rc("battery_charger"), 1, 120)

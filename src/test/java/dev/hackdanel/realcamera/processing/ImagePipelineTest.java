@@ -152,6 +152,56 @@ class ImagePipelineTest {
     }
 
     @Test
+    void flashLightsNearThingsMoreThanFarOnes() {
+        int w = 40, h = 20;
+        int[] dark = flat(w, h, 0x101010);
+        float[] depth = new float[w * h];
+        for (int i = 0; i < depth.length; i++) depth[i] = (i % w) < w / 2 ? 1.5f : 8f;
+        float[] light = new float[w * h];
+        java.util.Arrays.fill(light, 0.05f);
+        ImageParams p = ImageParams.neutral().withExtras(new ImageParams.Extras(2.0, 1, false, 1, 1, 1, 0, 0, new float[0]));
+        int[] out = ImagePipeline.develop(dark, depth, light, w, h, p);
+        int near = red(out[10 * w + 5]), far = red(out[10 * w + 35]);
+        assertTrue(near > far + 40, "near " + near + " far " + far);
+    }
+
+    @Test
+    void curtainShadowAboveSyncSpeed() {
+        int w = 20, h = 40;
+        float[] depth = new float[w * h];
+        java.util.Arrays.fill(depth, 1.5f);
+        float[] light = new float[w * h];
+        java.util.Arrays.fill(light, 0.05f); // dark scene: the flash is the main light
+        ImageParams p = ImageParams.neutral().withExtras(new ImageParams.Extras(2.0, 0.5, false, 1, 1, 1, 0, 0, new float[0]));
+        int[] out = ImagePipeline.develop(flat(w, h, 0x101010), depth, light, w, h, p);
+        assertTrue(red(out[5 * w + 10]) > red(out[35 * w + 10]) + 30, "bottom half has no flash");
+    }
+
+    @Test
+    void dustShowsOnlyStoppedDown() {
+        float[] dust = {0, 0, 0.1f};
+        var extras = new ImageParams.Extras(0, 1, false, 1, 1, 1, 0, 0, dust);
+        int[] open = ImagePipeline.develop(flat(40, 40, 0xC0C0C0), null, 40, 40,
+                ImageParams.neutral().withFocus(50, 2.8, 1e9).withExtras(extras));
+        int[] closed = ImagePipeline.develop(flat(40, 40, 0xC0C0C0), null, 40, 40,
+                ImageParams.neutral().withFocus(50, 16, 1e9).withExtras(extras));
+        assertEquals(red(open[0]), red(open[20 * 40 + 20]), 2, "invisible wide open");
+        assertTrue(red(closed[20 * 40 + 20]) < red(closed[0]) - 20, "dark spot at f/16");
+    }
+
+    @Test
+    void redFilterDarkensBlueInMonochrome() {
+        int[] blue = flat(4, 4, 0x3060E0);
+        ImageParams.Colour mono = new ImageParams.Colour(1, 1, 1, 1, 1, true, 1, 1, 1, 0);
+        ImageParams plain = new ImageParams(ImageParams.neutral().sensor(), ImageParams.neutral().focus(),
+                ImageParams.neutral().lens(), ImageParams.STILL, ImageParams.NO_SUN, mono, ImageParams.NO_EXTRAS, 1);
+        int base = red(ImagePipeline.develop(blue, null, 4, 4, plain)[0]);
+        int filtered = red(ImagePipeline.develop(blue, null, 4, 4,
+                plain.withExtras(new ImageParams.Extras(0, 1, false, 1, 0.35, 0.1, 0, 0, new float[0])))[0]);
+        assertTrue(filtered < base - 20, base + " -> " + filtered);
+    }
+
+    @Test
     void tungstenSettingInDaylightTurnsBlue() {
         double[] m = ImagePipeline.whiteBalance(5500, 3200);
         assertTrue(m[2] > 1.2 && m[0] < 0.9, java.util.Arrays.toString(m));

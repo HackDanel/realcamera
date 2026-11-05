@@ -1,0 +1,19 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:lens",
+      "count": 1
+    },
+    {
+      "item": "realcamera:lens_element",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:lens",
+    "count": 1
+  },
+  "time": 200,
+  "repair": "lens"
+}

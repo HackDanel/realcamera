@@ -32,6 +32,8 @@ public final class RCNetwork {
         r.playToServer(Payloads.DeletePhoto.TYPE, Payloads.DeletePhoto.CODEC,
                 (p, ctx) -> ServerPhotoService.deletePhoto((ServerPlayer) ctx.player(), p));
 
+        r.playToServer(Payloads.TripodAim.TYPE, Payloads.TripodAim.CODEC,
+                (p, ctx) -> ServerPhotoService.aimTripod((ServerPlayer) ctx.player(), p));
         r.playToClient(Payloads.UploadStatus.TYPE, Payloads.UploadStatus.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.PhotoData.TYPE, Payloads.PhotoData.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.PhotoGone.TYPE, Payloads.PhotoGone.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));

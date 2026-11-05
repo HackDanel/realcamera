@@ -16,5 +16,11 @@ public final class RCEntities {
                     .sized(0.5f, 0.5f).clientTrackingRange(10).updateInterval(Integer.MAX_VALUE)
                     .build("photo_frame"));
 
+    public static final Supplier<EntityType<dev.hackdanel.realcamera.entity.TripodEntity>> TRIPOD = REGISTER.register("tripod",
+            () -> EntityType.Builder.<dev.hackdanel.realcamera.entity.TripodEntity>of(
+                            dev.hackdanel.realcamera.entity.TripodEntity::new, MobCategory.MISC)
+                    .sized(0.6f, 1.65f).eyeHeight(1.55f).clientTrackingRange(10).updateInterval(2)
+                    .build("tripod"));
+
     private RCEntities() {}
 }

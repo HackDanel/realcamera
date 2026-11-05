@@ -45,6 +45,26 @@ public final class RCStacks {
         return s;
     }
 
+    public static ItemStack flash(ResourceKey<dev.hackdanel.realcamera.spec.FlashSpec> key, int capacity) {
+        ItemStack s = new ItemStack(RCItems.FLASH.get());
+        s.set(RCComponents.FLASH_TYPE.get(), key);
+        s.set(RCComponents.CHARGE.get(), new BatteryCharge(capacity, capacity));
+        return s;
+    }
+
+    public static ItemStack filter(ResourceKey<dev.hackdanel.realcamera.spec.FilterSpec> key) {
+        ItemStack s = new ItemStack(RCItems.FILTER.get());
+        s.set(RCComponents.FILTER_TYPE.get(), key);
+        return s;
+    }
+
+    public static ItemStack grip(ResourceKey<dev.hackdanel.realcamera.spec.GripSpec> key, int capacity) {
+        ItemStack s = new ItemStack(RCItems.BATTERY_GRIP.get());
+        s.set(RCComponents.GRIP_TYPE.get(), key);
+        s.set(RCComponents.CHARGE.get(), new BatteryCharge(capacity, capacity));
+        return s;
+    }
+
     public static ItemStack battery(ResourceKey<BatteryTypeSpec> key, BatteryTypeSpec spec, boolean full) {
         ItemStack s = new ItemStack(RCItems.BATTERY.get());
         s.set(RCComponents.BATTERY_TYPE.get(), key);
@@ -83,8 +103,10 @@ public final class RCStacks {
             return Optional.empty();
         }
         ItemStack camera = body(body.key());
-        camera.set(RCComponents.CAMERA_PARTS.get(), new CameraParts(lens(lens.get().key()), ItemStack.EMPTY,
-                ItemStack.EMPTY, battery(battery.get().key(), battery.get().value(), true), card(card.get().key())));
+        camera.set(RCComponents.CAMERA_PARTS.get(), CameraParts.EMPTY
+                .with(CameraParts.SLOT_LENS, lens(lens.get().key()))
+                .with(CameraParts.SLOT_BATTERY, battery(battery.get().key(), battery.get().value(), true))
+                .with(CameraParts.SLOT_CARD, card(card.get().key())));
         return Optional.of(camera);
     }
 }

@@ -34,6 +34,7 @@ public final class RealCameraClient {
     public RealCameraClient(IEventBus modBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         ClientBridge.Holder.instance = new ClientBridgeImpl();
+        dev.hackdanel.realcamera.entity.TripodEntity.lookThrough = dev.hackdanel.realcamera.client.camera.TripodView::enter;
         modBus.addListener(RealCameraClient::screens);
         modBus.addListener(RealCameraClient::renderers);
         modBus.addListener(RealCameraClient::extensions);
@@ -45,10 +46,12 @@ public final class RealCameraClient {
         event.register(RCMenus.ASSEMBLY_STATION.get(), AssemblyStationScreen::new);
         event.register(RCMenus.CHARGER.get(), ChargerScreen::new);
         event.register(RCMenus.PRINTER.get(), PrinterScreen::new);
+        event.register(RCMenus.CAMERA_BAG.get(), dev.hackdanel.realcamera.client.screen.CameraBagScreen::new);
     }
 
     private static void renderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(RCEntities.PHOTO_FRAME.get(), PhotoFrameRenderer::new);
+        event.registerEntityRenderer(RCEntities.TRIPOD.get(), dev.hackdanel.realcamera.client.render.TripodRenderer::new);
     }
 
     private static void extensions(RegisterClientExtensionsEvent event) {

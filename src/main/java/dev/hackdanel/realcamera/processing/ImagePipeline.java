@@ -58,12 +58,30 @@ public final class ImagePipeline {
      * @param depth distance in metres per pixel (same size), or null to skip depth of field
      */
     public static int[] develop(int[] rgb, float[] depth, int w, int h, ImageParams p) {
-        return toSrgb(developLinear(toLinear(rgb), depth, w, h, p));
+        return toSrgb(developLinear(toLinear(rgb), depth, null, w, h, p));
     }
 
-    /** Same as {@link #develop} but starting from linear light (used for long-exposure averages). */
-    public static float[] developLinear(float[] img, float[] depth, int w, int h, ImageParams p) {
+    public static int[] develop(int[] rgb, float[] depth, float[] light, int w, int h, ImageParams p) {
+        return toSrgb(developLinear(toLinear(rgb), depth, light, w, h, p));
+    }
+
+    /**
+     * Same as {@link #develop} but starting from linear light (used for long-exposure averages).
+     *
+     * @param light per-pixel brightness the game lit each surface with (0..1), or null; used to recover
+     *              surface colour for the flash
+     */
+    public static float[] developLinear(float[] img, float[] depth, float[] light, int w, int h, ImageParams p) {
+        ImageParams.Extras x = p.extras();
+        filterTransmission(img, x);
+        float[] beforeExposure = x.flashAt1m() > 0 && depth != null ? img.clone() : null;
         expose(img, p.sensor().exposureEv());
+        if (beforeExposure != null) {
+            flash(img, beforeExposure, depth, light, w, h, x);
+        }
+        if (x.cpl() && depth != null) {
+            polariser(img, depth);
+        }
         if (depth != null) {
             img = depthOfField(img, depth, w, h, p);
         }
@@ -71,11 +89,137 @@ public final class ImagePipeline {
         img = rollingShutter(img, w, h, p.motion().rollingSkewPx());
         img = lensGeometry(img, w, h, p.lens());
         lens(img, w, h, p);
+        img = wear(img, w, h, p);
         flare(img, w, h, p);
         noise(img, w, h, p);
         rollOff(img, p.sensor().dynamicRangeEv());
         colour(img, p.colour());
         return img;
+    }
+
+    // ------------------------------------------------------------------ accessories
+
+    /**
+     * Colour filter: per-channel transmission normalised to its luminance, because the camera meters
+     * through the filter (so a red filter makes blue darker rather than the whole picture).
+     */
+    static void filterTransmission(float[] img, ImageParams.Extras x) {
+        double r = x.filterR(), g = x.filterG(), b = x.filterB();
+        if (r == 1 && g == 1 && b == 1) return;
+        double lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        float fr = (float) (r / lum), fg = (float) (g / lum), fb = (float) (b / lum);
+        for (int i = 0; i < img.length; i += 3) {
+            img[i] *= fr;
+            img[i + 1] *= fg;
+            img[i + 2] *= fb;
+        }
+    }
+
+    /**
+     * Flash light: E(d) = flashAt1m / d² relative to a correct exposure, applied to the surface colour
+     * (pixel brightness divided by the light the game lit it with). Rows below the curtain edge (when
+     * shooting faster than the sync speed) get no flash.
+     */
+    static void flash(float[] img, float[] raw, float[] depth, float[] light, int w, int h, ImageParams.Extras x) {
+        int lastRow = (int) Math.round(h * Math.max(0, Math.min(1, x.flashTop())));
+        for (int y = 0; y < lastRow; y++) {
+            for (int px = 0; px < w; px++) {
+                int i = y * w + px;
+                double d = Math.max(0.3, depth[i]);
+                if (d > 200) continue; // sky and far away: the flash does not reach
+                double e = x.flashAt1m() / (d * d);
+                float lit = light == null ? 0.5f : Math.max(0.04f, light[i]);
+                int j = i * 3;
+                for (int c = 0; c < 3; c++) {
+                    float albedo = Math.min(1.2f, raw[j + c] / lit);
+                    img[j + c] += (float) (albedo * e);
+                }
+            }
+        }
+    }
+
+    /** Polariser: deeper, more saturated sky; slightly richer colours elsewhere (less glare). */
+    static void polariser(float[] img, float[] depth) {
+        for (int i = 0, j = 0; i < depth.length; i++, j += 3) {
+            boolean sky = depth[i] > 5000;
+            float l = 0.2126f * img[j] + 0.7152f * img[j + 1] + 0.0722f * img[j + 2];
+            float sat = sky ? 1.35f : 1.08f, dim = sky ? 0.6f : 0.97f;
+            for (int c = 0; c < 3; c++) {
+                img[j + c] = Math.max(0, (l + (img[j + c] - l) * sat) * dim);
+            }
+        }
+    }
+
+    /** Moisture fog, a knocked (decentred) lens and sensor dust. */
+    static float[] wear(float[] img, int w, int h, ImageParams p) {
+        ImageParams.Extras x = p.extras();
+        if (x.fog() > 0.01 || x.decenter() > 0.01) {
+            float[] blur = boxBlur(img, w, h, Math.max(2, w / 120));
+            float fog = (float) x.fog();
+            float dec = (float) x.decenter();
+            for (int y = 0; y < h; y++) {
+                for (int px = 0; px < w; px++) {
+                    float side = (float) px / w; // the right side suffers
+                    float k = Math.min(1, fog * 0.85f + dec * side * side * 1.4f);
+                    int j = (y * w + px) * 3;
+                    for (int c = 0; c < 3; c++) {
+                        img[j + c] = img[j + c] + (blur[j + c] - img[j + c]) * k + fog * 0.06f;
+                    }
+                }
+            }
+        }
+        float[] dust = x.dust();
+        if (dust.length >= 3) {
+            // dust shadows sharpen and darken as the aperture closes (f/8 and beyond)
+            float opacity = (float) Math.max(0, Math.min(0.55, (p.focus().fNumber() - 4.5) / 14));
+            if (opacity > 0.01) {
+                for (int k = 0; k + 2 < dust.length; k += 3) {
+                    double cx = (dust[k] + 1) / 2 * w, cy = (1 - dust[k + 1]) / 2 * h, r = dust[k + 2] * w;
+                    int x0 = (int) Math.max(0, cx - 3 * r), x1 = (int) Math.min(w - 1, cx + 3 * r);
+                    int y0 = (int) Math.max(0, cy - 3 * r), y1 = (int) Math.min(h - 1, cy + 3 * r);
+                    for (int y = y0; y <= y1; y++) {
+                        for (int px = x0; px <= x1; px++) {
+                            double d2 = ((px - cx) * (px - cx) + (y - cy) * (y - cy)) / (r * r);
+                            float m = 1 - opacity * (float) Math.exp(-d2);
+                            int j = (y * w + px) * 3;
+                            img[j] *= m;
+                            img[j + 1] *= m;
+                            img[j + 2] *= m;
+                        }
+                    }
+                }
+            }
+        }
+        return img;
+    }
+
+    /** Separable box blur with running sums (radius r). */
+    static float[] boxBlur(float[] img, int w, int h, int r) {
+        float[] tmp = new float[img.length], out = new float[img.length];
+        float inv = 1f / (2 * r + 1);
+        for (int y = 0; y < h; y++) {
+            for (int c = 0; c < 3; c++) {
+                float sum = 0;
+                for (int k = -r; k <= r; k++) sum += img[(y * w + Math.max(0, Math.min(w - 1, k))) * 3 + c];
+                for (int x = 0; x < w; x++) {
+                    tmp[(y * w + x) * 3 + c] = sum * inv;
+                    int add = Math.min(w - 1, x + r + 1), rem = Math.max(0, x - r);
+                    sum += img[(y * w + add) * 3 + c] - img[(y * w + rem) * 3 + c];
+                }
+            }
+        }
+        for (int x = 0; x < w; x++) {
+            for (int c = 0; c < 3; c++) {
+                float sum = 0;
+                for (int k = -r; k <= r; k++) sum += tmp[(Math.max(0, Math.min(h - 1, k)) * w + x) * 3 + c];
+                for (int y = 0; y < h; y++) {
+                    out[(y * w + x) * 3 + c] = sum * inv;
+                    int add = Math.min(h - 1, y + r + 1), rem = Math.max(0, y - r);
+                    sum += tmp[(add * w + x) * 3 + c] - tmp[(rem * w + x) * 3 + c];
+                }
+            }
+        }
+        return out;
     }
 
     static void expose(float[] img, double ev) {

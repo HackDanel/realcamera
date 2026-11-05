@@ -27,6 +27,17 @@ public final class RCCreativeTab {
                 r.lookup(RCRegistries.LENS).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.lens(h.key()))));
                 r.lookup(RCRegistries.MOUNT_ADAPTER).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.adapter(h.key()))));
                 r.lookup(RCRegistries.TELECONVERTER).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.teleconverter(h.key()))));
+                r.lookup(RCRegistries.FLASH_TYPE).ifPresent(l -> l.listElements()
+                        .forEach(h -> out.accept(RCStacks.flash(h.key(), h.value().capacity()))));
+                r.lookup(RCRegistries.FILTER_TYPE).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.filter(h.key()))));
+                r.lookup(RCRegistries.GRIP_TYPE).ifPresent(l -> l.listElements().forEach(h -> {
+                    int cap = r.lookup(RCRegistries.BATTERY_TYPE).flatMap(b -> b.get(h.value().batteryType()))
+                            .map(b -> b.value().capacity()).orElse(500);
+                    out.accept(RCStacks.grip(h.key(), cap));
+                }));
+                out.accept(RCItems.TRIPOD.get());
+                out.accept(RCItems.CAMERA_BAG.get());
+                out.accept(RCItems.CLEANING_KIT.get());
                 r.lookup(RCRegistries.BATTERY_TYPE).ifPresent(l -> l.listElements()
                         .forEach(h -> out.accept(RCStacks.battery(h.key(), h.value(), true))));
                 r.lookup(RCRegistries.MEMORY_CARD_TYPE).ifPresent(l -> l.listElements()

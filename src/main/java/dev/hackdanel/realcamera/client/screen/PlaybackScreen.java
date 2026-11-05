@@ -27,19 +27,19 @@ import org.lwjgl.glfw.GLFW;
 /** The camera's rear screen: browse the card, see shooting data, delete shots. */
 public class PlaybackScreen extends Screen {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
-    private final InteractionHand hand;
+    private final dev.hackdanel.realcamera.camera.CameraRef hand;
     private int index = Integer.MAX_VALUE; // start at the newest shot
     private boolean confirmDelete;
     private Button deleteButton;
 
-    public PlaybackScreen(InteractionHand hand) {
+    public PlaybackScreen(dev.hackdanel.realcamera.camera.CameraRef hand) {
         super(Component.translatable("gui.realcamera.playback"));
         this.hand = hand;
     }
 
     private UUID cardId() {
         if (minecraft == null || minecraft.player == null) return null;
-        ItemStack cam = minecraft.player.getItemInHand(hand);
+        ItemStack cam = Viewfinder.camera();
         if (!CameraHelper.isCamera(cam)) return null;
         CardData d = CameraHelper.parts(cam).card().get(RCComponents.CARD.get());
         return d == null ? null : d.id().orElse(null);
@@ -147,6 +147,6 @@ public class PlaybackScreen extends Screen {
     }
 
     public static void open(net.minecraft.client.Minecraft mc) {
-        mc.setScreen(new PlaybackScreen(Viewfinder.hand()));
+        mc.setScreen(new PlaybackScreen(Viewfinder.ref()));
     }
 }

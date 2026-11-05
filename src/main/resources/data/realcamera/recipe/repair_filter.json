@@ -1,0 +1,19 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:filter",
+      "count": 1
+    },
+    {
+      "item": "realcamera:optical_glass",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:filter",
+    "count": 1
+  },
+  "time": 200,
+  "repair": "filter"
+}

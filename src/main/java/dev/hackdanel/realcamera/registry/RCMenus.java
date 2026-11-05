@@ -20,6 +20,8 @@ public final class RCMenus {
             () -> IMenuTypeExtension.create(AssemblyStationMenu::new));
     public static final Supplier<MenuType<ChargerMenu>> CHARGER = REGISTER.register("battery_charger",
             () -> IMenuTypeExtension.create(ChargerMenu::new));
+    public static final Supplier<MenuType<dev.hackdanel.realcamera.menu.CameraBagMenu>> CAMERA_BAG = REGISTER.register("camera_bag",
+            () -> IMenuTypeExtension.create(dev.hackdanel.realcamera.menu.CameraBagMenu::new));
     public static final Supplier<MenuType<PrinterMenu>> PRINTER = REGISTER.register("photo_printer",
             () -> IMenuTypeExtension.create(PrinterMenu::new));
 

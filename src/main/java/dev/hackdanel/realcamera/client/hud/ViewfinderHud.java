@@ -464,12 +464,24 @@ public final class ViewfinderHud {
         g.drawString(font, left, x + 6, y + 6, WHITE, true);
         StringBuilder r = new StringBuilder();
         r.append(driveLabel(s.drive())).append("  ");
+        if (s.flashMode() != CameraSettings.FLASH_OFF) {
+            boolean has = Viewfinder.flashGn() > 0;
+            String f = switch (s.flashMode()) {
+                case CameraSettings.FLASH_REAR -> "F-REAR";
+                case CameraSettings.FLASH_AUTO -> "F-AUTO";
+                default -> "FLASH";
+            };
+            r.append(has ? (Viewfinder.flashReady() ? f : f + "…") : "NO FLASH").append("  ");
+        }
         if (s.shutterType() == CameraSettings.SHUTTER_ELECTRONIC || !Viewfinder.body().shutter().hasMechanical()) {
             r.append("e  ");
         }
         if (s.stabilization() && Viewfinder.chain().stabilizationStops() > 0) {
             r.append("IS  ");
         }
+        var wear = dev.hackdanel.realcamera.camera.CameraHelper.wear(Viewfinder.camera());
+        if (wear.shutterJammed()) r.append("SHUTTER ERR  ");
+        if (wear.moisture() >= 40) r.append("FOG  ");
         if (Viewfinder.chain().cropped()) {
             r.append("APS-C  ");
         }

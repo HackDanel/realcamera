@@ -1,0 +1,8 @@
+{
+  "name": "Fujifilm EF-60",
+  "gn": 60,
+  "recycle_s": 2.0,
+  "hss": true,
+  "capacity": 200,
+  "model": "realcamera:item/flash/fuji_ef60"
+}

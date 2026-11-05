@@ -50,5 +50,9 @@
     "realcamera:nikon_mc",
     "realcamera:nikon_rtp"
   ],
-  "model": "realcamera:item/body/nikon_d750"
+  "model": "realcamera:item/body/nikon_d750",
+  "flash": {
+    "built_in_gn": 12,
+    "sync": 0.005
+  }
 }

@@ -1,0 +1,19 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:camera_body",
+      "count": 1
+    },
+    {
+      "item": "realcamera:shutter_unit",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:camera_body",
+    "count": 1
+  },
+  "time": 200,
+  "repair": "shutter"
+}

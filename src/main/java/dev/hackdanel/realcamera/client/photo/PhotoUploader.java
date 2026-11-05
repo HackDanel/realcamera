@@ -15,7 +15,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * burst simply queues up behind the shot being written, like a camera's card buffer.
  */
 public final class PhotoUploader {
-    private record Job(int id, InteractionHand hand, PhotoMeta meta, byte[] jpeg, int quality, int format) {}
+    private record Job(int id, dev.hackdanel.realcamera.camera.CameraRef hand, PhotoMeta meta, byte[] jpeg, int quality, int format) {}
 
     private static final Deque<Job> queue = new ArrayDeque<>();
     private static Job current;
@@ -23,7 +23,7 @@ public final class PhotoUploader {
 
     private PhotoUploader() {}
 
-    public static void upload(InteractionHand hand, PhotoMeta meta, byte[] jpeg, int quality, int format) {
+    public static void upload(dev.hackdanel.realcamera.camera.CameraRef hand, PhotoMeta meta, byte[] jpeg, int quality, int format) {
         queue.addLast(new Job(nextId++, hand, meta, jpeg, quality, format));
         pump();
     }

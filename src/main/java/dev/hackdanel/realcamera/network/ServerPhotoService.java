@@ -31,6 +31,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -49,7 +50,30 @@ public final class ServerPhotoService {
     private static final int DOWNLOAD_BUDGET_PER_TICK = 128 * 1024;
 
     private record Session(UUID photoId, int requestId, UUID cardId, PhotoMeta meta, int totalBytes, long cardBytes,
-                           ByteArrayOutputStream data, long started) {}
+                           ByteArrayOutputStream data, long started, dev.hackdanel.realcamera.camera.CameraRef ref) {}
+
+    /** A camera the player may operate: in a hand, or mounted on a tripod within reach. */
+    public record Handle(ItemStack stack, Runnable commit) {}
+
+    public static Optional<Handle> resolve(ServerPlayer player, dev.hackdanel.realcamera.camera.CameraRef ref) {
+        if (!ref.isTripod()) {
+            ItemStack stack = player.getItemInHand(ref.hand());
+            return CameraHelper.isCamera(stack) ? Optional.of(new Handle(stack, () -> {})) : Optional.empty();
+        }
+        if (player.level().getEntity(ref.tripodId()) instanceof dev.hackdanel.realcamera.entity.TripodEntity tripod
+                && tripod.distanceToSqr(player) < 32 * 32 && CameraHelper.isCamera(tripod.camera())) {
+            ItemStack stack = tripod.camera().copy();
+            return Optional.of(new Handle(stack, () -> tripod.setCamera(stack)));
+        }
+        return Optional.empty();
+    }
+
+    public static void aimTripod(ServerPlayer player, Payloads.TripodAim msg) {
+        if (player.level().getEntity(msg.entityId()) instanceof dev.hackdanel.realcamera.entity.TripodEntity tripod
+                && tripod.distanceToSqr(player) < 16 * 16) {
+            tripod.aim(msg.yaw(), msg.pitch());
+        }
+    }
 
     private static final Map<UUID, Session> uploads = new HashMap<>();
     private static final Map<UUID, Deque<Long>> uploadTimes = new HashMap<>();
@@ -62,23 +86,37 @@ public final class ServerPhotoService {
     // ------------------------------------------------------------------ settings & shutter
 
     public static void updateSettings(ServerPlayer player, Payloads.UpdateSettings msg) {
-        ItemStack camera = player.getItemInHand(msg.hand());
-        if (CameraHelper.isCamera(camera)) {
-            camera.set(RCComponents.CAMERA_SETTINGS.get(), msg.settings());
-        }
+        resolve(player, msg.ref()).ifPresent(h -> {
+            h.stack().set(RCComponents.CAMERA_SETTINGS.get(), msg.settings());
+            h.commit().run();
+        });
     }
 
     public static void shutter(ServerPlayer player, Payloads.Shutter msg) {
-        ItemStack camera = player.getItemInHand(msg.hand());
-        if (!CameraHelper.isCamera(camera) || !CameraHelper.hasPower(camera)) {
+        Optional<Handle> handle = resolve(player, msg.ref());
+        if (handle.isEmpty() || !CameraHelper.hasPower(handle.get().stack())) {
             return;
         }
+        shutter(player, msg, handle.get().stack());
+        handle.get().commit().run();
+    }
+
+    private static void shutter(ServerPlayer player, Payloads.Shutter msg, ItemStack camera) {
         Optional<CameraBodySpec> body = Specs.body(player.registryAccess(), camera);
-        CameraHelper.drain(camera, Math.max(1, Math.round(body.map(CameraBodySpec::batteryDrain).orElse(1f))));
+        int drain = Math.max(1, Math.round(body.map(CameraBodySpec::batteryDrain).orElse(1f)));
+        CameraHelper.drain(camera, dev.hackdanel.realcamera.gameplay.WearEvents.coldDrain(player, drain));
+        if (msg.flash()) {
+            boolean hotShoe = !CameraHelper.parts(camera).flash().isEmpty();
+            if (hotShoe) CameraHelper.drainFlash(camera); else CameraHelper.drain(camera, 1);
+            // everyone around sees the pop
+            Vec3 eye = player.getEyePosition().add(player.getLookAngle().scale(0.6));
+            player.serverLevel().sendParticles(net.minecraft.core.particles.ParticleTypes.FLASH, eye.x, eye.y, eye.z, 1, 0, 0, 0, 0);
+        }
         if (msg.shutterType() == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_ELECTRONIC) {
             return; // silent and wear-free
         }
         camera.set(RCComponents.SHUTTER_COUNT.get(), CameraHelper.shutterCount(camera) + 1);
+        body.ifPresent(b -> dev.hackdanel.realcamera.gameplay.WearEvents.shutterWear(player, camera, b.shutter().ratedLife()));
         boolean efcs = msg.shutterType() == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_EFCS;
         // Heard by everyone around except the photographer, who already played it locally.
         player.level().playSound(player, player.getX(), player.getEyeY(), player.getZ(),
@@ -92,11 +130,12 @@ public final class ServerPhotoService {
         Consumer<String> reject = key -> PacketDistributor.sendToPlayer(player,
                 new Payloads.UploadStatus(msg.requestId(), Payloads.UPLOAD_REJECTED, Optional.empty(), key));
         MinecraftServer server = player.server;
-        ItemStack camera = player.getItemInHand(msg.hand());
-        if (!CameraHelper.isCamera(camera)) {
+        Optional<Handle> handle = resolve(player, msg.ref());
+        if (handle.isEmpty()) {
             reject.accept("message.realcamera.upload.no_camera");
             return;
         }
+        ItemStack camera = handle.get().stack();
         CameraParts parts = CameraHelper.parts(camera);
         ItemStack card = parts.card();
         Optional<MemoryCardTypeSpec> cardType = Specs.card(player.registryAccess(), card);
@@ -143,6 +182,7 @@ public final class ServerPhotoService {
             ItemStack newCard = card.copy();
             newCard.set(RCComponents.CARD.get(), new CardData(Optional.of(cardId), data.usedBytes(), data.photoCount()));
             CameraHelper.setParts(camera, parts.with(CameraParts.SLOT_CARD, newCard));
+            handle.get().commit().run();
         }
         UUID photoId = UUID.randomUUID();
         // Trust nothing identity-related from the client: author, time and place come from the server.
@@ -152,7 +192,7 @@ public final class ServerPhotoService {
         PhotoMeta meta = new PhotoMeta(photoId, author, player.getGameProfile().getName(), System.currentTimeMillis(),
                 msg.meta().width(), msg.meta().height(), msg.meta().exif(), place);
         uploads.put(author, new Session(photoId, msg.requestId(), cardId, meta, msg.totalBytes(), cardBytes,
-                new ByteArrayOutputStream(msg.totalBytes()), now));
+                new ByteArrayOutputStream(msg.totalBytes()), now, msg.ref()));
         PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(msg.requestId(), Payloads.UPLOAD_ACCEPTED,
                 Optional.of(photoId), ""));
     }
@@ -198,13 +238,26 @@ public final class ServerPhotoService {
             server.execute(() -> {
                 PhotoStorage.index(server).put(new PhotoIndex.Entry(meta, bytes.length, s.cardBytes(), 0, false));
                 PhotoStorage.cards(server).add(s.cardId(), s.photoId());
-                adjustCardMirror(player, s.cardId(), s.cardBytes(), 1);
+                adjustCardMirror(player, s.cardId(), s.cardBytes(), 1, s.ref());
                 PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(s.requestId(), Payloads.UPLOAD_STORED,
                         Optional.of(s.photoId()), ""));
                 RealCamera.LOGGER.debug("Stored photo {} ({} bytes) for {}", s.photoId(), bytes.length,
                         player.getGameProfile().getName());
             });
         });
+    }
+
+    /** Same, but also looking in the camera the shot came from (it may sit on a tripod). */
+    private static void adjustCardMirror(ServerPlayer player, UUID cardId, long bytes, int count,
+                                         dev.hackdanel.realcamera.camera.CameraRef ref) {
+        if (ref != null && ref.isTripod()) {
+            Optional<Handle> h = resolve(player, ref);
+            if (h.isPresent() && adjustInCamera(h.get().stack(), cardId, bytes, count)) {
+                h.get().commit().run();
+                return;
+            }
+        }
+        adjustCardMirror(player, cardId, bytes, count);
     }
 
     /** Update the usage counters mirrored on the card item, wherever the player keeps it. */
@@ -244,8 +297,13 @@ public final class ServerPhotoService {
         for (ItemStack stack : player.getInventory().offhand) {
             if (holdsCard(stack, cardId)) return true;
         }
-        if (player.containerMenu instanceof dev.hackdanel.realcamera.menu.PrinterMenu printer) {
-            return cardId.equals(printer.cardId());
+        if (player.containerMenu instanceof dev.hackdanel.realcamera.menu.PrinterMenu printer
+                && cardId.equals(printer.cardId())) {
+            return true;
+        }
+        for (var tripod : player.level().getEntitiesOfClass(dev.hackdanel.realcamera.entity.TripodEntity.class,
+                player.getBoundingBox().inflate(16))) {
+            if (holdsCard(tripod.camera(), cardId)) return true;
         }
         return false;
     }
@@ -285,10 +343,11 @@ public final class ServerPhotoService {
     }
 
     public static void deletePhoto(ServerPlayer player, Payloads.DeletePhoto msg) {
-        ItemStack camera = player.getItemInHand(msg.hand());
-        if (!CameraHelper.isCamera(camera)) {
+        Optional<Handle> handle = resolve(player, msg.ref());
+        if (handle.isEmpty()) {
             return;
         }
+        ItemStack camera = handle.get().stack();
         CardData d = CameraHelper.parts(camera).card().get(RCComponents.CARD.get());
         if (d == null || d.id().isEmpty()) {
             return;
@@ -306,7 +365,7 @@ public final class ServerPhotoService {
             UUID id = msg.photoId();
             Util.ioPool().execute(() -> PhotoStorage.delete(server, id));
         }
-        adjustCardMirror(player, d.id().get(), -cardBytes, -1);
+        adjustCardMirror(player, d.id().get(), -cardBytes, -1, msg.ref());
         PacketDistributor.sendToPlayer(player, cardContents(player, d.id().get()));
     }
 
