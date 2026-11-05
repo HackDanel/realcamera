@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:lens_element",
+      "count": 3
+    },
+    {
+      "item": "realcamera:aperture_blades",
+      "count": 1
+    },
+    {
+      "item": "realcamera:af_motor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:plastic",
+      "count": 2
+    },
+    {
+      "item": "realcamera:stabilizer",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:lens",
+    "count": 1,
+    "components": {
+      "realcamera:lens": "realcamera:sony_e_pz_16_50"
+    }
+  },
+  "time": 200
+}

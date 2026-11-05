@@ -3,11 +3,26 @@
   "exif_lens_model": "FE 85mm F1.8",
   "mount": "realcamera:sony_e",
   "image_circle": "ff",
-  "focal_min": 85, "focal_max": 85,
-  "aperture_wide": 1.8, "aperture_tele": 1.8, "aperture_min": 22,
+  "focal_min": 85,
+  "focal_max": 85,
+  "aperture_wide": 1.8,
+  "aperture_tele": 1.8,
+  "aperture_min": 22,
   "min_focus_m": 0.8,
-  "af": { "motor": "linear", "speed": 1.1 },
-  "optics": { "blades": 9, "vignetting_ev": 1.1, "sharpness": 1.05 },
+  "af": {
+    "motor": "linear",
+    "speed": 1.1
+  },
+  "optics": {
+    "blades": 9,
+    "vignetting_ev": 1.1,
+    "sharpness": 1.05,
+    "distortion_wide": 0.005,
+    "distortion_tele": 0.005,
+    "ca_px": 1.0,
+    "flare": 0.4,
+    "rounded": true
+  },
   "filter_mm": 67,
   "model": "realcamera:item/lens/sony_fe_85_f18"
 }

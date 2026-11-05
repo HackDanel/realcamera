@@ -9,7 +9,9 @@ import dev.hackdanel.realcamera.component.CardData;
 import dev.hackdanel.realcamera.component.FrameData;
 import dev.hackdanel.realcamera.component.PaperData;
 import dev.hackdanel.realcamera.component.PrintData;
+import dev.hackdanel.realcamera.spec.AdapterSpec;
 import dev.hackdanel.realcamera.spec.BatteryTypeSpec;
+import dev.hackdanel.realcamera.spec.TeleconverterSpec;
 import dev.hackdanel.realcamera.spec.CameraBodySpec;
 import dev.hackdanel.realcamera.spec.LensSpec;
 import dev.hackdanel.realcamera.spec.MemoryCardTypeSpec;
@@ -36,6 +38,13 @@ public final class RCComponents {
     public static final Supplier<DataComponentType<ResourceKey<MemoryCardTypeSpec>>> CARD_TYPE = REGISTER.registerComponentType(
             "card_type", b -> b.persistent(ResourceKey.codec(RCRegistries.MEMORY_CARD_TYPE))
                     .networkSynchronized(ResourceKey.streamCodec(RCRegistries.MEMORY_CARD_TYPE)));
+
+    public static final Supplier<DataComponentType<ResourceKey<AdapterSpec>>> ADAPTER = REGISTER.registerComponentType(
+            "adapter", b -> b.persistent(ResourceKey.codec(RCRegistries.MOUNT_ADAPTER))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.MOUNT_ADAPTER)));
+    public static final Supplier<DataComponentType<ResourceKey<TeleconverterSpec>>> TELECONVERTER = REGISTER.registerComponentType(
+            "teleconverter", b -> b.persistent(ResourceKey.codec(RCRegistries.TELECONVERTER))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.TELECONVERTER)));
 
     public static final Supplier<DataComponentType<CameraParts>> CAMERA_PARTS = REGISTER.registerComponentType(
             "camera_parts", b -> b.persistent(CameraParts.CODEC).networkSynchronized(CameraParts.STREAM_CODEC).cacheEncoding());

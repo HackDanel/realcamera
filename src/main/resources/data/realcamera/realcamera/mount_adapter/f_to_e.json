@@ -1,0 +1,10 @@
+{
+  "name": "Nikon F \u2013 Sony E",
+  "from": "realcamera:nikon_f",
+  "to": "realcamera:sony_e",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 28.5,
+  "model": "realcamera:item/adapter/f_to_e"
+}

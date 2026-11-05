@@ -1,12 +1,14 @@
 package dev.hackdanel.realcamera.registry;
 
 import dev.hackdanel.realcamera.RealCamera;
+import dev.hackdanel.realcamera.spec.AdapterSpec;
 import dev.hackdanel.realcamera.spec.BatteryTypeSpec;
 import dev.hackdanel.realcamera.spec.CameraBodySpec;
 import dev.hackdanel.realcamera.spec.ColorProfileSpec;
 import dev.hackdanel.realcamera.spec.LensSpec;
 import dev.hackdanel.realcamera.spec.MemoryCardTypeSpec;
 import dev.hackdanel.realcamera.spec.MountSpec;
+import dev.hackdanel.realcamera.spec.TeleconverterSpec;
 import java.util.Optional;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
@@ -27,6 +29,8 @@ public final class RCRegistries {
     public static final ResourceKey<Registry<BatteryTypeSpec>> BATTERY_TYPE = key("battery_type");
     public static final ResourceKey<Registry<MemoryCardTypeSpec>> MEMORY_CARD_TYPE = key("memory_card_type");
     public static final ResourceKey<Registry<ColorProfileSpec>> COLOR_PROFILE = key("color_profile");
+    public static final ResourceKey<Registry<AdapterSpec>> MOUNT_ADAPTER = key("mount_adapter");
+    public static final ResourceKey<Registry<TeleconverterSpec>> TELECONVERTER = key("teleconverter");
 
     private RCRegistries() {}
 
@@ -42,6 +46,8 @@ public final class RCRegistries {
         event.dataPackRegistry(BATTERY_TYPE, BatteryTypeSpec.CODEC, BatteryTypeSpec.CODEC);
         event.dataPackRegistry(MEMORY_CARD_TYPE, MemoryCardTypeSpec.CODEC, MemoryCardTypeSpec.CODEC);
         event.dataPackRegistry(COLOR_PROFILE, ColorProfileSpec.CODEC, ColorProfileSpec.CODEC);
+        event.dataPackRegistry(MOUNT_ADAPTER, AdapterSpec.CODEC, AdapterSpec.CODEC);
+        event.dataPackRegistry(TELECONVERTER, TeleconverterSpec.CODEC, TeleconverterSpec.CODEC);
     }
 
     public static <T> Optional<T> get(RegistryAccess access, ResourceKey<Registry<T>> registry, ResourceKey<T> key) {

@@ -35,6 +35,7 @@ public final class RCNetwork {
         r.playToClient(Payloads.UploadStatus.TYPE, Payloads.UploadStatus.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.PhotoData.TYPE, Payloads.PhotoData.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.PhotoGone.TYPE, Payloads.PhotoGone.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
+        r.playToClient(Payloads.ViewPhoto.TYPE, Payloads.ViewPhoto.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.CardContents.TYPE, Payloads.CardContents.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
     }
 }

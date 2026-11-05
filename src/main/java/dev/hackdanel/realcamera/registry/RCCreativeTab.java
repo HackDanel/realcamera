@@ -25,6 +25,8 @@ public final class RCCreativeTab {
                     out.accept(RCStacks.body(b.key()));
                 }));
                 r.lookup(RCRegistries.LENS).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.lens(h.key()))));
+                r.lookup(RCRegistries.MOUNT_ADAPTER).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.adapter(h.key()))));
+                r.lookup(RCRegistries.TELECONVERTER).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.teleconverter(h.key()))));
                 r.lookup(RCRegistries.BATTERY_TYPE).ifPresent(l -> l.listElements()
                         .forEach(h -> out.accept(RCStacks.battery(h.key(), h.value(), true))));
                 r.lookup(RCRegistries.MEMORY_CARD_TYPE).ifPresent(l -> l.listElements()

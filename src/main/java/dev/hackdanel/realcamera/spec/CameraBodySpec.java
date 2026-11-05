@@ -34,15 +34,29 @@ public record CameraBodySpec(
         ).apply(i, Info::new));
     }
 
-    /** Shutter speeds in seconds: fastest mechanical / electronic, slowest timed; rated life; sound set. */
-    public record Shutter(float mechMin, float elecMin, float max, int ratedLife, String sound) {
+    /**
+     * Shutter: fastest mechanical / electronic speed and slowest timed speed (s), rated life, sound set,
+     * sensor read-out time of the electronic shutter (rolling-shutter skew), burst rates and buffer depth.
+     * mechMin = 0 means the body has no mechanical shutter (Z8/Z9).
+     */
+    public record Shutter(float mechMin, float elecMin, float max, int ratedLife, String sound, float readoutMs,
+                          float burstMech, float burstElec, int bufferShots, boolean efcs) {
         public static final Codec<Shutter> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.FLOAT.fieldOf("mech_min").forGetter(Shutter::mechMin),
                 Codec.FLOAT.fieldOf("elec_min").forGetter(Shutter::elecMin),
                 Codec.FLOAT.optionalFieldOf("max", 30f).forGetter(Shutter::max),
                 Codec.INT.fieldOf("rated_life").forGetter(Shutter::ratedLife),
-                Codec.STRING.optionalFieldOf("sound", "mirrorless").forGetter(Shutter::sound)
+                Codec.STRING.optionalFieldOf("sound", "mirrorless").forGetter(Shutter::sound),
+                Codec.FLOAT.optionalFieldOf("readout_ms", 30f).forGetter(Shutter::readoutMs),
+                Codec.FLOAT.optionalFieldOf("burst_mech", 5f).forGetter(Shutter::burstMech),
+                Codec.FLOAT.optionalFieldOf("burst_elec", 5f).forGetter(Shutter::burstElec),
+                Codec.INT.optionalFieldOf("buffer_shots", 30).forGetter(Shutter::bufferShots),
+                Codec.BOOL.optionalFieldOf("efcs", true).forGetter(Shutter::efcs)
         ).apply(i, Shutter::new));
+
+        public boolean hasMechanical() {
+            return mechMin > 0;
+        }
     }
 
     /** Autofocus: speed multiplier, lowest scene EV it still locks at, subject detection class. */

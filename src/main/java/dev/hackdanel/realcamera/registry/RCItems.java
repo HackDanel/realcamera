@@ -23,6 +23,10 @@ public final class RCItems {
     public static final DeferredItem<CameraBodyItem> CAMERA_BODY = REGISTER.register("camera_body",
             () -> new CameraBodyItem(new Item.Properties()));
     public static final DeferredItem<LensItem> LENS = REGISTER.register("lens", () -> new LensItem(new Item.Properties()));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.OpticalAccessoryItem> MOUNT_ADAPTER = REGISTER.register(
+            "mount_adapter", () -> new dev.hackdanel.realcamera.item.OpticalAccessoryItem(new Item.Properties(), false));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.OpticalAccessoryItem> TELECONVERTER = REGISTER.register(
+            "teleconverter", () -> new dev.hackdanel.realcamera.item.OpticalAccessoryItem(new Item.Properties(), true));
     public static final DeferredItem<BatteryItem> BATTERY = REGISTER.register("battery",
             () -> new BatteryItem(new Item.Properties()));
     public static final DeferredItem<MemoryCardItem> MEMORY_CARD = REGISTER.register("memory_card",

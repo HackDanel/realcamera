@@ -1,6 +1,8 @@
 package dev.hackdanel.realcamera.menu;
 
 import dev.hackdanel.realcamera.camera.CameraHelper;
+import dev.hackdanel.realcamera.camera.OpticalChain;
+import dev.hackdanel.realcamera.registry.RCItems;
 import dev.hackdanel.realcamera.camera.Specs;
 import dev.hackdanel.realcamera.component.CameraParts;
 import dev.hackdanel.realcamera.item.BatteryItem;
@@ -23,7 +25,7 @@ import net.minecraft.world.item.ItemStack;
 /** Opened camera body: lens, battery and card slots plus the player inventory. */
 public class CameraPartsMenu extends AbstractContainerMenu {
     public static final int PART_SLOTS = CameraParts.SLOTS;
-    public static final int[] SLOT_X = {44, 80, 116};
+    public static final int[] SLOT_X = {17, 48, 80, 112, 143};
     public static final int SLOT_Y = 30;
 
     private final Player player;
@@ -81,20 +83,30 @@ public class CameraPartsMenu extends AbstractContainerMenu {
         return Specs.body(player.level().registryAccess(), player.getItemInHand(hand));
     }
 
-    /** Mount, battery type and card form must match the body, like the real thing. */
+    /**
+     * Mount, battery type and card form must match the body, like the real thing. Optical parts are
+     * checked as a chain (body -> adapter -> teleconverter -> lens) against what is already inserted.
+     */
     public boolean accepts(int part, ItemStack stack) {
         Optional<CameraBodySpec> body = body();
         if (body.isEmpty()) {
             return false;
         }
-        var registries = player.level().registryAccess();
+        var r = player.level().registryAccess();
+        var lens = Specs.lens(r, parts.getItem(CameraParts.SLOT_LENS)).orElse(null);
+        var adapter = Specs.adapter(r, parts.getItem(CameraParts.SLOT_ADAPTER)).orElse(null);
+        var tc = Specs.teleconverter(r, parts.getItem(CameraParts.SLOT_TC)).orElse(null);
         return switch (part) {
-            case CameraParts.SLOT_LENS -> stack.getItem() instanceof LensItem
-                    && Specs.lens(registries, stack).map(l -> l.mount().equals(body.get().mount())).orElse(false);
+            case CameraParts.SLOT_LENS -> stack.getItem() instanceof LensItem && Specs.lens(r, stack)
+                    .map(l -> OpticalChain.incompatibility(body.get(), l, adapter, tc) == null).orElse(false);
+            case CameraParts.SLOT_ADAPTER -> stack.is(RCItems.MOUNT_ADAPTER.get()) && Specs.adapter(r, stack)
+                    .map(a -> OpticalChain.incompatibility(body.get(), lens, a, tc) == null).orElse(false);
+            case CameraParts.SLOT_TC -> stack.is(RCItems.TELECONVERTER.get()) && Specs.teleconverter(r, stack)
+                    .map(t -> OpticalChain.incompatibility(body.get(), lens, adapter, t) == null).orElse(false);
             case CameraParts.SLOT_BATTERY -> stack.getItem() instanceof BatteryItem
                     && Objects.equals(stack.get(RCComponents.BATTERY_TYPE.get()), body.get().batteryType());
             default -> stack.getItem() instanceof MemoryCardItem
-                    && Specs.card(registries, stack).map(c -> body.get().cardForms().contains(c.form())).orElse(false);
+                    && Specs.card(r, stack).map(c -> body.get().cardForms().contains(c.form())).orElse(false);
         };
     }
 
@@ -107,7 +119,7 @@ public class CameraPartsMenu extends AbstractContainerMenu {
             return;
         }
         CameraHelper.setParts(camera, new CameraParts(parts.getItem(0).copy(), parts.getItem(1).copy(),
-                parts.getItem(2).copy()));
+                parts.getItem(2).copy(), parts.getItem(3).copy(), parts.getItem(4).copy()));
     }
 
     @Override

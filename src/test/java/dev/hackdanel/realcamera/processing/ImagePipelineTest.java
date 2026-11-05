@@ -76,6 +76,82 @@ class ImagePipelineTest {
     }
 
     @Test
+    void motionBlurSmearsAlongDirection() {
+        int w = 40, h = 10;
+        int[] img = new int[w * h];
+        for (int i = 0; i < img.length; i++) img[i] = (i % w) == 20 ? 0xFFFFFF : 0x000000; // vertical white line
+        int[] out = ImagePipeline.develop(img, null, w, h, ImageParams.neutral().withMotion(new ImageParams.Motion(10, 0, 0)));
+        assertTrue(red(out[5 * w + 24]) > 40, "smeared right");
+        assertTrue(red(out[5 * w + 20]) < 200, "line dimmed");
+        int[] vertical = ImagePipeline.develop(img, null, w, h, ImageParams.neutral().withMotion(new ImageParams.Motion(0, 6, 0)));
+        assertTrue(red(vertical[5 * w + 24]) < 5, "vertical blur keeps a vertical line sharp sideways");
+    }
+
+    @Test
+    void rollingShutterShearsVerticalLines() {
+        int w = 40, h = 40;
+        int[] img = new int[w * h];
+        for (int i = 0; i < img.length; i++) img[i] = (i % w) == 20 ? 0xFFFFFF : 0x000000;
+        int[] out = ImagePipeline.develop(img, null, w, h, ImageParams.neutral().withMotion(new ImageParams.Motion(0, 0, 16)));
+        // top rows sampled from the left of the line, bottom rows from the right: the line leans
+        assertTrue(red(out[2 * w + 27]) > 100, "top shifted");
+        assertTrue(red(out[37 * w + 13]) > 100, "bottom shifted");
+    }
+
+    @Test
+    void barrelDistortionCompressesEdgesTowardsCorner() {
+        double k1 = -0.15;
+        assertEquals(1, ImagePipeline.distortionScale(1, k1), 1e-9, "corner samples the corner");
+        double centre = ImagePipeline.distortionScale(0, k1), edge = ImagePipeline.distortionScale(0.5, k1);
+        assertTrue(centre < edge, "barrel: magnification falls towards the edge");
+        // pincushion keeps everything inside the rendered frame
+        assertTrue(ImagePipeline.distortionScale(1, 0.05) < 1);
+        assertEquals(1, ImagePipeline.distortionScale(0.7, 0), 1e-12);
+    }
+
+    @Test
+    void imageCircleBlacksOutCorners() {
+        var lens = new ImageParams.Lens(0, 8, 1, 0, 0, 0.66, 7, true, 0);
+        int[] out = ImagePipeline.develop(flat(30, 20, 0xAAAAAA), null, 30, 20, ImageParams.neutral().withLens(lens));
+        assertTrue(red(out[0]) < 10, "corner dark");
+        assertTrue(red(out[10 * 30 + 15]) > 150, "centre lit");
+    }
+
+    @Test
+    void brightOutOfFocusPointBecomesDisc() {
+        int w = 80, h = 80;
+        int[] img = flat(w, h, 0x101010);
+        img[40 * w + 40] = 0xFFFFFF;
+        img[40 * w + 41] = 0xFFFFFF;
+        img[41 * w + 40] = 0xFFFFFF;
+        img[41 * w + 41] = 0xFFFFFF;
+        float[] depth = new float[w * h];
+        java.util.Arrays.fill(depth, 100f);
+        ImageParams p = ImageParams.neutral().withExposure(2).withFocus(85, 1.8, 1.5);
+        int[] out = ImagePipeline.develop(img, depth, w, h, p);
+        int edge = red(out[40 * w + 45]);
+        int far = red(out[40 * w + 70]);
+        assertTrue(edge > far + 10, "disc around the highlight: " + edge + " vs " + far);
+    }
+
+    @Test
+    void sunInFrameAddsGlare() {
+        int[] base = ImagePipeline.develop(flat(40, 30, 0x202020), null, 40, 30, ImageParams.neutral());
+        int[] flare = ImagePipeline.develop(flat(40, 30, 0x202020), null, 40, 30,
+                ImageParams.neutral().withLens(new ImageParams.Lens(0, 8, 1, 0, 0, 1, 7, true, 1))
+                        .withSun(new ImageParams.Sun(0.5, 0.5, 1)));
+        assertTrue(red(flare[15 * 40 + 20]) > red(base[15 * 40 + 20]), "veiling glare lifts the image");
+    }
+
+    @Test
+    void polygonRadiusIsBetweenInscribedAndCircumscribed() {
+        for (double t = 0; t < 2 * Math.PI; t += 0.1) {
+            double r = ImagePipeline.polygonRadius(t, 7, 10);
+            assertTrue(r <= 10.0001 && r >= 10 * Math.cos(Math.PI / 7) - 1e-4, "r=" + r);
+        }
+    }
+
+    @Test
     void tungstenSettingInDaylightTurnsBlue() {
         double[] m = ImagePipeline.whiteBalance(5500, 3200);
         assertTrue(m[2] > 1.2 && m[0] < 0.9, java.util.Arrays.toString(m));

@@ -9,6 +9,7 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.hackdanel.realcamera.RealCamera;
 import dev.hackdanel.realcamera.camera.CameraHelper;
+import dev.hackdanel.realcamera.client.camera.SubjectDetector;
 import dev.hackdanel.realcamera.client.camera.Viewfinder;
 import dev.hackdanel.realcamera.client.capture.PhotoCapture;
 import dev.hackdanel.realcamera.component.BatteryCharge;
@@ -33,14 +34,18 @@ import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import org.joml.Matrix4f;
 
-/** Electronic viewfinder overlay: exposure preview, frame mask and the camera's information display. */
+/**
+ * Viewfinder overlay. Electronic viewfinders (mirrorless) show the exposure preview and full data;
+ * optical ones (DSLR) show the scene as is with a green data strip; rangefinders show bright frame
+ * lines inside a wider view and a focusing patch.
+ */
 @EventBusSubscriber(modid = RealCamera.MODID, value = Dist.CLIENT)
 public final class ViewfinderHud {
     public static final ResourceLocation LAYER = RealCamera.id("viewfinder");
     private static final Set<ResourceLocation> KEEP = Set.of(VanillaGuiLayers.CHAT, VanillaGuiLayers.OVERLAY_MESSAGE,
             VanillaGuiLayers.SUBTITLE_OVERLAY, VanillaGuiLayers.DEBUG_OVERLAY, LAYER);
     private static final int WHITE = 0xFFFFFFFF, GREY = 0xFF9A9A9A, YELLOW = 0xFFFFD84A, RED = 0xFFFF5A4A,
-            GREEN = 0xFF63E26B, ORANGE = 0xFFFF9F2E;
+            GREEN = 0xFF63E26B, ORANGE = 0xFFFF9F2E, OVF_GREEN = 0xFF7CFF6A, PEAK = 0xFFFF3030;
 
     private ViewfinderHud() {}
 
@@ -59,6 +64,26 @@ public final class ViewfinderHud {
         }
     }
 
+    /** Frame rectangle on screen (GUI coordinates). */
+    record Frame(int x, int y, int w, int h) {
+        int cx() {
+            return x + w / 2;
+        }
+
+        int cy() {
+            return y + h / 2;
+        }
+
+        /** Frame coordinates (-1..1, y up) to screen. */
+        int sx(double u) {
+            return (int) Math.round(cx() + u * w / 2.0);
+        }
+
+        int sy(double v) {
+            return (int) Math.round(cy() - v * h / 2.0);
+        }
+    }
+
     static void render(GuiGraphics g, DeltaTracker delta) {
         Minecraft mc = Minecraft.getInstance();
         // Mod GUI layers still run with hideGui; never draw over the frame being captured.
@@ -66,7 +91,7 @@ public final class ViewfinderHud {
             return;
         }
         int sw = g.guiWidth(), sh = g.guiHeight();
-        double sensorAspect = Viewfinder.body().sensor().aspect();
+        double sensorAspect = Viewfinder.sensor().aspect();
         int fw, fh;
         if ((double) sw / sh >= sensorAspect) {
             fh = sh;
@@ -75,43 +100,89 @@ public final class ViewfinderHud {
             fw = sw;
             fh = (int) Math.round(sw / sensorAspect);
         }
-        int fx = (sw - fw) / 2, fy = (sh - fh) / 2;
+        Frame outer = new Frame((sw - fw) / 2, (sh - fh) / 2, fw, fh);
+        String type = Viewfinder.body().viewfinder();
+        boolean evf = "evf".equals(type) || "none".equals(type);
+        boolean rangefinder = "rangefinder".equals(type);
+        // the photo's frame: equal to the visible area, or smaller inside a rangefinder's wider view
+        double scale = rangefinder ? 1 / Viewfinder.viewfinderOverscan() : 1;
+        if (Viewfinder.magnified()) scale = 1;
+        Frame frame = new Frame((int) Math.round(outer.cx() - fw * scale / 2), (int) Math.round(outer.cy() - fh * scale / 2),
+                (int) Math.round(fw * scale), (int) Math.round(fh * scale));
         Exposure.Result exp = Viewfinder.exposure();
         CameraSettings s = Viewfinder.settings();
-        int disp = s.disp();
+        Font font = mc.font;
 
         g.flush();
-        if (exp != null) {
-            exposurePreview(g, fx, fy, fw, fh, exp.delta(), s.whiteBalance());
+        if (evf && exp != null) {
+            exposurePreview(g, outer.x(), outer.y(), outer.w(), outer.h(), previewEv(exp, s));
         }
-        // frame mask
-        g.fill(0, 0, sw, fy, 0xFF000000);
-        g.fill(0, fy + fh, sw, sh, 0xFF000000);
-        g.fill(0, fy, fx, fy + fh, 0xFF000000);
-        g.fill(fx + fw, fy, sw, fy + fh, 0xFF000000);
-
-        Font font = mc.font;
-        if (disp == CameraSettings.DISP_FULL) {
-            grid(g, fx, fy, fw, fh);
+        // mask outside the viewfinder area
+        g.fill(0, 0, sw, outer.y(), 0xFF000000);
+        g.fill(0, outer.y() + outer.h(), sw, sh, 0xFF000000);
+        g.fill(0, outer.y(), outer.x(), outer.y() + outer.h(), 0xFF000000);
+        g.fill(outer.x() + outer.w(), outer.y(), sw, outer.y() + outer.h(), 0xFF000000);
+        if (!evf && !rangefinder) {
+            opticalVignette(g, outer);
         }
-        afFrame(g, fx + fw / 2, fy + fh / 2, fw);
+        if (Viewfinder.magnified()) {
+            g.drawString(font, "×5", outer.x() + 8, outer.y() + 22, YELLOW, true);
+        }
+        int disp = s.disp();
+        if (disp == CameraSettings.DISP_FULL && !Viewfinder.magnified()) {
+            grid(g, frame);
+        }
+        if (rangefinder && !Viewfinder.magnified()) {
+            frameLines(g, frame);
+            rangefinderPatch(g, outer);
+        } else {
+            afOverlay(g, frame, s);
+        }
+        if (s.focusMode() == CameraSettings.FOCUS_MF || !Viewfinder.afAvailable()) {
+            if (s.peaking()) peaking(g, frame);
+        }
+        double timer = Viewfinder.timerLeft();
+        if (timer >= 0) {
+            String t = String.valueOf((int) Math.ceil(timer));
+            g.pose().pushPose();
+            g.pose().translate(frame.cx(), frame.cy() - 30, 0);
+            g.pose().scale(3, 3, 1);
+            g.drawCenteredString(font, t, 0, 0, ORANGE);
+            g.pose().popPose();
+        }
         if (disp == CameraSettings.DISP_CLEAN) {
             return;
         }
-        bottomBar(g, font, fx, fy + fh, fw, s, exp);
-        topBar(g, font, fx, fy, fw, s);
-        if (exp != null && (disp == CameraSettings.DISP_FULL || disp == CameraSettings.DISP_HISTOGRAM)) {
-            histogram(g, fx + fw - 72, fy + fh - 58, 64, 32, exp.delta());
+        if (evf) {
+            bottomBar(g, font, outer.x(), outer.y() + outer.h(), outer.w(), s, exp, WHITE, 0x90000000);
+            topBar(g, font, outer.x(), outer.y(), outer.w(), s);
+            if (exp != null && (disp == CameraSettings.DISP_FULL || disp == CameraSettings.DISP_HISTOGRAM)) {
+                histogram(g, outer.x() + outer.w() - 72, outer.y() + outer.h() - 58, 64, 32, previewEv(exp, s));
+            }
+            if (exp != null && (s.mode() == CameraSettings.MODE_M || Math.abs(exp.delta()) > 0.34)) {
+                meterScale(g, font, outer.cx(), outer.y() + outer.h() - 34, exp.delta());
+            }
+        } else {
+            // optical finder: data strip below the image area, green LCD style
+            bottomBar(g, font, outer.x(), outer.y() + outer.h(), outer.w(), s, exp, OVF_GREEN, 0xE0000000);
+            if (exp != null) {
+                meterScale(g, font, outer.cx(), outer.y() + outer.h() - 26, exp.delta());
+            }
         }
-        if (exp != null && (s.mode() == CameraSettings.MODE_M || Math.abs(exp.delta()) > 0.34)) {
-            meterScale(g, font, fx + fw / 2, fy + fh - 34, exp.delta());
+    }
+
+    /** Bulb exposure is unknown until release; preview it as one second. */
+    private static double previewEv(Exposure.Result exp, CameraSettings s) {
+        if (s.mode() == CameraSettings.MODE_M && s.shutterIndex() >= ExposureScales.BULB_INDEX) {
+            return Viewfinder.meteredEv() - Exposure.cameraEv(exp.fNumber(), 1, exp.iso());
         }
+        return exp.delta();
     }
 
     // ------------------------------------------------------------------ exposure preview
 
     /** Multiply (darker) or add (brighter) the frame so the EVF shows the exposure the photo will get. */
-    private static void exposurePreview(GuiGraphics g, int x, int y, int w, int h, double deltaEv, int wb) {
+    private static void exposurePreview(GuiGraphics g, int x, int y, int w, int h, double deltaEv) {
         double gain = Math.pow(Math.pow(2, Math.max(-8, Math.min(6, deltaEv))), 1 / 2.2);
         Matrix4f m = g.pose().last().pose();
         RenderSystem.enableBlend();
@@ -141,29 +212,94 @@ public final class ViewfinderHud {
         BufferUploader.drawWithShader(bb.buildOrThrow());
     }
 
-    // ------------------------------------------------------------------ overlays
-
-    private static void grid(GuiGraphics g, int x, int y, int w, int h) {
-        int c = 0x50FFFFFF;
-        for (int i = 1; i < 3; i++) {
-            g.vLine(x + w * i / 3, y, y + h, c);
-            g.hLine(x, x + w, y + h * i / 3, c);
+    /** Darkened edges of an optical pentaprism finder. */
+    private static void opticalVignette(GuiGraphics g, Frame f) {
+        int band = Math.max(4, f.h() / 14);
+        for (int i = 0; i < band; i++) {
+            int a = (int) (110 * (1 - (double) i / band));
+            int c = a << 24;
+            g.fill(f.x() + i, f.y() + i, f.x() + f.w() - i, f.y() + i + 1, c);
+            g.fill(f.x() + i, f.y() + f.h() - i - 1, f.x() + f.w() - i, f.y() + f.h() - i, c);
+            g.fill(f.x() + i, f.y() + i, f.x() + i + 1, f.y() + f.h() - i, c);
+            g.fill(f.x() + f.w() - i - 1, f.y() + i, f.x() + f.w() - i, f.y() + f.h() - i, c);
         }
     }
 
-    private static void afFrame(GuiGraphics g, int cx, int cy, int fw) {
-        int size = Math.max(10, fw / 22);
-        int color = switch (Viewfinder.afState()) {
+    // ------------------------------------------------------------------ overlays
+
+    private static void grid(GuiGraphics g, Frame f) {
+        int c = 0x50FFFFFF;
+        for (int i = 1; i < 3; i++) {
+            g.vLine(f.x() + f.w() * i / 3, f.y(), f.y() + f.h(), c);
+            g.hLine(f.x(), f.x() + f.w(), f.y() + f.h() * i / 3, c);
+        }
+    }
+
+    private static int afColor() {
+        return switch (Viewfinder.afState()) {
             case Viewfinder.AF_LOCKED -> GREEN;
             case Viewfinder.AF_FAILED -> RED;
             case Viewfinder.AF_SEARCHING -> (System.currentTimeMillis() / 120 % 2 == 0) ? WHITE : GREY;
             default -> WHITE;
         };
-        if (Viewfinder.settings().focusMode() == CameraSettings.FOCUS_MF) {
-            color = 0x90FFFFFF;
+    }
+
+    private static void afOverlay(GuiGraphics g, Frame f, CameraSettings s) {
+        boolean mf = s.focusMode() == CameraSettings.FOCUS_MF || !Viewfinder.afAvailable();
+        int color = mf ? 0x90FFFFFF : afColor();
+        SubjectDetector.Subject subject = Viewfinder.subject();
+        if (subject != null) {
+            int x0 = f.sx(subject.x0()), x1 = f.sx(subject.x1()), y0 = f.sy(subject.y1()), y1 = f.sy(subject.y0());
+            int sc = Viewfinder.afState() == Viewfinder.AF_LOCKED ? GREEN : 0xC0FFFFFF;
+            corners(g, x0, y0, x1, y1, sc);
+            if (subject.eye()) {
+                // eye marker: small box at the eye point
+                int ex = f.sx(eyeU(subject)), ey = f.sy(eyeV(subject));
+                corners(g, ex - 4, ey - 3, ex + 4, ey + 3, sc);
+            }
+            if (Viewfinder.afState() == Viewfinder.AF_LOCKED) return;
         }
-        int l = size / 3;
-        int x0 = cx - size, x1 = cx + size, y0 = cy - size * 2 / 3, y1 = cy + size * 2 / 3;
+        int size = Math.max(10, f.w() / 22);
+        switch (s.afArea()) {
+            case CameraSettings.AF_POINT -> {
+                int cx = f.sx(s.afX()), cy = f.sy(s.afY());
+                corners(g, cx - size / 2, cy - size / 3, cx + size / 2, cy + size / 3, color);
+            }
+            case CameraSettings.AF_ZONE -> corners(g, f.sx(-0.4), f.sy(0.4), f.sx(0.4), f.sy(-0.4), color);
+            case CameraSettings.AF_TRACKING -> {
+                corners(g, f.cx() - size, f.cy() - size * 2 / 3, f.cx() + size, f.cy() + size * 2 / 3, color);
+                g.fill(f.cx() - 1, f.cy() - 1, f.cx() + 1, f.cy() + 1, color);
+            }
+            default -> {
+                if (!"ovf".equals(Viewfinder.body().viewfinder())) {
+                    corners(g, f.sx(-0.9), f.sy(0.85), f.sx(0.9), f.sy(-0.85), 0x60FFFFFF);
+                } else {
+                    // DSLR: a fixed pattern of AF points
+                    for (int y = -2; y <= 2; y++) {
+                        for (int x = -4; x <= 4; x++) {
+                            int px = f.sx(x * 0.12), py = f.sy(y * 0.14);
+                            g.fill(px - 2, py - 2, px + 2, py - 1, 0x80000000);
+                            g.fill(px - 2, py + 1, px + 2, py + 2, 0x80000000);
+                        }
+                    }
+                }
+                if (Viewfinder.afState() != Viewfinder.AF_IDLE && subject == null) {
+                    corners(g, f.cx() - size, f.cy() - size * 2 / 3, f.cx() + size, f.cy() + size * 2 / 3, color);
+                }
+            }
+        }
+    }
+
+    private static float eyeU(SubjectDetector.Subject s) {
+        return s.cx();
+    }
+
+    private static float eyeV(SubjectDetector.Subject s) {
+        return s.y1() - (s.y1() - s.y0()) * 0.12f;
+    }
+
+    private static void corners(GuiGraphics g, int x0, int y0, int x1, int y1, int color) {
+        int l = Math.max(2, Math.min(x1 - x0, y1 - y0) / 4);
         g.hLine(x0, x0 + l, y0, color);
         g.vLine(x0, y0, y0 + l, color);
         g.hLine(x1 - l, x1, y0, color);
@@ -173,6 +309,56 @@ public final class ViewfinderHud {
         g.hLine(x1 - l, x1, y1, color);
         g.vLine(x1, y1 - l, y1, color);
     }
+
+    private static void peaking(GuiGraphics g, Frame f) {
+        boolean[] mask = Viewfinder.peaking();
+        int cw = Math.max(1, f.w() / Viewfinder.PEAK_W), ch = Math.max(1, f.h() / Viewfinder.PEAK_H);
+        for (int y = 0; y < Viewfinder.PEAK_H; y++) {
+            for (int x = 0; x < Viewfinder.PEAK_W; x++) {
+                if (mask[y * Viewfinder.PEAK_W + x]) {
+                    int px = f.x() + x * f.w() / Viewfinder.PEAK_W, py = f.y() + y * f.h() / Viewfinder.PEAK_H;
+                    g.fill(px, py, px + Math.max(1, cw / 2), py + Math.max(1, ch / 2), PEAK);
+                }
+            }
+        }
+    }
+
+    /** Leica-style bright frame lines marking the picture inside the wider view. */
+    private static void frameLines(GuiGraphics g, Frame f) {
+        int c = 0xE0FFF4C0;
+        int l = f.w() / 10;
+        g.hLine(f.x(), f.x() + l, f.y(), c);
+        g.vLine(f.x(), f.y(), f.y() + l, c);
+        g.hLine(f.x() + f.w() - l, f.x() + f.w(), f.y(), c);
+        g.vLine(f.x() + f.w(), f.y(), f.y() + l, c);
+        g.hLine(f.x(), f.x() + l, f.y() + f.h(), c);
+        g.vLine(f.x(), f.y() + f.h() - l, f.y() + f.h(), c);
+        g.hLine(f.x() + f.w() - l, f.x() + f.w(), f.y() + f.h(), c);
+        g.vLine(f.x() + f.w(), f.y() + f.h() - l, f.y() + f.h(), c);
+    }
+
+    /**
+     * Rangefinder focusing patch: a brighter rectangle in the centre with a ghost image displaced
+     * sideways by the focus error (1/focus - 1/subject distance); it merges when in focus.
+     */
+    private static void rangefinderPatch(GuiGraphics g, Frame outer) {
+        int pw = outer.w() / 9, ph = outer.h() / 9;
+        int x = outer.cx() - pw / 2, y = outer.cy() - ph / 2;
+        float subject = Viewfinder.subjectDistanceForPatch();
+        double error = 1 / Math.max(0.3, Viewfinder.focusDistance()) - 1 / Math.max(0.3, subject);
+        int shift = (int) Math.round(Math.max(-1, Math.min(1, error * 1.5)) * pw * 0.6);
+        g.fill(x, y, x + pw, y + ph, 0x30FFE9A0);
+        // ghost: a second outline of the subject edge shifted by the error
+        int c = Math.abs(shift) <= 1 ? 0xC063E26B : 0xB0FFE9A0;
+        g.vLine(outer.cx() + shift, y + 2, y + ph - 2, c);
+        g.vLine(outer.cx() + shift + 1, y + 2, y + ph - 2, c);
+        g.hLine(x, x + pw, y, 0x80FFFFFF);
+        g.hLine(x, x + pw, y + ph, 0x80FFFFFF);
+        g.vLine(x, y, y + ph, 0x80FFFFFF);
+        g.vLine(x + pw, y, y + ph, 0x80FFFFFF);
+    }
+
+    // ------------------------------------------------------------------ data
 
     private static String modeLabel(int mode) {
         return switch (mode) {
@@ -197,41 +383,65 @@ public final class ViewfinderHud {
         };
     }
 
-    private static void bottomBar(GuiGraphics g, Font font, int x, int bottom, int w, CameraSettings s, Exposure.Result exp) {
+    public static String driveLabel(int drive) {
+        return switch (drive) {
+            case CameraSettings.DRIVE_CONT_LO -> "CL";
+            case CameraSettings.DRIVE_CONT_HI -> "CH";
+            case CameraSettings.DRIVE_CONT_MAX -> "CH+";
+            case CameraSettings.DRIVE_TIMER_2 -> "2s";
+            case CameraSettings.DRIVE_TIMER_10 -> "10s";
+            default -> "S";
+        };
+    }
+
+    public static String afAreaLabel(int area) {
+        return switch (area) {
+            case CameraSettings.AF_ZONE -> "ZONE";
+            case CameraSettings.AF_POINT -> "SPOT";
+            case CameraSettings.AF_TRACKING -> "TRACK";
+            default -> "WIDE";
+        };
+    }
+
+    private static void bottomBar(GuiGraphics g, Font font, int x, int bottom, int w, CameraSettings s,
+                                  Exposure.Result exp, int baseColor, int background) {
         int y = bottom - 12;
-        g.fill(x, y - 3, x + w, bottom, 0x90000000);
+        g.fill(x, y - 3, x + w, bottom, background);
         int mode = s.mode();
         int sel = s.selectedParam();
         boolean shutterFree = mode == CameraSettings.MODE_S || mode == CameraSettings.MODE_M;
         boolean apertureFree = mode == CameraSettings.MODE_A || mode == CameraSettings.MODE_M;
         boolean isoFree = mode != CameraSettings.MODE_AUTO;
-        String shutter = exp == null ? "--" : ExposureScales.SHUTTER_LABEL[exp.shutterIdx()];
+        boolean bulb = mode == CameraSettings.MODE_M && s.shutterIndex() >= ExposureScales.BULB_INDEX;
+        String shutter = exp == null ? "--" : bulb ? "BULB" : ExposureScales.SHUTTER_LABEL[exp.shutterIdx()];
         String aperture = exp == null ? "--" : "F" + ExposureScales.APERTURE_LABEL[exp.apertureIdx()];
         String iso = exp == null ? "--" : (s.isoIndex() < 0 || mode == CameraSettings.MODE_AUTO ? "ISO AUTO " : "ISO ")
                 + ExposureScales.ISO[Math.max(0, Math.min(ExposureScales.ISO.length - 1, exp.isoIdx()))];
         String ev = ExposureScales.evCompLabel(s.evComp());
         int cx = x + 6;
         cx = text(g, font, modeLabel(mode), cx, y, YELLOW) + 12;
-        cx = text(g, font, shutter, cx, y, color(sel == CameraSettings.PARAM_SHUTTER, shutterFree)) + 10;
-        cx = text(g, font, aperture, cx, y, color(sel == CameraSettings.PARAM_APERTURE, apertureFree)) + 10;
-        cx = text(g, font, iso, cx, y, color(sel == CameraSettings.PARAM_ISO, isoFree)) + 10;
-        cx = text(g, font, "EV" + ev, cx, y, color(sel == CameraSettings.PARAM_EV, isoFree)) + 10;
-        text(g, font, wbLabel(s), cx, y, color(sel == CameraSettings.PARAM_WB, isoFree));
+        cx = text(g, font, shutter, cx, y, color(sel == CameraSettings.PARAM_SHUTTER, shutterFree, baseColor)) + 10;
+        cx = text(g, font, aperture, cx, y, color(sel == CameraSettings.PARAM_APERTURE, apertureFree, baseColor)) + 10;
+        cx = text(g, font, iso, cx, y, color(sel == CameraSettings.PARAM_ISO, isoFree, baseColor)) + 10;
+        cx = text(g, font, "EV" + ev, cx, y, color(sel == CameraSettings.PARAM_EV, isoFree, baseColor)) + 10;
+        text(g, font, wbLabel(s), cx, y, color(sel == CameraSettings.PARAM_WB, isoFree, baseColor));
 
         ItemStack cam = Viewfinder.camera();
         BatteryCharge charge = CameraHelper.charge(cam);
         long shots = Minecraft.getInstance().level == null ? -1
                 : CameraHelper.shotsLeft(Minecraft.getInstance().level.registryAccess(), cam);
         String right = (shots >= 0 ? shots : "--") + "   " + (charge == null ? "--" : charge.percent() + "%");
-        int batteryColor = charge != null && charge.percent() <= 15 ? RED : WHITE;
+        int batteryColor = charge != null && charge.percent() <= 15 ? RED : baseColor;
         g.drawString(font, right, x + w - 6 - font.width(right), y, batteryColor, true);
-        if (PhotoCapture.busy()) {
-            g.drawString(font, "REC", x + w - 14 - font.width(right) - font.width("REC"), y, RED, true);
+        int buffered = PhotoCapture.buffered();
+        if (buffered > 0) {
+            String rec = "REC " + buffered;
+            g.drawString(font, rec, x + w - 14 - font.width(right) - font.width(rec), y, RED, true);
         }
     }
 
-    private static int color(boolean selected, boolean free) {
-        return selected ? (free ? YELLOW : ORANGE) : (free ? WHITE : GREY);
+    private static int color(boolean selected, boolean free, int base) {
+        return selected ? (free ? YELLOW : ORANGE) : (free ? base : GREY);
     }
 
     private static int text(GuiGraphics g, Font font, String s, int x, int y, int color) {
@@ -240,11 +450,8 @@ public final class ViewfinderHud {
     }
 
     private static void topBar(GuiGraphics g, Font font, int x, int y, int w, CameraSettings s) {
-        String focus = switch (s.focusMode()) {
-            case CameraSettings.FOCUS_AFS -> "AF-S";
-            case CameraSettings.FOCUS_AFC -> "AF-C";
-            default -> "MF";
-        };
+        boolean mf = s.focusMode() == CameraSettings.FOCUS_MF || !Viewfinder.afAvailable();
+        String focus = mf ? "MF" : s.focusMode() == CameraSettings.FOCUS_AFC ? "AF-C" : "AF-S";
         String meter = switch (s.metering()) {
             case CameraSettings.METER_CENTER -> "CTR";
             case CameraSettings.METER_SPOT -> "SPOT";
@@ -252,13 +459,30 @@ public final class ViewfinderHud {
         };
         float d = Viewfinder.focusDistance();
         String dist = d >= 999 ? "∞" : d >= 10 ? String.format(Locale.ROOT, "%.0f m", d) : String.format(Locale.ROOT, "%.1f m", d);
-        String left = String.format(Locale.ROOT, "%.0f mm   %s %s   %s", Viewfinder.focal(), focus, dist, meter);
-        g.drawString(Minecraft.getInstance().font, left, x + 6, y + 6, WHITE, true);
-        String q = s.quality() == CameraSettings.QUALITY_FINE ? "JPEG FINE" : "JPEG STD";
-        g.drawString(font, q, x + w - 6 - font.width(q), y + 6, WHITE, true);
+        String area = mf ? "" : afAreaLabel(s.afArea()) + "  ";
+        String left = String.format(Locale.ROOT, "%.0f mm   %s %s  %s%s", Viewfinder.focal(), focus, dist, area, meter);
+        g.drawString(font, left, x + 6, y + 6, WHITE, true);
+        StringBuilder r = new StringBuilder();
+        r.append(driveLabel(s.drive())).append("  ");
+        if (s.shutterType() == CameraSettings.SHUTTER_ELECTRONIC || !Viewfinder.body().shutter().hasMechanical()) {
+            r.append("e  ");
+        }
+        if (s.stabilization() && Viewfinder.chain().stabilizationStops() > 0) {
+            r.append("IS  ");
+        }
+        if (Viewfinder.chain().cropped()) {
+            r.append("APS-C  ");
+        }
+        r.append(switch (s.fileFormat()) {
+            case CameraSettings.FORMAT_RAW -> "RAW";
+            case CameraSettings.FORMAT_RAW_JPEG -> "RAW+J";
+            default -> s.quality() == CameraSettings.QUALITY_FINE ? "JPEG FINE" : "JPEG STD";
+        });
+        String right = r.toString();
+        g.drawString(font, right, x + w - 6 - font.width(right), y + 6, WHITE, true);
         float pitch = Minecraft.getInstance().player == null ? 0 : Minecraft.getInstance().player.getXRot();
         if (Math.abs(pitch) < 2.5f && s.disp() == CameraSettings.DISP_FULL) {
-            g.drawString(font, "- 0° -", x + w / 2 - font.width("- 0° -") / 2, y + 6, GREEN, true);
+            g.drawString(font, "- 0° -", x + w / 2 - font.width("- 0° -") / 2, y + 18, GREEN, true);
         }
     }
 

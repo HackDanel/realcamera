@@ -2,11 +2,13 @@ package dev.hackdanel.realcamera.camera;
 
 import dev.hackdanel.realcamera.registry.RCComponents;
 import dev.hackdanel.realcamera.registry.RCRegistries;
+import dev.hackdanel.realcamera.spec.AdapterSpec;
 import dev.hackdanel.realcamera.spec.BatteryTypeSpec;
 import dev.hackdanel.realcamera.spec.CameraBodySpec;
 import dev.hackdanel.realcamera.spec.ColorProfileSpec;
 import dev.hackdanel.realcamera.spec.LensSpec;
 import dev.hackdanel.realcamera.spec.MemoryCardTypeSpec;
+import dev.hackdanel.realcamera.spec.TeleconverterSpec;
 import java.util.Optional;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.Registry;
@@ -39,6 +41,14 @@ public final class Specs {
 
     public static Optional<MemoryCardTypeSpec> card(HolderLookup.Provider r, ItemStack stack) {
         return lookup(r, RCRegistries.MEMORY_CARD_TYPE, stack.get(RCComponents.CARD_TYPE.get()));
+    }
+
+    public static Optional<AdapterSpec> adapter(HolderLookup.Provider r, ItemStack stack) {
+        return lookup(r, RCRegistries.MOUNT_ADAPTER, stack.get(RCComponents.ADAPTER.get()));
+    }
+
+    public static Optional<TeleconverterSpec> teleconverter(HolderLookup.Provider r, ItemStack stack) {
+        return lookup(r, RCRegistries.TELECONVERTER, stack.get(RCComponents.TELECONVERTER.get()));
     }
 
     public static Optional<ColorProfileSpec> profile(HolderLookup.Provider r, CameraBodySpec body, int index) {

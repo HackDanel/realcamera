@@ -7,7 +7,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 
 public class CameraPartsScreen extends AbstractContainerScreen<CameraPartsMenu> {
-    private static final String[] LABELS = {"gui.realcamera.slot.lens", "gui.realcamera.slot.battery", "gui.realcamera.slot.card"};
+    private static final String[] LABELS = {"gui.realcamera.slot.lens", "gui.realcamera.slot.adapter",
+            "gui.realcamera.slot.tc", "gui.realcamera.slot.battery", "gui.realcamera.slot.card"};
 
     public CameraPartsScreen(CameraPartsMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
@@ -30,7 +31,11 @@ public class CameraPartsScreen extends AbstractContainerScreen<CameraPartsMenu> 
         for (int i = 0; i < CameraPartsMenu.PART_SLOTS; i++) {
             Component label = Component.translatable(LABELS[i]);
             int cx = CameraPartsMenu.SLOT_X[i] + 8;
-            g.drawString(font, label, cx - font.width(label) / 2, CameraPartsMenu.SLOT_Y + 22, 0xFF404040, false);
+            g.pose().pushPose();
+            g.pose().translate(cx, CameraPartsMenu.SLOT_Y + 21, 0);
+            g.pose().scale(0.75f, 0.75f, 1);
+            g.drawString(font, label, -font.width(label) / 2, 0, 0xFF404040, false);
+            g.pose().popPose();
         }
     }
 

@@ -1,0 +1,10 @@
+{
+  "name": "Sigma MC-11 EF-E",
+  "from": "realcamera:canon_ef",
+  "to": "realcamera:sony_e",
+  "af": "slow",
+  "af_speed": 0.6,
+  "electronic": true,
+  "length_mm": 26.0,
+  "model": "realcamera:item/adapter/sigma_mc11_ef_e"
+}

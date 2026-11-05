@@ -1,0 +1,29 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:battery_cell",
+      "count": 2
+    },
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 1
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:battery",
+    "count": 1,
+    "components": {
+      "realcamera:battery_type": "realcamera:bp_scl7",
+      "realcamera:charge": {
+        "charge": 350,
+        "capacity": 700
+      }
+    }
+  },
+  "time": 100
+}

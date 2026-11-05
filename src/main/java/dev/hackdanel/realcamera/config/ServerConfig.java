@@ -20,7 +20,7 @@ public final class ServerConfig {
     public static final ModConfigSpec.IntValue MAX_FILE_KB = BUILDER
             .defineInRange("maxFileKb", 800, 16, 16384);
     public static final ModConfigSpec.IntValue UPLOADS_PER_MINUTE = BUILDER
-            .defineInRange("uploadsPerMinute", 20, 1, 1000);
+            .defineInRange("uploadsPerMinute", 120, 1, 1000);
 
     static {
         BUILDER.pop().push("privacy");

@@ -1,0 +1,29 @@
+{
+  "brand": "Sony",
+  "exif_lens_model": "E PZ 16-50mm F3.5-5.6 OSS",
+  "mount": "realcamera:sony_e",
+  "image_circle": "apsc",
+  "focal_min": 16,
+  "focal_max": 50,
+  "aperture_wide": 3.5,
+  "aperture_tele": 5.6,
+  "aperture_min": 22,
+  "min_focus_m": 0.25,
+  "af": {
+    "motor": "stepping",
+    "speed": 0.75
+  },
+  "ois_stops": 3.0,
+  "optics": {
+    "blades": 7,
+    "rounded": true,
+    "vignetting_ev": 2.0,
+    "sharpness": 0.75,
+    "distortion_wide": -0.14,
+    "distortion_tele": 0.02,
+    "ca_px": 2.6,
+    "flare": 0.8
+  },
+  "filter_mm": 40,
+  "model": "realcamera:item/lens/sony_e_pz_16_50"
+}

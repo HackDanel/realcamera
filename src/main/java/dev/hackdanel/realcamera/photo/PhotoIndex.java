@@ -44,6 +44,8 @@ public class PhotoIndex extends SavedData {
     }
 
     private final Map<UUID, Entry> entries = new LinkedHashMap<>();
+    /** Per-player photo count limits set with /photo quota (override the server config). */
+    private final Map<UUID, Integer> quotas = new java.util.HashMap<>();
 
     public static Factory<PhotoIndex> factory() {
         return new Factory<>(PhotoIndex::new, PhotoIndex::load, null);
@@ -53,6 +55,10 @@ public class PhotoIndex extends SavedData {
         PhotoIndex index = new PhotoIndex();
         for (Tag t : tag.getList("photos", Tag.TAG_COMPOUND)) {
             Entry.CODEC.parse(NbtOps.INSTANCE, t).result().ifPresent(e -> index.entries.put(e.meta().id(), e));
+        }
+        CompoundTag q = tag.getCompound("quotas");
+        for (String key : q.getAllKeys()) {
+            index.quotas.put(UUID.fromString(key), q.getInt(key));
         }
         return index;
     }
@@ -64,6 +70,9 @@ public class PhotoIndex extends SavedData {
             Entry.CODEC.encodeStart(NbtOps.INSTANCE, e).result().ifPresent(list::add);
         }
         tag.put("photos", list);
+        CompoundTag q = new CompoundTag();
+        quotas.forEach((id, n) -> q.putInt(id.toString(), n));
+        tag.put("quotas", q);
         return tag;
     }
 
@@ -78,6 +87,15 @@ public class PhotoIndex extends SavedData {
 
     public Collection<Entry> all() {
         return entries.values();
+    }
+
+    public java.util.Optional<Integer> quota(UUID player) {
+        return java.util.Optional.ofNullable(quotas.get(player));
+    }
+
+    public void setQuota(UUID player, Integer limit) {
+        if (limit == null) quotas.remove(player); else quotas.put(player, limit);
+        setDirty();
     }
 
     public int countFor(UUID author) {

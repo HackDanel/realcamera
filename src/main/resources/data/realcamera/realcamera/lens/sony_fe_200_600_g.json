@@ -1,0 +1,30 @@
+{
+  "brand": "Sony",
+  "exif_lens_model": "FE 200-600mm F5.6-6.3 G OSS",
+  "mount": "realcamera:sony_e",
+  "image_circle": "ff",
+  "focal_min": 200,
+  "focal_max": 600,
+  "aperture_wide": 5.6,
+  "aperture_tele": 6.3,
+  "aperture_min": 32,
+  "min_focus_m": 2.4,
+  "af": {
+    "motor": "linear",
+    "speed": 1.0
+  },
+  "ois_stops": 5.0,
+  "optics": {
+    "blades": 11,
+    "rounded": true,
+    "vignetting_ev": 0.8,
+    "sharpness": 1.0,
+    "distortion_wide": 0.01,
+    "distortion_tele": 0.015,
+    "ca_px": 0.8,
+    "flare": 0.3
+  },
+  "filter_mm": 95,
+  "model": "realcamera:item/lens/sony_fe_200_600_g",
+  "tc_compatible": true
+}

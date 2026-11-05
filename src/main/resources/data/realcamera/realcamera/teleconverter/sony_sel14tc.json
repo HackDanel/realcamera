@@ -1,0 +1,10 @@
+{
+  "name": "Sony FE 1.4x Teleconverter",
+  "exif_name": "1.4x Teleconverter",
+  "mount": "realcamera:sony_e",
+  "factor": 1.4,
+  "af_speed": 0.85,
+  "sharpness": 0.96,
+  "length_mm": 20.0,
+  "model": "realcamera:item/teleconverter/sony_sel14tc"
+}

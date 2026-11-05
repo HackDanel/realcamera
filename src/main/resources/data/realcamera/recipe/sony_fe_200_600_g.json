@@ -1,0 +1,37 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:ed_lens_element",
+      "count": 4
+    },
+    {
+      "item": "realcamera:lens_element",
+      "count": 6
+    },
+    {
+      "item": "realcamera:aperture_blades",
+      "count": 2
+    },
+    {
+      "item": "realcamera:af_motor",
+      "count": 2
+    },
+    {
+      "item": "realcamera:stabilizer",
+      "count": 1
+    },
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 3
+    }
+  ],
+  "result": {
+    "id": "realcamera:lens",
+    "count": 1,
+    "components": {
+      "realcamera:lens": "realcamera:sony_fe_200_600_g"
+    }
+  },
+  "time": 400
+}

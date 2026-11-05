@@ -61,7 +61,7 @@ neoForge {
         clientAutotest {
             client()
             gameDirectory = project.file('run-autotest')
-            systemProperty 'realcamera.autotest', 'stage1'
+            systemProperty 'realcamera.autotest', project.findProperty('autotest') ?: 'stage1'
             systemProperty 'realcamera.debugDumps', 'true'
             systemProperty 'realcamera.captureWarmup', project.findProperty('captureWarmup') ?: '1'
             programArguments.addAll '--width', '1280', '--height', '720'

@@ -32,7 +32,7 @@ import net.neoforged.neoforge.client.model.BakedModelWrapper;
  */
 @EventBusSubscriber(modid = RealCamera.MODID, value = Dist.CLIENT)
 public final class SpecItemModels {
-    private static final String[] FOLDERS = {"body", "lens", "battery", "card"};
+    private static final String[] FOLDERS = {"body", "lens", "battery", "card", "adapter", "teleconverter"};
 
     private SpecItemModels() {}
 
@@ -54,6 +54,8 @@ public final class SpecItemModels {
         wrap(models, RCItems.LENS.get(), (r, s) -> Specs.lens(r, s).map(l -> l.model()).orElse(null), false);
         wrap(models, RCItems.BATTERY.get(), (r, s) -> Specs.battery(r, s).map(b -> b.model()).orElse(null), false);
         wrap(models, RCItems.MEMORY_CARD.get(), (r, s) -> Specs.card(r, s).map(c -> c.model()).orElse(null), false);
+        wrap(models, RCItems.MOUNT_ADAPTER.get(), (r, s) -> Specs.adapter(r, s).map(a -> a.model()).orElse(null), false);
+        wrap(models, RCItems.TELECONVERTER.get(), (r, s) -> Specs.teleconverter(r, s).map(t -> t.model()).orElse(null), false);
     }
 
     private static void wrap(Map<ModelResourceLocation, BakedModel> models, Item item,
@@ -87,13 +89,16 @@ public final class SpecItemModels {
         }
     }
 
-    /** Two render passes sharing the body's display transforms. */
+    /** Several render passes sharing the body's display transforms. */
     private static final class Composite extends BakedModelWrapper<BakedModel> {
         private final List<BakedModel> passes;
 
-        Composite(BakedModel body, BakedModel lens) {
+        Composite(BakedModel body, List<BakedModel> parts) {
             super(body);
-            this.passes = List.of(body, lens);
+            java.util.List<BakedModel> all = new java.util.ArrayList<>();
+            all.add(body);
+            all.addAll(parts);
+            this.passes = List.copyOf(all);
         }
 
         @Override
@@ -101,7 +106,7 @@ public final class SpecItemModels {
             return passes;
         }
 
-        /** The wrapper default returns the inner model here, which would drop the lens pass. */
+        /** The wrapper default returns the inner model here, which would drop the extra passes. */
         @Override
         public BakedModel applyTransform(net.minecraft.world.item.ItemDisplayContext ctx,
                                          com.mojang.blaze3d.vertex.PoseStack pose, boolean leftHand) {
@@ -112,6 +117,34 @@ public final class SpecItemModels {
         @Override
         public ItemOverrides getOverrides() {
             return ItemOverrides.EMPTY;
+        }
+    }
+
+    /** A part model moved forward (towards -z) by the length of the parts behind it. */
+    private static final class Shifted extends BakedModelWrapper<BakedModel> {
+        private final net.neoforged.neoforge.client.model.IQuadTransformer transformer;
+        private final Map<Object, List<net.minecraft.client.renderer.block.model.BakedQuad>> cache = new ConcurrentHashMap<>();
+
+        Shifted(BakedModel model, float units) {
+            super(model);
+            this.transformer = net.neoforged.neoforge.client.model.QuadTransformers.applying(new com.mojang.math.Transformation(
+                    new org.joml.Vector3f(0, 0, -units / 16f), null, null, null));
+        }
+
+        @Override
+        public List<net.minecraft.client.renderer.block.model.BakedQuad> getQuads(
+                @Nullable net.minecraft.world.level.block.state.BlockState state, @Nullable net.minecraft.core.Direction side,
+                net.minecraft.util.RandomSource rand) {
+            return cache.computeIfAbsent(side == null ? "none" : side,
+                    k -> transformer.process(originalModel.getQuads(state, side, rand)));
+        }
+
+        @Override
+        public List<net.minecraft.client.renderer.block.model.BakedQuad> getQuads(
+                @Nullable net.minecraft.world.level.block.state.BlockState state, @Nullable net.minecraft.core.Direction side,
+                net.minecraft.util.RandomSource rand, net.neoforged.neoforge.client.model.data.ModelData data,
+                @Nullable net.minecraft.client.renderer.RenderType renderType) {
+            return getQuads(state, side, rand);
         }
     }
 
@@ -140,13 +173,33 @@ public final class SpecItemModels {
             if (!camera) {
                 return own;
             }
-            ResourceLocation lensRl = Specs.lens(lvl.registryAccess(), CameraHelper.parts(stack).lens())
-                    .map(l -> l.model().withSuffix("_mounted")).orElse(null);
-            BakedModel lens = lensRl == null ? null : standalone(lensRl);
-            if (lens == null) {
-                return own;
-            }
-            return composites.computeIfAbsent(rl + "|" + lensRl, k -> new Composite(own, lens));
+            var r = lvl.registryAccess();
+            var parts = CameraHelper.parts(stack);
+            var adapter = Specs.adapter(r, parts.adapter()).orElse(null);
+            var tc = Specs.teleconverter(r, parts.teleconverter()).orElse(null);
+            var lens = Specs.lens(r, parts.lens()).orElse(null);
+            String key = rl + "|" + (adapter == null ? "" : adapter.model()) + "|" + (tc == null ? "" : tc.model()) + "|"
+                    + (lens == null ? "" : lens.model());
+            return composites.computeIfAbsent(key, k -> {
+                java.util.List<BakedModel> chain = new java.util.ArrayList<>();
+                float offset = 0;
+                // model units are ~9 mm (see tools/gen_assets.py)
+                if (adapter != null) {
+                    BakedModel m = standalone(adapter.model().withSuffix("_mounted"));
+                    if (m != null) chain.add(m);
+                    offset += adapter.lengthMm() / 9f;
+                }
+                if (tc != null) {
+                    BakedModel m = standalone(tc.model().withSuffix("_mounted"));
+                    if (m != null) chain.add(offset == 0 ? m : new Shifted(m, offset));
+                    offset += tc.lengthMm() / 9f;
+                }
+                if (lens != null) {
+                    BakedModel m = standalone(lens.model().withSuffix("_mounted"));
+                    if (m != null) chain.add(offset == 0 ? m : new Shifted(m, offset));
+                }
+                return chain.isEmpty() ? own : new Composite(own, chain);
+            });
         }
     }
 }

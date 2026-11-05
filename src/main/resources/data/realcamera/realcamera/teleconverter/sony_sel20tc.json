@@ -1,0 +1,10 @@
+{
+  "name": "Sony FE 2x Teleconverter",
+  "exif_name": "2X Teleconverter",
+  "mount": "realcamera:sony_e",
+  "factor": 2.0,
+  "af_speed": 0.6,
+  "sharpness": 0.9,
+  "length_mm": 30.0,
+  "model": "realcamera:item/teleconverter/sony_sel20tc"
+}

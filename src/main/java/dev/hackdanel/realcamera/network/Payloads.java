@@ -42,10 +42,14 @@ public final class Payloads {
         }
     }
 
-    /** The shutter fired: drain battery, count actuation, play the sound to everyone else. */
-    public record Shutter(InteractionHand hand) implements CustomPacketPayload {
+    /**
+     * The shutter fired: drain battery, count the actuation (mechanical/EFCS) and play the sound to
+     * everyone else (not for the silent electronic shutter).
+     */
+    public record Shutter(InteractionHand hand, int shutterType) implements CustomPacketPayload {
         public static final Type<Shutter> TYPE = Payloads.newType("shutter");
-        public static final StreamCodec<ByteBuf, Shutter> CODEC = HAND.map(Shutter::new, Shutter::hand);
+        public static final StreamCodec<ByteBuf, Shutter> CODEC = StreamCodec.composite(
+                HAND, Shutter::hand, ByteBufCodecs.VAR_INT, Shutter::shutterType, Shutter::new);
 
         @Override
         public Type<Shutter> type() {
@@ -53,7 +57,8 @@ public final class Payloads {
         }
     }
 
-    public record UploadBegin(int requestId, InteractionHand hand, PhotoMeta meta, int totalBytes, int quality)
+    /** quality/format decide how much card space the shot takes (the in-game copy is always a small JPEG). */
+    public record UploadBegin(int requestId, InteractionHand hand, PhotoMeta meta, int totalBytes, int quality, int format)
             implements CustomPacketPayload {
         public static final Type<UploadBegin> TYPE = Payloads.newType("upload_begin");
         public static final StreamCodec<ByteBuf, UploadBegin> CODEC = StreamCodec.composite(
@@ -62,6 +67,7 @@ public final class Payloads {
                 PhotoMeta.STREAM_CODEC, UploadBegin::meta,
                 ByteBufCodecs.VAR_INT, UploadBegin::totalBytes,
                 ByteBufCodecs.VAR_INT, UploadBegin::quality,
+                ByteBufCodecs.VAR_INT, UploadBegin::format,
                 UploadBegin::new);
 
         @Override
@@ -158,6 +164,17 @@ public final class Payloads {
 
         @Override
         public Type<PhotoGone> type() {
+            return TYPE;
+        }
+    }
+
+    /** Admin /photo view: open the full-screen viewer for any stored photo. */
+    public record ViewPhoto(PhotoMeta meta) implements CustomPacketPayload {
+        public static final Type<ViewPhoto> TYPE = Payloads.newType("view_photo");
+        public static final StreamCodec<ByteBuf, ViewPhoto> CODEC = PhotoMeta.STREAM_CODEC.map(ViewPhoto::new, ViewPhoto::meta);
+
+        @Override
+        public Type<ViewPhoto> type() {
             return TYPE;
         }
     }

@@ -57,17 +57,33 @@ public class CameraMenuScreen extends Screen {
         rows.add(new Row("profile", s -> profileName(body, s.profile()), s -> s.withProfile((s.profile() + 1) % profiles)));
         rows.add(new Row("disp", s -> Component.translatable("gui.realcamera.disp." + s.disp()),
                 s -> s.withDisp((s.disp() + 1) % CameraSettings.DISP_COUNT)));
+        rows.add(new Row("shutter_type", s -> Component.translatable("gui.realcamera.shutter_type." + s.shutterType()),
+                s -> s.withShutterType((s.shutterType() + 1) % CameraSettings.SHUTTER_TYPE_COUNT)));
+        rows.add(new Row("drive", s -> Component.translatable("gui.realcamera.drive." + s.drive()),
+                s -> s.withDrive((s.drive() + 1) % CameraSettings.DRIVE_COUNT)));
+        rows.add(new Row("file_format", s -> Component.translatable("gui.realcamera.file_format." + s.fileFormat()),
+                s -> s.withFileFormat((s.fileFormat() + 1) % CameraSettings.FORMAT_COUNT)));
+        rows.add(new Row("af_area", s -> Component.translatable("gui.realcamera.af_area." + s.afArea()),
+                s -> s.withAfArea((s.afArea() + 1) % CameraSettings.AF_AREA_COUNT)));
+        rows.add(new Row("subject_detect", s -> onOff(s.subjectDetect()), s -> s.withSubjectDetect(!s.subjectDetect())));
+        rows.add(new Row("peaking", s -> onOff(s.peaking()), s -> s.withPeaking(!s.peaking())));
+        rows.add(new Row("stabilization", s -> onOff(s.stabilization()), s -> s.withStabilization(!s.stabilization())));
+        rows.add(new Row("crop_mode", s -> Component.translatable("gui.realcamera.crop_mode." + s.cropMode()),
+                s -> s.withCropMode((s.cropMode() + 1) % CameraSettings.CROP_COUNT)));
+        rows.add(new Row("lens_correction", s -> onOff(s.lensCorrection()), s -> s.withLensCorrection(!s.lensCorrection())));
 
-        int y = height / 2 - rows.size() * 12;
-        for (Row row : rows) {
-            final Row r = row;
+        // two columns so all settings fit on small screens
+        int perColumn = (rows.size() + 1) / 2;
+        int top = Math.max(24, height / 2 - perColumn * 11);
+        for (int i = 0; i < rows.size(); i++) {
+            final Row r = rows.get(i);
+            int col = i / perColumn, row = i % perColumn;
             Button b = Button.builder(label(r), btn -> {
                 settings = r.next().apply(settings);
                 Viewfinder.setSettingsAndSend(hand, settings);
                 btn.setMessage(label(r));
-            }).bounds(width / 2 - 110, y, 220, 20).build();
+            }).bounds(width / 2 - 204 + col * 208, top + row * 22, 200, 20).build();
             addRenderableWidget(b);
-            y += 24;
         }
     }
 
@@ -75,6 +91,10 @@ public class CameraMenuScreen extends Screen {
         if (body == null) return Component.literal("-");
         return Specs.profile(minecraft.level.registryAccess(), body, index)
                 .map(ColorProfileSpec::name).<Component>map(Component::literal).orElse(Component.literal("-"));
+    }
+
+    private static Component onOff(boolean v) {
+        return Component.translatable(v ? "options.on" : "options.off");
     }
 
     private Component label(Row r) {
@@ -93,7 +113,8 @@ public class CameraMenuScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
-        g.drawCenteredString(font, title, width / 2, height / 2 - rows.size() * 12 - 16, 0xFFFFFFFF);
+        int perColumn = (rows.size() + 1) / 2;
+        g.drawCenteredString(font, title, width / 2, Math.max(24, height / 2 - perColumn * 11) - 14, 0xFFFFFFFF);
     }
 
     @Override

@@ -1,0 +1,10 @@
+{
+  "name": "Leica M \u2013 Sony E",
+  "from": "realcamera:leica_m",
+  "to": "realcamera:sony_e",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 9.8,
+  "model": "realcamera:item/adapter/m_to_e"
+}

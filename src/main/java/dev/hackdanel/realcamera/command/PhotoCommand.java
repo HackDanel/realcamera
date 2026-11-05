@@ -34,7 +34,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 /**
- * /photo list [player] [page] | info <id> | delete <id> | purge <player> | stats
+ * /photo list [player] [page] | info <id> | view <id> | delete <id> | purge <player> | quota <player> [n|reset] | stats
  * Permission level 2 (operators). Deleting replaces the picture everywhere with a placeholder.
  */
 @EventBusSubscriber(modid = RealCamera.MODID)
@@ -66,6 +66,15 @@ public final class PhotoCommand {
                 .then(Commands.literal("purge")
                         .then(Commands.argument("player", StringArgumentType.word()).suggests(PhotoCommand::suggestAuthors)
                                 .executes(c -> purge(c, StringArgumentType.getString(c, "player")))))
+                .then(Commands.literal("view")
+                        .then(Commands.argument("id", StringArgumentType.word()).suggests(PhotoCommand::suggestIds)
+                                .executes(c -> view(c, StringArgumentType.getString(c, "id")))))
+                .then(Commands.literal("quota")
+                        .then(Commands.argument("player", net.minecraft.commands.arguments.GameProfileArgument.gameProfile())
+                                .executes(c -> quotaShow(c))
+                                .then(Commands.literal("reset").executes(c -> quotaSet(c, null)))
+                                .then(Commands.argument("limit", IntegerArgumentType.integer(0))
+                                        .executes(c -> quotaSet(c, IntegerArgumentType.getInteger(c, "limit"))))))
                 .then(Commands.literal("stats").executes(PhotoCommand::stats)));
     }
 
@@ -158,6 +167,36 @@ public final class PhotoCommand {
         victims.forEach(e -> revoke(server, e));
         c.getSource().sendSuccess(() -> Component.translatable("commands.realcamera.photo.purged", victims.size(), player), true);
         return victims.size();
+    }
+
+    private static int view(CommandContext<CommandSourceStack> c, String id) throws CommandSyntaxException {
+        PhotoIndex.Entry e = find(c.getSource().getServer(), id);
+        net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(c.getSource().getPlayerOrException(),
+                new dev.hackdanel.realcamera.network.Payloads.ViewPhoto(e.meta()));
+        return 1;
+    }
+
+    private static int quotaShow(CommandContext<CommandSourceStack> c) throws CommandSyntaxException {
+        PhotoIndex index = PhotoStorage.index(c.getSource().getServer());
+        for (var profile : net.minecraft.commands.arguments.GameProfileArgument.getGameProfiles(c, "player")) {
+            int limit = index.quota(profile.getId()).orElse(dev.hackdanel.realcamera.config.ServerConfig.MAX_PHOTOS_PER_PLAYER.get());
+            int used = index.countFor(profile.getId());
+            boolean custom = index.quota(profile.getId()).isPresent();
+            c.getSource().sendSuccess(() -> Component.translatable(custom ? "commands.realcamera.photo.quota.custom"
+                    : "commands.realcamera.photo.quota.default", profile.getName(), used, limit), false);
+        }
+        return 1;
+    }
+
+    private static int quotaSet(CommandContext<CommandSourceStack> c, Integer limit) throws CommandSyntaxException {
+        PhotoIndex index = PhotoStorage.index(c.getSource().getServer());
+        for (var profile : net.minecraft.commands.arguments.GameProfileArgument.getGameProfiles(c, "player")) {
+            index.setQuota(profile.getId(), limit);
+            c.getSource().sendSuccess(() -> limit == null
+                    ? Component.translatable("commands.realcamera.photo.quota.reset", profile.getName())
+                    : Component.translatable("commands.realcamera.photo.quota.set", profile.getName(), limit), true);
+        }
+        return 1;
     }
 
     private static int stats(CommandContext<CommandSourceStack> c) {

@@ -41,6 +41,8 @@ final class ClientBridgeImpl implements ClientBridge {
             case Payloads.PhotoData d -> PhotoCache.onData(d);
             case Payloads.PhotoGone g -> PhotoCache.onGone(g.id());
             case Payloads.CardContents c -> CardListings.onContents(c);
+            case Payloads.ViewPhoto v -> Minecraft.getInstance().setScreen(
+                    new PrintViewerScreen(new PrintData(v.meta(), "10x15", "glossy", 0, "")));
             default -> {}
         }
     }

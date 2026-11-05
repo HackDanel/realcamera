@@ -348,15 +348,15 @@ def model(texture, elements, display=ITEM_DISPLAY_3D):
 MOUNT_X, MOUNT_Y, MOUNT_Z = 6.5, 7.0, 9.0
 
 
-def camera_body_texture(brand_text, accent):
+def camera_body_texture(brand_text, accent, model_text="α7", top_color=(40, 40, 42), body_color=(34, 34, 36)):
     t = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    noise_fill(t, (0, 0, 16, 16), (34, 34, 36), 6, seed=1)          # body plastic/magnesium
+    noise_fill(t, (0, 0, 16, 16), body_color, 6, seed=1)          # body plastic/magnesium
     noise_fill(t, (16, 0, 32, 16), (22, 22, 23), 9, seed=2)          # grip rubber
     for y in range(16):
         for x in range(16, 32):
             if (x + y) % 3 == 0:
                 t.putpixel((x, y), (16, 16, 17, 255))
-    noise_fill(t, (32, 0, 48, 16), (34, 34, 36), 6, seed=3)          # front with logo
+    noise_fill(t, (32, 0, 48, 16), body_color, 6, seed=3)          # front with logo
     text(t, 34, 3, brand_text, (235, 235, 235, 255))
     noise_fill(t, (48, 0, 64, 16), (178, 180, 184), 14, seed=4)      # mount ring metal
     for y in range(16):
@@ -377,18 +377,25 @@ def camera_body_texture(brand_text, accent):
     # accents: red record / shutter button / orange
     noise_fill(t, (48, 16, 64, 32), accent, 6, seed=8)
     # top plate with markings
-    noise_fill(t, (0, 32, 16, 48), (40, 40, 42), 5, seed=9)
-    text(t, 1, 34, "α7", (220, 220, 220, 255))
+    noise_fill(t, (0, 32, 16, 48), top_color, 5, seed=9)
+    text(t, 1, 34, model_text, (220, 220, 220, 255) if sum(top_color) < 300 else (30, 30, 30, 255))
+    # viewfinder windows (rangefinder front)
+    noise_fill(t, (32, 32, 48, 48), (25, 30, 40), 4, seed=11)
+    ImageDraw.Draw(t).rectangle([34, 36, 38, 40], fill=(110, 130, 160, 255))
     # sensor / mount opening
     noise_fill(t, (16, 32, 32, 48), (8, 8, 9), 3, seed=10)
     ImageDraw.Draw(t).rectangle([20, 36, 28, 44], fill=(40, 30, 70, 255))
     return t
 
 
-def camera_body_model(texture):
+def camera_body_model(texture, style="mirrorless"):
     R = {"body": (0, 0, 16, 16), "grip": (16, 0, 32, 16), "front": (32, 0, 48, 16), "metal": (48, 0, 64, 16),
          "rear": (0, 16, 16, 32), "evf": (16, 16, 32, 32), "dial": (32, 16, 48, 32), "accent": (48, 16, 64, 32),
-         "top": (0, 32, 16, 48), "sensor": (16, 32, 32, 48)}
+         "top": (0, 32, 16, 48), "sensor": (16, 32, 32, 48), "window": (32, 32, 48, 48)}
+    if style == "dslr":
+        return dslr_model(texture, R)
+    if style == "rangefinder":
+        return rangefinder_model(texture, R)
     els = []
     # main body
     els.append(element([1.5, 3, 9], [14.5, 11.5, 13.5], all_faces(R["body"], {
@@ -405,6 +412,51 @@ def camera_body_model(texture):
     # mount ring + sensor
     els += cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.4, MOUNT_Z, 2.9, R["metal"], cap_front=R["sensor"])
     return model(f"{NS}:item/body/{texture}", els)
+
+
+def dslr_model(texture, R):
+    """Bigger body, deep grip, pentaprism hump over the mount (mirror box)."""
+    els = [element([1, 2.5, 9], [15, 11.5, 14], all_faces(R["body"], {"north": R["front"], "south": R["rear"], "up": R["top"]})),
+           element([11, 2.5, 6.3], [15, 11, 9], all_faces(R["grip"])),
+           # pentaprism: a block plus two 22.5° slopes
+           element([3.6, 11.5, 9.4], [9.4, 14.2, 13.4], all_faces(R["body"], {"up": R["top"]})),
+           element([4.6, 11.8, 13.4], [8.4, 13.6, 14.8], all_faces(R["evf"])),
+           element([12, 11, 6.8], [13.6, 11.7, 8.4], all_faces(R["dial"], {"up": R["accent"]})),
+           element([10.2, 11.5, 10], [13.4, 12.3, 13], all_faces(R["top"])),
+           element([1.6, 11.5, 10], [3.4, 12.4, 12.4], all_faces(R["dial"]))]
+    els += cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.5, MOUNT_Z, 3.0, R["metal"], cap_front=R["sensor"])
+    return model(f"{NS}:item/body/{texture}", els)
+
+
+def rangefinder_model(texture, R):
+    """Flat-top classic: no grip, no hump, viewfinder windows on the front."""
+    els = [element([1, 3.5, 9.6], [15, 10.8, 12.8], all_faces(R["body"], {"north": R["front"], "south": R["rear"], "up": R["top"]})),
+           element([1.6, 10.8, 9.8], [14.4, 11.6, 12.6], all_faces(R["top"])),
+           element([10.4, 8.4, 9.4], [13.2, 10.2, 9.6], all_faces(R["window"])),
+           element([2.2, 8.6, 9.4], [3.6, 9.8, 9.6], all_faces(R["window"])),
+           element([11.6, 11.6, 10.4], [13.2, 12.4, 12], all_faces(R["dial"], {"up": R["accent"]})),
+           element([3, 11.6, 10.4], [5, 12.2, 12], all_faces(R["dial"]))]
+    els += cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.3, MOUNT_Z + 0.6, 2.7, R["metal"], cap_front=R["sensor"])
+    return model(f"{NS}:item/body/{texture}", els)
+
+
+def ring_part(name, folder, length_units, radius, colour):
+    """Mount adapter / teleconverter: a short metal tube (standalone and mounted versions)."""
+    t = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    noise_fill(t, (0, 0, 32, 16), colour, 8, seed=31)
+    noise_fill(t, (32, 32, 64, 48), (178, 180, 184), 14, seed=32)
+    noise_fill(t, (0, 32, 32, 64), (10, 10, 12), 3, seed=33)
+    ImageDraw.Draw(t).line([(0, 8), (31, 8)], fill=(200, 200, 200, 255))
+    save_png(t, f"textures/item/{folder}", name + ".png")
+    tex = f"{NS}:item/{folder}/{name}"
+    R = {"side": (0, 0, 32, 16), "metal": (32, 32, 64, 48), "dark": (0, 32, 32, 64)}
+
+    def build(cx, cy, z_back):
+        els = cylinder(cx, cy, z_back - length_units, z_back, radius, R["side"], cap_front=R["dark"], cap_back=R["dark"])
+        els += cylinder(cx, cy, z_back - 0.4, z_back, radius * 0.8, R["metal"])
+        return els
+    save_json(model(tex, build(8, 8, 8 + length_units / 2), LENS_DISPLAY), f"models/item/{folder}", name + ".json")
+    save_json(model(tex, build(MOUNT_X, MOUNT_Y, MOUNT_Z)), f"models/item/{folder}", name + "_mounted.json")
 
 
 def lens_texture(label, ring_color=None, gm=False):
@@ -649,6 +701,29 @@ def shutter_sound(rate=44100):
     return hp * 0.9
 
 
+def dslr_sound(rate=44100):
+    """Mirror slap (low thump) + focal-plane shutter + mirror return."""
+    rng = np.random.default_rng(7)
+    out = np.zeros(int(0.30 * rate))
+    for t0, length, freq, decay, amp in ((0.0, 0.06, 420, 0.018, 0.9), (0.006, 0.03, 2600, 0.004, 0.7),
+                                         (0.11, 0.035, 2300, 0.005, 0.8), (0.13, 0.09, 380, 0.025, 0.8),
+                                         (0.16, 0.05, 1400, 0.012, 0.4)):
+        i, s = click(rate, t0, length, freq, decay, amp, rng)
+        out[i:i + len(s)] += s[: len(out) - i]
+    return out * 0.8
+
+
+def leaf_sound(rate=44100):
+    """Quiet, short leaf/rangefinder shutter."""
+    rng = np.random.default_rng(9)
+    out = np.zeros(int(0.08 * rate))
+    i, s = click(rate, 0.0, 0.025, 3800, 0.003, 0.5, rng)
+    out[i:i + len(s)] += s[: len(out) - i]
+    i, s = click(rate, 0.012, 0.03, 2200, 0.004, 0.25, rng)
+    out[i:i + len(s)] += s[: len(out) - i]
+    return out
+
+
 def af_beep(rate=44100):
     t = np.arange(int(0.09 * rate)) / rate
     tone = np.sin(2 * math.pi * 2650 * t)
@@ -661,9 +736,15 @@ def af_beep(rate=44100):
 def sounds():
     write_ogg(shutter_sound(), 44100, "shutter_mirrorless")
     write_ogg(af_beep(), 44100, "af_confirm")
+    write_ogg(dslr_sound(), 44100, "shutter_dslr")
+    write_ogg(leaf_sound(), 44100, "shutter_leaf")
     save_json({
         "shutter.mirrorless": {"subtitle": "subtitles.realcamera.shutter", "sounds": [
             {"name": f"{NS}:shutter_mirrorless", "attenuation_distance": 16}]},
+        "shutter.dslr": {"subtitle": "subtitles.realcamera.shutter", "sounds": [
+            {"name": f"{NS}:shutter_dslr", "attenuation_distance": 20}]},
+        "shutter.leaf": {"subtitle": "subtitles.realcamera.shutter", "sounds": [
+            {"name": f"{NS}:shutter_leaf", "attenuation_distance": 8}]},
         "af_confirm": {"subtitle": "subtitles.realcamera.af_confirm", "sounds": [{"name": f"{NS}:af_confirm"}]},
     }, "sounds.json")
 
@@ -740,6 +821,24 @@ def main():
     save_json(camera_body_model("sony_a7iv"), "models/item/body", "sony_a7iv.json")
     make_lens("sony_fe_28_70_oss", "28-70", length=9.2, radius=3.9, zoom=True)
     make_lens("sony_fe_85_f18", "85 1.8", length=9.1, radius=4.2, zoom=False)
+    make_lens("sony_e_pz_16_50", "16-50", length=3.4, radius=3.4, zoom=True)
+    make_lens("sony_fe_200_600_g", "200-600", length=22, radius=6.0, zoom=True)
+    make_lens("nikon_afs_50_f18g", "50 1.8", length=5.9, radius=4.0, zoom=False)
+    make_lens("canon_ef_50_f18_stm", "50 1.8", length=4.4, radius=3.8, zoom=False)
+    make_lens("leica_summicron_m_50_f2", "50 2", length=4.9, radius=3.0, zoom=False)
+    save_png(camera_body_texture("NIKON", (200, 40, 30), "D750"), "textures/item/body", "nikon_d750.png")
+    save_json(camera_body_model("nikon_d750", "dslr"), "models/item/body", "nikon_d750.json")
+    save_png(camera_body_texture("LEICA", (210, 30, 30), "M11", top_color=(180, 182, 186)), "textures/item/body", "leica_m11.png")
+    save_json(camera_body_model("leica_m11", "rangefinder"), "models/item/body", "leica_m11.json")
+    ring_part("sigma_mc11_ef_e", "adapter", 26.0 / 9, 3.4, (30, 30, 32))
+    ring_part("f_to_e", "adapter", 28.5 / 9, 3.4, (60, 60, 64))
+    ring_part("m_to_e", "adapter", 9.8 / 9, 3.0, (150, 152, 156))
+    ring_part("sony_sel14tc", "teleconverter", 20.0 / 9, 3.6, (225, 225, 222))
+    ring_part("sony_sel20tc", "teleconverter", 30.0 / 9, 3.6, (225, 225, 222))
+    flat("battery", "en_el15c", battery_icon(rgba("#26262a"), rgba("#e0c040")))
+    flat("battery", "bp_scl7", battery_icon(rgba("#3a3a3c"), rgba("#d02020")))
+    icon(draw_lens_icon, "mount_adapter")
+    icon(draw_lens_icon, "teleconverter")
 
     block_textures()
     block_models()

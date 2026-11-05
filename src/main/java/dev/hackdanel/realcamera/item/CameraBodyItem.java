@@ -57,6 +57,10 @@ public class CameraBodyItem extends Item {
             player.displayClientMessage(Component.translatable("message.realcamera.no_lens"), true);
             return InteractionResultHolder.fail(stack);
         }
+        if (dev.hackdanel.realcamera.camera.OpticalChain.resolve(level.registryAccess(), stack).isEmpty()) {
+            player.displayClientMessage(Component.translatable("message.realcamera.lens_mismatch"), true);
+            return InteractionResultHolder.fail(stack);
+        }
         if (!CameraHelper.hasPower(stack)) {
             player.displayClientMessage(Component.translatable(parts.battery().isEmpty()
                     ? "message.realcamera.no_battery" : "message.realcamera.battery_empty"), true);

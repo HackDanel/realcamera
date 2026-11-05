@@ -1,8 +1,13 @@
 package dev.hackdanel.realcamera.client.capture;
 
+import com.google.gson.GsonBuilder;
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.systems.RenderSystem;
 import dev.hackdanel.realcamera.RealCamera;
+import dev.hackdanel.realcamera.camera.OpticalChain;
+import dev.hackdanel.realcamera.camera.Specs;
 import dev.hackdanel.realcamera.client.camera.CameraRays;
 import dev.hackdanel.realcamera.client.camera.Viewfinder;
 import dev.hackdanel.realcamera.client.photo.PhotoUploader;
@@ -18,37 +23,64 @@ import dev.hackdanel.realcamera.processing.ExifWriter;
 import dev.hackdanel.realcamera.processing.ImageParams;
 import dev.hackdanel.realcamera.processing.ImagePipeline;
 import dev.hackdanel.realcamera.processing.JpegCodec;
-import dev.hackdanel.realcamera.spec.CameraBodySpec;
 import dev.hackdanel.realcamera.spec.ColorProfileSpec;
-import dev.hackdanel.realcamera.spec.LensSpec;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Screenshot;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderFrameEvent;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL21;
 
 /**
- * Turns a shutter press into a photo: renders one clean frame at the sensor's output resolution
- * (no HUD, no hand), ray-casts a depth map from the same camera pose, then develops, exports and
- * uploads on a worker thread. See docs/stage0-capture.md for why the warm-up frame exists.
+ * Turns a shutter release into a photo. The frame is rendered at the sensor's output resolution
+ * with no HUD and no hand (one warm-up frame first, see docs/stage0-capture.md). Exposures of
+ * 1/4 s and longer (and bulb) really last that long: every rendered frame is accumulated in linear
+ * light through pixel-pack buffers, so motion leaves trails. Development, export and upload run on
+ * a worker thread; several shots can wait there (the camera's buffer).
  */
 @EventBusSubscriber(modid = RealCamera.MODID, value = Dist.CLIENT)
 public final class PhotoCapture {
-    /** Everything frozen at the moment the shutter fired. */
-    public record Shot(InteractionHand hand, CameraBodySpec body, LensSpec lens, CameraSettings settings,
-                       Exposure.Result exposure, float focal, float focusDistance, double sceneEv, boolean blockLit,
-                       int frameNumber, String cameraName, String lensName) {}
+    public static final double LONG_EXPOSURE_S = 0.25;
+    private static final int MEMORY_BUFFER = 6;
+    private static final int WARMUP_FRAMES = Integer.getInteger("realcamera.captureWarmup", 1);
+    private static final float[] SRGB_TO_LINEAR = new float[256];
+
+    static {
+        for (int i = 0; i < 256; i++) {
+            double c = i / 255.0;
+            SRGB_TO_LINEAR[i] = (float) (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+        }
+    }
+
+    /**
+     * Everything frozen at the moment the shutter fired. seconds = -1 for bulb. motion is in fractions
+     * of the image width.
+     */
+    public record Shot(InteractionHand hand, OpticalChain chain, CameraSettings settings, Exposure.Result exposure,
+                       float focal, float focusDistance, double sceneEv, boolean blockLit, int frameNumber,
+                       String cameraName, String lensName, double seconds, ImageParams.Motion motion,
+                       ImageParams.Sun sun) {
+        boolean longExposure() {
+            return seconds < 0 || seconds >= LONG_EXPOSURE_S;
+        }
+    }
 
     private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "RealCamera developer");
@@ -56,17 +88,24 @@ public final class PhotoCapture {
         t.setPriority(Thread.NORM_PRIORITY - 1);
         return t;
     });
-    private static final int WARMUP_FRAMES = Integer.getInteger("realcamera.captureWarmup", 1);
 
     private static Shot pending;
     private static Active active;
     private static volatile int developing;
+    private static volatile boolean bulbStop;
 
     private static final class Active {
         final Shot shot;
         final boolean savedHideGui;
         final int origW, origH, w, h;
         int warmup = WARMUP_FRAMES;
+        // long exposure
+        long startNanos = -1;
+        final int[] pbo = new int[2];
+        float[] sum;
+        int frameIndex, accumulated;
+        float[] depthGrid;
+        int gw, gh;
 
         Active(Shot shot, boolean savedHideGui, int origW, int origH, int w, int h) {
             this.shot = shot;
@@ -81,16 +120,31 @@ public final class PhotoCapture {
     private PhotoCapture() {}
 
     public static void request(Shot shot) {
+        bulbStop = false;
         pending = shot;
     }
 
-    /** One shot in flight at a time (stage 1 has no burst buffer yet). */
+    /** Ends a bulb exposure (shutter button released). */
+    public static void stopBulb() {
+        bulbStop = true;
+    }
+
+    /** True if another frame can be taken now: nothing is being captured and the buffer has room. */
+    public static boolean canAccept() {
+        int buffer = Viewfinder.isActive() ? Math.min(MEMORY_BUFFER, Viewfinder.body().shutter().bufferShots()) : 1;
+        return pending == null && active == null && developing < buffer && PhotoUploader.pending() < 12;
+    }
+
     public static boolean busy() {
         return pending != null || active != null || developing > 0 || PhotoUploader.busy();
     }
 
     public static boolean capturing() {
         return active != null;
+    }
+
+    public static int buffered() {
+        return developing + PhotoUploader.pending();
     }
 
     @SubscribeEvent
@@ -102,8 +156,8 @@ public final class PhotoCapture {
         Shot shot = pending;
         pending = null;
         Window window = mc.getWindow();
-        int longSide = shot.body().sensor().outputLongSide();
-        float aspect = shot.body().sensor().aspect();
+        int longSide = shot.chain().sensor().outputLongSide();
+        float aspect = shot.chain().sensor().aspect();
         int w = aspect >= 1 ? longSide : Math.round(longSide * aspect);
         int h = aspect >= 1 ? Math.round(longSide / aspect) : longSide;
         active = new Active(shot, mc.options.hideGui, window.getWidth(), window.getHeight(), w, h);
@@ -120,21 +174,106 @@ public final class PhotoCapture {
         if (a.warmup-- > 0) {
             return;
         }
-        active = null;
         Minecraft mc = Minecraft.getInstance();
-        NativeImage image = net.minecraft.client.Screenshot.takeScreenshot(mc.getMainRenderTarget());
-        // depth map from exactly this camera pose (aspect = sensor aspect while resized)
-        int gw = 192, gh = Math.max(1, Math.round(gw / a.shot.body().sensor().aspect()));
-        float[] grid = new CameraRays(mc.level, mc.getCameraEntity(), mc.gameRenderer.getMainCamera(),
-                Viewfinder.sensorVfov(), a.shot.body().sensor().aspect(), 512).depthGrid(gw, gh);
+        if (!a.shot.longExposure()) {
+            active = null;
+            NativeImage image = Screenshot.takeScreenshot(mc.getMainRenderTarget());
+            int gw = 192, gh = Math.max(1, Math.round(gw / a.shot.chain().sensor().aspect()));
+            float[] grid = depthGrid(mc, a.shot, gw, gh);
+            finish(mc, a);
+            int[] rgb = toRgb(image);
+            image.close();
+            submit(mc, a.shot, rgb, null, a.w, a.h, grid, gw, gh, a.shot.seconds());
+            return;
+        }
+        accumulateFrame(mc, a);
+    }
+
+    // ------------------------------------------------------------------ long exposure
+
+    private static void accumulateFrame(Minecraft mc, Active a) {
+        RenderTarget target = mc.getMainRenderTarget();
+        if (a.startNanos < 0) {
+            a.startNanos = System.nanoTime();
+            a.sum = new float[a.w * a.h * 3];
+            a.gw = 192;
+            a.gh = Math.max(1, Math.round(a.gw / a.shot.chain().sensor().aspect()));
+            a.depthGrid = depthGrid(mc, a.shot, a.gw, a.gh);
+            for (int i = 0; i < 2; i++) {
+                a.pbo[i] = GL15.glGenBuffers();
+                GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, a.pbo[i]);
+                GL15.glBufferData(GL21.GL_PIXEL_PACK_BUFFER, (long) a.w * a.h * 4, GL15.GL_STREAM_READ);
+            }
+        }
+        double elapsed = (System.nanoTime() - a.startNanos) / 1e9;
+        boolean bulb = a.shot.seconds() < 0;
+        boolean last = bulb ? (bulbStop || elapsed > 3600) : elapsed >= a.shot.seconds();
+        int cur = a.frameIndex & 1;
+        GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, a.pbo[cur]);
+        RenderSystem.bindTexture(target.getColorTextureId());
+        GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 4);
+        GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, 0L);
+        if (a.frameIndex > 0) {
+            accumulate(a, a.pbo[cur ^ 1]);
+        }
+        if (last) {
+            accumulate(a, a.pbo[cur]);
+        }
+        GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, 0);
+        a.frameIndex++;
+        if (!last) {
+            // the electronic viewfinder blacks out while the shutter is open
+            target.bindWrite(true);
+            RenderSystem.clearColor(0, 0, 0, 1);
+            RenderSystem.clear(GL11.GL_COLOR_BUFFER_BIT, Minecraft.ON_OSX);
+            return;
+        }
+        active = null;
+        GL15.glDeleteBuffers(a.pbo[0]);
+        GL15.glDeleteBuffers(a.pbo[1]);
+        finish(mc, a);
+        float inv = 1f / Math.max(1, a.accumulated);
+        float[] linear = a.sum;
+        for (int i = 0; i < linear.length; i++) {
+            linear[i] *= inv;
+        }
+        RealCamera.LOGGER.debug("Long exposure {} s: {} frames", String.format("%.2f", elapsed), a.accumulated);
+        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.gw, a.gh, elapsed);
+    }
+
+    /** Sum one frame (GL rows are bottom-up) into the float buffer in linear light. */
+    private static void accumulate(Active a, int pbo) {
+        GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, pbo);
+        ByteBuffer buf = GL15.glMapBuffer(GL21.GL_PIXEL_PACK_BUFFER, GL15.GL_READ_ONLY);
+        if (buf == null) {
+            return;
+        }
+        float[] sum = a.sum;
+        int w = a.w, h = a.h;
+        for (int y = 0; y < h; y++) {
+            int src = (h - 1 - y) * w * 4;
+            int dst = y * w * 3;
+            for (int x = 0; x < w; x++, src += 4, dst += 3) {
+                sum[dst] += SRGB_TO_LINEAR[buf.get(src) & 0xFF];
+                sum[dst + 1] += SRGB_TO_LINEAR[buf.get(src + 1) & 0xFF];
+                sum[dst + 2] += SRGB_TO_LINEAR[buf.get(src + 2) & 0xFF];
+            }
+        }
+        GL15.glUnmapBuffer(GL21.GL_PIXEL_PACK_BUFFER);
+        a.accumulated++;
+    }
+
+    // ------------------------------------------------------------------ helpers (render thread)
+
+    private static float[] depthGrid(Minecraft mc, Shot s, int gw, int gh) {
+        return new CameraRays(mc.level, mc.getCameraEntity(), mc.gameRenderer.getMainCamera(),
+                Optics.verticalFovDeg(s.chain().sensor().heightMm(), s.focal()), s.chain().sensor().aspect(), 512)
+                .depthGrid(gw, gh);
+    }
+
+    private static void finish(Minecraft mc, Active a) {
         mc.options.hideGui = a.savedHideGui;
         resize(mc, a.origW, a.origH); // resizing clears the buffer: the screen blacks out like a real EVF
-        Optional<ColorProfileSpec> profile = dev.hackdanel.realcamera.camera.Specs.profile(
-                mc.level.registryAccess(), a.shot.body(), a.shot.settings().profile());
-        String artist = mc.getUser().getName();
-        int maxUpload = ServerConfig.MAX_UPLOAD_RESOLUTION.get();
-        developing++;
-        WORKER.execute(() -> develop(a.shot, image, grid, gw, gh, profile.orElse(null), artist, maxUpload));
     }
 
     private static void resize(Minecraft mc, int w, int h) {
@@ -145,43 +284,66 @@ public final class PhotoCapture {
         mc.gameRenderer.resize(w, h);
     }
 
+    private static int[] toRgb(NativeImage image) {
+        int w = image.getWidth(), h = image.getHeight();
+        int[] rgb = new int[w * h];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int abgr = image.getPixelRGBA(x, y);
+                rgb[y * w + x] = ((abgr & 0xFF) << 16) | (abgr & 0xFF00) | ((abgr >> 16) & 0xFF);
+            }
+        }
+        return rgb;
+    }
+
+    private static void submit(Minecraft mc, Shot shot, int[] rgb, float[] linear, int w, int h, float[] grid, int gw,
+                               int gh, double actualSeconds) {
+        ColorProfileSpec profile = Specs.profile(mc.level.registryAccess(), shot.chain().body(), shot.settings().profile())
+                .orElse(null);
+        String artist = mc.getUser().getName();
+        int maxUpload = ServerConfig.MAX_UPLOAD_RESOLUTION.get();
+        developing++;
+        WORKER.execute(() -> develop(shot, rgb, linear, w, h, grid, gw, gh, actualSeconds, profile, artist, maxUpload));
+    }
+
     // ------------------------------------------------------------------ worker thread
 
-    private static void develop(Shot s, NativeImage image, float[] grid, int gw, int gh, ColorProfileSpec profile,
-                                String artist, int maxUpload) {
+    private static void develop(Shot s, int[] rgb, float[] linear, int w, int h, float[] grid, int gw, int gh,
+                                double seconds, ColorProfileSpec profile, String artist, int maxUpload) {
         long t0 = System.nanoTime();
         try {
-            int w = image.getWidth(), h = image.getHeight();
-            int[] rgb = new int[w * h];
-            for (int y = 0; y < h; y++) {
-                for (int x = 0; x < w; x++) {
-                    int abgr = image.getPixelRGBA(x, y);
-                    rgb[y * w + x] = ((abgr & 0xFF) << 16) | (abgr & 0xFF00) | ((abgr >> 16) & 0xFF);
-                }
-            }
-            image.close();
-            float[] depth = DepthUpsampler.upsample(grid, gw, gh, rgb, w, h);
+            int[] guide = rgb != null ? rgb : ImagePipeline.toSrgb(linear);
+            float[] depth = DepthUpsampler.upsample(grid, gw, gh, guide, w, h);
+            ImageParams params = params(s, profile, w, h, seconds);
             if (Boolean.getBoolean("realcamera.debugDumps")) {
-                debugDump(rgb, depth, w, h);
+                debugDump(guide, depth, w, h);
             }
-            ImageParams params = params(s, profile, w, h);
-            int[] developed = ImagePipeline.develop(rgb, depth, w, h, params);
+            float[] img = linear != null ? linear : ImagePipeline.toLinear(rgb);
+            int[] developed = ImagePipeline.toSrgb(ImagePipeline.developLinear(img, depth, w, h, params));
 
+            int format = s.settings().fileFormat();
             float quality = s.settings().quality() == CameraSettings.QUALITY_NORMAL ? 0.8f : 0.93f;
             LocalDateTime now = LocalDateTime.now();
             if (ClientConfig.AUTO_EXPORT.get()) {
-                byte[] full = ExifWriter.insert(JpegCodec.encode(developed, w, h, quality), exif(s, artist, now, w, h));
-                export(full, s, now);
+                Path base = exportBase(s, now);
+                if (format != CameraSettings.FORMAT_RAW) {
+                    byte[] full = ExifWriter.insert(JpegCodec.encode(developed, w, h, quality),
+                            exif(s, artist, now, w, h, seconds));
+                    Files.write(base.resolveSibling(base.getFileName() + ".JPG"), full);
+                }
+                if (format != CameraSettings.FORMAT_JPEG) {
+                    writeRaw(base, guide, w, h, s, params, seconds);
+                }
             }
             int[] size = new int[2];
             int[] small = ImagePipeline.downscale(developed, w, h, maxUpload, size);
             byte[] upload = JpegCodec.encode(small, size[0], size[1], 0.85f);
-            PhotoMeta meta = meta(s, size[0], size[1]);
+            PhotoMeta meta = meta(s, size[0], size[1], seconds);
             RealCamera.LOGGER.debug("Developed {}x{} in {} ms (upload {} KB)", w, h,
                     (System.nanoTime() - t0) / 1_000_000, upload.length / 1024);
             Minecraft.getInstance().execute(() -> {
                 developing--;
-                PhotoUploader.upload(s.hand(), meta, upload, s.settings().quality());
+                PhotoUploader.upload(s.hand(), meta, upload, s.settings().quality(), format);
             });
         } catch (IOException | RuntimeException e) {
             RealCamera.LOGGER.error("Developing photo failed", e);
@@ -195,23 +357,18 @@ public final class PhotoCapture {
         }
     }
 
-    /** Dev aid: raw frame and depth map (log scale) next to the exported photos. */
-    private static void debugDump(int[] rgb, float[] depth, int w, int h) throws IOException {
-        Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve("screenshots").resolve("realcamera_debug");
-        Files.createDirectories(dir);
-        int[] d = new int[depth.length];
-        for (int i = 0; i < depth.length; i++) {
-            int v = (int) Math.max(0, Math.min(255, Math.log(Math.max(0.05, depth[i])) / Math.log(10000) * 255));
-            d[i] = (v << 16) | (v << 8) | v;
+    /** Exposure error, recomputed with the real time for bulb shots. */
+    private static double exposureEv(Shot s, double seconds) {
+        if (s.seconds() >= 0) {
+            return s.exposure().delta();
         }
-        Files.write(dir.resolve("raw.jpg"), JpegCodec.encode(rgb, w, h, 0.95f));
-        Files.write(dir.resolve("depth.jpg"), JpegCodec.encode(d, w, h, 0.95f));
+        return s.sceneEv() - Exposure.cameraEv(s.exposure().fNumber(), seconds, s.exposure().iso());
     }
 
-    private static ImageParams params(Shot s, ColorProfileSpec profile, int w, int h) {
-        CameraBodySpec body = s.body();
-        double sensorPixels = body.sensor().megapixels() * 1e6;
-        double isoGain = s.exposure().iso() / Math.max(1, body.sensor().baseIso());
+    private static ImageParams params(Shot s, ColorProfileSpec profile, int w, int h, double seconds) {
+        OpticalChain chain = s.chain();
+        var sensor = chain.sensor();
+        double isoGain = s.exposure().iso() / Math.max(1, sensor.baseIso());
         double sceneK = s.blockLit() ? 4200 : 5500;
         double settingK = switch (s.settings().whiteBalance()) {
             case CameraSettings.WB_DAYLIGHT, CameraSettings.WB_FLASH -> 5500;
@@ -223,34 +380,44 @@ public final class PhotoCapture {
             default -> sceneK * 0.7 + 5500 * 0.3; // auto keeps a little of the light's mood
         };
         double[] wb = ImagePipeline.whiteBalance(sceneK, settingK);
-        boolean mono = profile != null && profile.monochrome();
-        return new ImageParams(s.exposure().delta(), isoGain, body.sensor().noiseLuma(), body.sensor().noiseChroma(),
-                (double) w * h / sensorPixels, body.sensor().dynamicRangeEv(),
-                s.focal(), s.exposure().fNumber(), s.focusDistance(), body.sensor().widthMm(),
-                s.lens().optics().vignettingEv(), s.lens().maxApertureAt(s.focal()), s.lens().optics().sharpness(),
-                wb[0], wb[1], wb[2],
-                profile == null ? 1 : profile.contrast(), profile == null ? 1 : profile.saturation(), mono,
-                profile == null ? 1 : profile.tintR(), profile == null ? 1 : profile.tintG(),
-                profile == null ? 1 : profile.tintB(), profile == null ? 0 : profile.shadowLift(),
+        boolean correct = s.settings().lensCorrection();
+        var optics = chain.lens().optics();
+        var lens = new ImageParams.Lens(optics.vignettingEv() * (correct ? 0.5 : 1), chain.maxApertureAt(s.focal()),
+                chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(s.focal())) * (correct ? 0.15 : 1),
+                optics.caPx() * (w / 3840.0) * (correct ? 0.2 : 1), chain.imageCircle(), optics.blades(),
+                optics.rounded(), optics.flare());
+        var motion = new ImageParams.Motion(s.motion().blurX() * w, s.motion().blurY() * w, s.motion().rollingSkewPx() * w);
+        return new ImageParams(
+                new ImageParams.Sensor(exposureEv(s, seconds), isoGain, sensor.noiseLuma(), sensor.noiseChroma(),
+                        (double) w * h / (sensor.megapixels() * 1e6), sensor.dynamicRangeEv()),
+                new ImageParams.Focus(s.focal(), s.exposure().fNumber(), s.focusDistance(), sensor.widthMm()),
+                lens, motion, s.sun(),
+                new ImageParams.Colour(wb[0], wb[1], wb[2],
+                        profile == null ? 1 : profile.contrast(), profile == null ? 1 : profile.saturation(),
+                        profile != null && profile.monochrome(), profile == null ? 1 : profile.tintR(),
+                        profile == null ? 1 : profile.tintG(), profile == null ? 1 : profile.tintB(),
+                        profile == null ? 0 : profile.shadowLift()),
                 System.nanoTime());
     }
 
-    private static PhotoMeta meta(Shot s, int w, int h) {
-        int focal35 = Optics.focal35(s.focal(), s.body().sensor().cropFactor());
-        PhotoMeta.Exif exif = new PhotoMeta.Exif(s.cameraName(), s.lensName(),
-                (float) ExposureScales.nominalAperture(s.exposure().apertureIdx()),
-                ExposureScales.nominalShutter(s.exposure().shutterIdx()), nominalIso(s), s.focal(), focal35, s.settings().mode(),
-                s.settings().evComp(), s.settings().whiteBalance());
-        // author, time and place are filled in by the server
-        return new PhotoMeta(new UUID(0, 0), new UUID(0, 0), "", 0, w, h, exif,
-                new PhotoMeta.Place("", "", 0, 0, 0, 0));
+    private static double nominalSeconds(Shot s, double seconds) {
+        return s.seconds() < 0 ? Math.round(seconds * 10) / 10.0 : ExposureScales.nominalShutter(s.exposure().shutterIdx());
     }
 
     private static int nominalIso(Shot s) {
         return ExposureScales.ISO[Math.max(0, Math.min(ExposureScales.ISO.length - 1, s.exposure().isoIdx()))];
     }
 
-    private static ExifWriter.Data exif(Shot s, String artist, LocalDateTime now, int w, int h) {
+    private static PhotoMeta meta(Shot s, int w, int h, double seconds) {
+        int focal35 = Optics.focal35(s.focal(), s.chain().sensor().cropFactor());
+        PhotoMeta.Exif exif = new PhotoMeta.Exif(s.cameraName(), s.lensName(),
+                (float) ExposureScales.nominalAperture(s.exposure().apertureIdx()), nominalSeconds(s, seconds),
+                nominalIso(s), s.focal(), focal35, s.settings().mode(), s.settings().evComp(), s.settings().whiteBalance());
+        // author, time and place are filled in by the server
+        return new PhotoMeta(new UUID(0, 0), new UUID(0, 0), "", 0, w, h, exif, new PhotoMeta.Place("", "", 0, 0, 0, 0));
+    }
+
+    private static ExifWriter.Data exif(Shot s, String artist, LocalDateTime now, int w, int h, double seconds) {
         int program = switch (s.settings().mode()) {
             case CameraSettings.MODE_M -> 1;
             case CameraSettings.MODE_A -> 3;
@@ -262,24 +429,63 @@ public final class PhotoCapture {
             case CameraSettings.METER_SPOT -> 3;
             default -> 5;
         };
-        return new ExifWriter.Data(s.body().info().exifMake(), s.body().info().exifModel(), s.lens().brand(),
-                s.lens().exifLensModel(), artist, now.format(DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss")),
-                ExposureScales.nominalShutter(s.exposure().shutterIdx()),
-                ExposureScales.nominalAperture(s.exposure().apertureIdx()), nominalIso(s), s.focal(),
-                Optics.focal35(s.focal(), s.body().sensor().cropFactor()), program, s.settings().evComp() / 3.0,
-                metering, s.settings().whiteBalance() != CameraSettings.WB_AUTO, w, h);
+        var body = s.chain().body();
+        return new ExifWriter.Data(body.info().exifMake(), body.info().exifModel(), s.chain().lens().brand(),
+                s.chain().exifLensModel(), artist, now.format(DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss")),
+                nominalSeconds(s, seconds), ExposureScales.nominalAperture(s.exposure().apertureIdx()), nominalIso(s),
+                s.focal(), Optics.focal35(s.focal(), s.chain().sensor().cropFactor()), program,
+                s.settings().evComp() / 3.0, metering, s.settings().whiteBalance() != CameraSettings.WB_AUTO, w, h);
     }
 
-    /** screenshots/realcamera/<date>/DSC0NNNN.JPG, like a camera's card folder. */
-    private static void export(byte[] jpeg, Shot s, LocalDateTime now) throws IOException {
+    /** screenshots/realcamera/<date>/DSC0NNNN (extension added by the caller), like a camera's card folder. */
+    private static Path exportBase(Shot s, LocalDateTime now) throws IOException {
         Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve("screenshots").resolve("realcamera")
                 .resolve(now.format(DateTimeFormatter.ISO_LOCAL_DATE));
         Files.createDirectories(dir);
-        String base = String.format("DSC%05d", s.frameNumber() % 100000);
-        Path file = dir.resolve(base + ".JPG");
-        for (int i = 1; Files.exists(file); i++) {
-            file = dir.resolve(base + "_" + i + ".JPG");
+        String name = String.format("DSC%05d", s.frameNumber() % 100000);
+        Path base = dir.resolve(name);
+        for (int i = 1; Files.exists(dir.resolve(base.getFileName() + ".JPG"))
+                || Files.exists(dir.resolve(base.getFileName() + ".PNG")); i++) {
+            base = dir.resolve(name + "_" + i);
         }
-        Files.write(file, jpeg);
+        return base;
+    }
+
+    /**
+     * "RAW": the frame exactly as the sensor saw it (before exposure correction, white balance and
+     * profile) as a lossless PNG, plus a JSON sidecar with the development settings for the editor.
+     */
+    private static void writeRaw(Path base, int[] rgb, int w, int h, Shot s, ImageParams p, double seconds) throws IOException {
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        img.setRGB(0, 0, w, h, rgb, 0, w);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(img, "png", out);
+        Files.write(base.resolveSibling(base.getFileName() + ".PNG"), out.toByteArray());
+        Map<String, Object> side = new LinkedHashMap<>();
+        side.put("camera", s.chain().body().info().exifMake() + " " + s.chain().body().info().exifModel());
+        side.put("lens", s.chain().exifLensModel());
+        side.put("exposure_ev", p.sensor().exposureEv());
+        side.put("iso", nominalIso(s));
+        side.put("shutter_s", nominalSeconds(s, seconds));
+        side.put("f_number", ExposureScales.nominalAperture(s.exposure().apertureIdx()));
+        side.put("focal_mm", s.focal());
+        side.put("dynamic_range_ev", p.sensor().dynamicRangeEv());
+        side.put("white_balance", new double[]{p.colour().wbR(), p.colour().wbG(), p.colour().wbB()});
+        side.put("profile", s.settings().profile());
+        Files.writeString(base.resolveSibling(base.getFileName() + ".json"),
+                new GsonBuilder().setPrettyPrinting().create().toJson(side));
+    }
+
+    /** Dev aid: raw frame and depth map (log scale) next to the exported photos. */
+    private static void debugDump(int[] rgb, float[] depth, int w, int h) throws IOException {
+        Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve("screenshots").resolve("realcamera_debug");
+        Files.createDirectories(dir);
+        int[] d = new int[depth.length];
+        for (int i = 0; i < depth.length; i++) {
+            int v = (int) Math.max(0, Math.min(255, Math.log(Math.max(0.05, depth[i])) / Math.log(10000) * 255));
+            d[i] = (v << 16) | (v << 8) | v;
+        }
+        Files.write(dir.resolve("raw.jpg"), JpegCodec.encode(rgb, w, h, 0.95f));
+        Files.write(dir.resolve("depth.jpg"), JpegCodec.encode(d, w, h, 0.95f));
     }
 }

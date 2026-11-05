@@ -46,6 +46,12 @@ public final class ExposureScales {
     }
 
     public static final int ISO_100_INDEX = 3;
+    /** Shutter index past 30": bulb (open while the button is held, M mode only). */
+    public static final int BULB_INDEX = 61;
+
+    public static String shutterLabel(int index) {
+        return index >= BULB_INDEX ? "BULB" : SHUTTER_LABEL[index];
+    }
     /** Exposure compensation range in thirds: -5 EV ... +5 EV. */
     public static final int EV_COMP_MIN = -15;
     public static final int EV_COMP_MAX = 15;

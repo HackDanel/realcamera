@@ -75,10 +75,15 @@ public final class ServerPhotoService {
         }
         Optional<CameraBodySpec> body = Specs.body(player.registryAccess(), camera);
         CameraHelper.drain(camera, Math.max(1, Math.round(body.map(CameraBodySpec::batteryDrain).orElse(1f))));
+        if (msg.shutterType() == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_ELECTRONIC) {
+            return; // silent and wear-free
+        }
         camera.set(RCComponents.SHUTTER_COUNT.get(), CameraHelper.shutterCount(camera) + 1);
+        boolean efcs = msg.shutterType() == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_EFCS;
         // Heard by everyone around except the photographer, who already played it locally.
         player.level().playSound(player, player.getX(), player.getEyeY(), player.getZ(),
-                RCSounds.SHUTTER_MIRRORLESS.get(), SoundSource.PLAYERS, 0.8f, 1f);
+                RCSounds.shutter(body.map(b -> b.shutter().sound()).orElse("mirrorless")), SoundSource.PLAYERS,
+                efcs ? 0.5f : 0.8f, efcs ? 1.15f : 1f);
     }
 
     // ------------------------------------------------------------------ upload
@@ -105,14 +110,15 @@ public final class ServerPhotoService {
             return;
         }
         CardData data = card.getOrDefault(RCComponents.CARD.get(), CardData.EMPTY);
-        long cardBytes = CameraHelper.bytesPerShot(body.get(), msg.quality());
+        long cardBytes = CameraHelper.bytesPerShot(body.get(), msg.quality(), msg.format());
         if (data.usedBytes() + cardBytes > cardType.get().capacityBytes()) {
             reject.accept("message.realcamera.card_full");
             return;
         }
         PhotoIndex index = PhotoStorage.index(server);
         UUID author = player.getUUID();
-        if (index.countFor(author) >= ServerConfig.MAX_PHOTOS_PER_PLAYER.get()
+        int maxPhotos = index.quota(author).orElse(ServerConfig.MAX_PHOTOS_PER_PLAYER.get());
+        if (index.countFor(author) >= maxPhotos
                 || index.bytesFor(author) + msg.totalBytes() > ServerConfig.MAX_STORAGE_MB_PER_PLAYER.get() * 1_000_000L) {
             reject.accept("message.realcamera.upload.quota");
             return;

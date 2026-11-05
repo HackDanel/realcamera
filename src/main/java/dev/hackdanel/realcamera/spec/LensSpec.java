@@ -23,6 +23,7 @@ public record LensSpec(
         float oisStops,
         Optics optics,
         int filterMm,
+        boolean tcCompatible,
         ResourceLocation model
 ) {
     public record Af(String motor, float speed) {
@@ -33,14 +34,26 @@ public record LensSpec(
         public static final Af DEFAULT = new Af("fast", 1f);
     }
 
-    /** Optical character: aperture blade count, wide-open vignetting (EV at the corner), sharpness. */
-    public record Optics(int blades, float vignettingEv, float sharpness) {
+    /**
+     * Optical character. blades/rounded: aperture shape (bokeh highlights); vignettingEv: corner fall-off
+     * wide open; sharpness: 1 neutral; distortion: radial k1 at the wide and long end (- barrel, + pincushion);
+     * caPx: lateral chromatic aberration at the corner in pixels of a 4K image; flare: ghosting strength;
+     * bokeh: "smooth", "busy" (onion rings) or "swirl" (Helios-style).
+     */
+    public record Optics(int blades, boolean rounded, float vignettingEv, float sharpness, float distortionWide,
+                         float distortionTele, float caPx, float flare, String bokeh) {
         public static final Codec<Optics> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.INT.optionalFieldOf("blades", 7).forGetter(Optics::blades),
+                Codec.BOOL.optionalFieldOf("rounded", true).forGetter(Optics::rounded),
                 Codec.FLOAT.optionalFieldOf("vignetting_ev", 1f).forGetter(Optics::vignettingEv),
-                Codec.FLOAT.optionalFieldOf("sharpness", 1f).forGetter(Optics::sharpness)
+                Codec.FLOAT.optionalFieldOf("sharpness", 1f).forGetter(Optics::sharpness),
+                Codec.FLOAT.optionalFieldOf("distortion_wide", 0f).forGetter(Optics::distortionWide),
+                Codec.FLOAT.optionalFieldOf("distortion_tele", 0f).forGetter(Optics::distortionTele),
+                Codec.FLOAT.optionalFieldOf("ca_px", 1f).forGetter(Optics::caPx),
+                Codec.FLOAT.optionalFieldOf("flare", 0.5f).forGetter(Optics::flare),
+                Codec.STRING.optionalFieldOf("bokeh", "smooth").forGetter(Optics::bokeh)
         ).apply(i, Optics::new));
-        public static final Optics DEFAULT = new Optics(7, 1f, 1f);
+        public static final Optics DEFAULT = new Optics(7, true, 1f, 1f, 0f, 0f, 1f, 0.5f, "smooth");
     }
 
     public static final Codec<LensSpec> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -58,11 +71,21 @@ public record LensSpec(
             Codec.FLOAT.optionalFieldOf("ois_stops", 0f).forGetter(LensSpec::oisStops),
             Optics.CODEC.optionalFieldOf("optics", Optics.DEFAULT).forGetter(LensSpec::optics),
             Codec.INT.optionalFieldOf("filter_mm", 67).forGetter(LensSpec::filterMm),
+            Codec.BOOL.optionalFieldOf("tc_compatible", false).forGetter(LensSpec::tcCompatible),
             ResourceLocation.CODEC.fieldOf("model").forGetter(LensSpec::model)
     ).apply(i, LensSpec::new));
 
     public int blades() {
         return optics.blades();
+    }
+
+    /** Radial distortion coefficient at a focal length (linear between the ends of a zoom). */
+    public float distortionAt(float focal) {
+        if (!isZoom()) {
+            return optics.distortionWide();
+        }
+        float t = (clampFocal(focal) - focalMin) / (focalMax - focalMin);
+        return optics.distortionWide() + (optics.distortionTele() - optics.distortionWide()) * t;
     }
 
     public boolean isZoom() {

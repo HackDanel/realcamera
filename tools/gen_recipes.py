@@ -98,6 +98,36 @@ def main():
     assembly("cfexpress_a_160", [(rc("flash_memory"), 5), (rc("processor"), 1), (rc("plastic"), 1), (rc("magnesium_alloy"), 1)],
              rc("memory_card"), 1, 160, {f"{NS}:card_type": f"{NS}:cfexpress_a_160", f"{NS}:card": card})
 
+    # --- stage 2 catalog
+    assembly("nikon_d750", [(rc("cmos_sensor"), 1), (rc("processor"), 2), (rc("magnesium_alloy"), 3), (rc("shutter_unit"), 1),
+                            (mc("glass"), 2), (rc("display_panel"), 1)], rc("camera_body"), 1, 380, {f"{NS}:body": f"{NS}:nikon_d750"})
+    assembly("leica_m11", [(rc("bsi_cmos_sensor"), 1), (rc("processor"), 1), (mc("copper_ingot"), 4),
+                           (rc("shutter_unit"), 1), (rc("lens_element"), 2), (mc("diamond"), 1)], rc("camera_body"), 1, 500,
+             {f"{NS}:body": f"{NS}:leica_m11"})
+    assembly("sony_e_pz_16_50", [(rc("lens_element"), 3), (rc("aperture_blades"), 1), (rc("af_motor"), 1), (rc("plastic"), 2),
+                                 (rc("stabilizer"), 1)], rc("lens"), 1, 200, {f"{NS}:lens": f"{NS}:sony_e_pz_16_50"})
+    assembly("sony_fe_200_600_g", [(rc("ed_lens_element"), 4), (rc("lens_element"), 6), (rc("aperture_blades"), 2),
+                                   (rc("af_motor"), 2), (rc("stabilizer"), 1), (rc("magnesium_alloy"), 3)],
+             rc("lens"), 1, 400, {f"{NS}:lens": f"{NS}:sony_fe_200_600_g"})
+    assembly("nikon_afs_50_f18g", [(rc("lens_element"), 4), (rc("aperture_blades"), 1), (rc("af_motor"), 1), (rc("plastic"), 2)],
+             rc("lens"), 1, 200, {f"{NS}:lens": f"{NS}:nikon_afs_50_f18g"})
+    assembly("canon_ef_50_f18_stm", [(rc("lens_element"), 4), (rc("aperture_blades"), 1), (rc("af_motor"), 1), (rc("plastic"), 2)],
+             rc("lens"), 1, 200, {f"{NS}:lens": f"{NS}:canon_ef_50_f18_stm"})
+    assembly("leica_summicron_m_50_f2", [(rc("lens_element"), 5), (rc("aperture_blades"), 1), (mc("copper_ingot"), 2),
+                                         (mc("gold_nugget"), 3)], rc("lens"), 1, 300, {f"{NS}:lens": f"{NS}:leica_summicron_m_50_f2"})
+    assembly("sigma_mc11_ef_e", [(rc("magnesium_alloy"), 1), (rc("circuit_board"), 1), (rc("processor"), 1)],
+             rc("mount_adapter"), 1, 120, {f"{NS}:adapter": f"{NS}:sigma_mc11_ef_e"})
+    assembly("f_to_e", [(mc("iron_ingot"), 2)], rc("mount_adapter"), 1, 60, {f"{NS}:adapter": f"{NS}:f_to_e"})
+    assembly("m_to_e", [(mc("iron_ingot"), 1), (mc("copper_ingot"), 1)], rc("mount_adapter"), 1, 60, {f"{NS}:adapter": f"{NS}:m_to_e"})
+    assembly("sony_sel14tc", [(rc("lens_element"), 3), (rc("magnesium_alloy"), 1), (rc("circuit_board"), 1)],
+             rc("teleconverter"), 1, 160, {f"{NS}:teleconverter": f"{NS}:sony_sel14tc"})
+    assembly("sony_sel20tc", [(rc("lens_element"), 4), (rc("magnesium_alloy"), 1), (rc("circuit_board"), 1)],
+             rc("teleconverter"), 1, 180, {f"{NS}:teleconverter": f"{NS}:sony_sel20tc"})
+    assembly("en_el15c", [(rc("battery_cell"), 2), (rc("plastic"), 1), (rc("circuit_board"), 1), (mc("redstone"), 1)],
+             rc("battery"), 1, 100, {f"{NS}:battery_type": f"{NS}:en_el15c", f"{NS}:charge": {"charge": 615, "capacity": 1230}})
+    assembly("bp_scl7", [(rc("battery_cell"), 2), (rc("magnesium_alloy"), 1), (rc("circuit_board"), 1)],
+             rc("battery"), 1, 100, {f"{NS}:battery_type": f"{NS}:bp_scl7", f"{NS}:charge": {"charge": 350, "capacity": 700}})
+
     # --- devices
     assembly("battery_charger", [(rc("plastic"), 3), (rc("circuit_board"), 1), (mc("copper_ingot"), 2), (mc("redstone"), 1)],
              rc("battery_charger"), 1, 120)

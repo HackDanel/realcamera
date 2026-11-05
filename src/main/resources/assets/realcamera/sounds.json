@@ -8,6 +8,24 @@
       }
     ]
   },
+  "shutter.dslr": {
+    "subtitle": "subtitles.realcamera.shutter",
+    "sounds": [
+      {
+        "name": "realcamera:shutter_dslr",
+        "attenuation_distance": 20
+      }
+    ]
+  },
+  "shutter.leaf": {
+    "subtitle": "subtitles.realcamera.shutter",
+    "sounds": [
+      {
+        "name": "realcamera:shutter_leaf",
+        "attenuation_distance": 8
+      }
+    ]
+  },
   "af_confirm": {
     "subtitle": "subtitles.realcamera.af_confirm",
     "sounds": [

@@ -33,6 +33,18 @@ public final class RCStacks {
         return s;
     }
 
+    public static ItemStack adapter(ResourceKey<dev.hackdanel.realcamera.spec.AdapterSpec> key) {
+        ItemStack s = new ItemStack(RCItems.MOUNT_ADAPTER.get());
+        s.set(RCComponents.ADAPTER.get(), key);
+        return s;
+    }
+
+    public static ItemStack teleconverter(ResourceKey<dev.hackdanel.realcamera.spec.TeleconverterSpec> key) {
+        ItemStack s = new ItemStack(RCItems.TELECONVERTER.get());
+        s.set(RCComponents.TELECONVERTER.get(), key);
+        return s;
+    }
+
     public static ItemStack battery(ResourceKey<BatteryTypeSpec> key, BatteryTypeSpec spec, boolean full) {
         ItemStack s = new ItemStack(RCItems.BATTERY.get());
         s.set(RCComponents.BATTERY_TYPE.get(), key);
@@ -71,8 +83,8 @@ public final class RCStacks {
             return Optional.empty();
         }
         ItemStack camera = body(body.key());
-        camera.set(RCComponents.CAMERA_PARTS.get(), new CameraParts(lens(lens.get().key()),
-                battery(battery.get().key(), battery.get().value(), true), card(card.get().key())));
+        camera.set(RCComponents.CAMERA_PARTS.get(), new CameraParts(lens(lens.get().key()), ItemStack.EMPTY,
+                ItemStack.EMPTY, battery(battery.get().key(), battery.get().value(), true), card(card.get().key())));
         return Optional.of(camera);
     }
 }

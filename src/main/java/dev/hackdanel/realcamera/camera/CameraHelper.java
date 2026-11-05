@@ -67,9 +67,22 @@ public final class CameraHelper {
         return true;
     }
 
+    /** Compressed RAW is roughly 1.2 MB per megapixel on current bodies. */
+    public static final double RAW_BYTES_PER_MP = 1_200_000;
+
     public static long bytesPerShot(CameraBodySpec body, int quality) {
-        double perMp = quality == CameraSettings.QUALITY_NORMAL ? JPEG_NORMAL_BYTES_PER_MP : JPEG_FINE_BYTES_PER_MP;
-        return Math.round(body.sensor().megapixels() * perMp);
+        return bytesPerShot(body, quality, CameraSettings.FORMAT_JPEG);
+    }
+
+    public static long bytesPerShot(CameraBodySpec body, int quality, int format) {
+        double mp = body.sensor().megapixels();
+        double jpeg = mp * (quality == CameraSettings.QUALITY_NORMAL ? JPEG_NORMAL_BYTES_PER_MP : JPEG_FINE_BYTES_PER_MP);
+        double raw = mp * RAW_BYTES_PER_MP;
+        return Math.round(switch (format) {
+            case CameraSettings.FORMAT_RAW -> raw;
+            case CameraSettings.FORMAT_RAW_JPEG -> raw + jpeg;
+            default -> jpeg;
+        });
     }
 
     /** Shots that still fit on the inserted card, or -1 if there is no usable card. */
@@ -82,7 +95,8 @@ public final class CameraHelper {
         }
         CardData data = card.getOrDefault(RCComponents.CARD.get(), CardData.EMPTY);
         long free = type.get().capacityBytes() - data.usedBytes();
-        return Math.max(0, free / bytesPerShot(body.get(), settings(camera).quality()));
+        CameraSettings s = settings(camera);
+        return Math.max(0, free / bytesPerShot(body.get(), s.quality(), s.fileFormat()));
     }
 
     public static Optional<LensSpec> mountedLens(HolderLookup.Provider r, ItemStack camera) {
