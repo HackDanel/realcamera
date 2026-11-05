@@ -358,6 +358,7 @@ public class EditorScreen extends Screen {
     @Override
     public void tick() {
         if (session.state() != EditSession.State.READY) return;
+        dimOutsideCrop(cropTab() && !showBefore);
         if (showBefore && beforeResult == null && !renderingBefore && !session.busy()) {
             renderingBefore = true;
             session.renderPreview(new EditSettings(), r -> {
@@ -396,19 +397,46 @@ public class EditorScreen extends Screen {
      * blending) so it works under shader packs; re-applied only when the rectangle changes.
      */
     private void dimOutsideCrop(boolean on) {
-        if (texture == null || shownRgb == null || shownRgb.length != texW * texH) return;
+        if (shownRgb == null || shownRgb.length != texW * texH) return;
         EditSettings s = session.settings;
         String key = on ? s.cropX + "," + s.cropY + "," + s.cropW + "," + s.cropH : "";
         if (key.equals(dimKey)) return;
         dimKey = key;
+        pushTexture(on);
+    }
+
+    private void upload(PhotoEditor.Result r) {
+        int[] rgb = r.rgb();
+        shownRgb = rgb;
+        texW = r.w();
+        texH = r.h();
+        for (int i = 0; i < 3; i++) java.util.Arrays.fill(histogram[i], 0);
+        for (int p : rgb) {
+            histogram[0][((p >> 16) & 255) >> 2]++;
+            histogram[1][((p >> 8) & 255) >> 2]++;
+            histogram[2][(p & 255) >> 2]++;
+        }
+        histMax = 1;
+        for (int[] ch : histogram) {
+            for (int i = 1; i < 63; i++) histMax = Math.max(histMax, ch[i]);
+        }
+        boolean dim = cropTab() && !showBefore;
+        EditSettings s = session.settings;
+        dimKey = dim ? s.cropX + "," + s.cropY + "," + s.cropW + "," + s.cropH : "";
+        pushTexture(dim);
+    }
+
+    /** Shows shownRgb in a fresh texture, darker outside the crop rectangle if asked. */
+    private void pushTexture(boolean dim) {
+        EditSettings s = session.settings;
         int x0 = (int) Math.round(s.cropX * texW), y0 = (int) Math.round(s.cropY * texH);
         int x1 = (int) Math.round((s.cropX + s.cropW) * texW), y1 = (int) Math.round((s.cropY + s.cropH) * texH);
-        NativeImage img = texture.getPixels();
+        NativeImage img = new NativeImage(texW, texH, false);
         for (int y = 0; y < texH; y++) {
             for (int x = 0; x < texW; x++) {
                 int p = shownRgb[y * texW + x];
                 int red = (p >> 16) & 255, gr = (p >> 8) & 255, b = p & 255;
-                if (on && (x < x0 || x >= x1 || y < y0 || y >= y1)) {
+                if (dim && (x < x0 || x >= x1 || y < y0 || y >= y1)) {
                     red = red * 2 / 5;
                     gr = gr * 2 / 5;
                     b = b * 2 / 5;
@@ -416,38 +444,10 @@ public class EditorScreen extends Screen {
                 img.setPixelRGBA(x, y, 0xFF000000 | (b << 16) | (gr << 8) | red);
             }
         }
-        texture.upload();
-    }
-
-    private void upload(PhotoEditor.Result r) {
-        if (texture == null || texW != r.w() || texH != r.h()) {
-            if (texture != null) minecraft.getTextureManager().release(TEXTURE);
-            texture = new DynamicTexture(r.w(), r.h(), false);
-            texture.setFilter(true, false);
-            minecraft.getTextureManager().register(TEXTURE, texture);
-            texW = r.w();
-            texH = r.h();
-        }
-        NativeImage img = texture.getPixels();
-        int[] rgb = r.rgb();
-        shownRgb = rgb;
-        dimKey = "";
-        for (int i = 0; i < 3; i++) java.util.Arrays.fill(histogram[i], 0);
-        for (int y = 0; y < r.h(); y++) {
-            for (int x = 0; x < r.w(); x++) {
-                int p = rgb[y * r.w() + x];
-                int red = (p >> 16) & 255, g = (p >> 8) & 255, b = p & 255;
-                img.setPixelRGBA(x, y, 0xFF000000 | (b << 16) | (g << 8) | red);
-                histogram[0][red >> 2]++;
-                histogram[1][g >> 2]++;
-                histogram[2][b >> 2]++;
-            }
-        }
-        histMax = 1;
-        for (int[] ch : histogram) {
-            for (int i = 1; i < 63; i++) histMax = Math.max(histMax, ch[i]);
-        }
-        texture.upload();
+        if (texture != null) minecraft.getTextureManager().release(TEXTURE);
+        texture = new DynamicTexture(img);
+        texture.setFilter(true, false);
+        minecraft.getTextureManager().register(TEXTURE, texture);
     }
 
     @Override
@@ -463,7 +463,6 @@ public class EditorScreen extends Screen {
         } else if (texture != null) {
             int[] r = imageRect();
             boolean crop = cropTab() && !showBefore;
-            dimOutsideCrop(crop);
             g.blit(TEXTURE, r[0], r[1], r[2], r[3], 0, 0, texW, texH, texW, texH);
             if (crop) drawCrop(g, r);
             if (showBefore) {
