@@ -1,0 +1,74 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "realcamera:block/developing_tank",
+    "t": "realcamera:block/developing_tank",
+    "lid": "realcamera:block/developing_tank_lid"
+  },
+  "elements": [
+    {
+      "from": [
+        4.5,
+        0,
+        4.5
+      ],
+      "to": [
+        11.5,
+        8,
+        11.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t"
+        },
+        "south": {
+          "texture": "#t"
+        },
+        "east": {
+          "texture": "#t"
+        },
+        "west": {
+          "texture": "#t"
+        },
+        "down": {
+          "texture": "#t"
+        },
+        "up": {
+          "texture": "#lid"
+        }
+      }
+    },
+    {
+      "from": [
+        4,
+        7,
+        4
+      ],
+      "to": [
+        12,
+        9,
+        12
+      ],
+      "faces": {
+        "north": {
+          "texture": "#lid"
+        },
+        "south": {
+          "texture": "#lid"
+        },
+        "east": {
+          "texture": "#lid"
+        },
+        "west": {
+          "texture": "#lid"
+        },
+        "up": {
+          "texture": "#lid"
+        },
+        "down": {
+          "texture": "#lid"
+        }
+      }
+    }
+  ]
+}

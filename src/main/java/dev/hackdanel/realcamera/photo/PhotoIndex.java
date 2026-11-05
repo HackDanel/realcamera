@@ -22,7 +22,7 @@ public class PhotoIndex extends SavedData {
      * @param cardBytes space the shot occupies on the memory card (realistic camera file size)
      */
     public record Entry(PhotoMeta meta, long fileBytes, long cardBytes, int prints, boolean revoked, int rating,
-                        java.util.Optional<UUID> uploader) {
+                        java.util.Optional<UUID> uploader, boolean latent) {
         public static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
                 PhotoMeta.CODEC.fieldOf("meta").forGetter(Entry::meta),
                 Codec.LONG.fieldOf("bytes").forGetter(Entry::fileBytes),
@@ -30,23 +30,29 @@ public class PhotoIndex extends SavedData {
                 Codec.INT.optionalFieldOf("prints", 0).forGetter(Entry::prints),
                 Codec.BOOL.optionalFieldOf("revoked", false).forGetter(Entry::revoked),
                 Codec.INT.optionalFieldOf("rating", 0).forGetter(Entry::rating),
-                net.minecraft.core.UUIDUtil.CODEC.optionalFieldOf("uploader").forGetter(Entry::uploader)
+                net.minecraft.core.UUIDUtil.CODEC.optionalFieldOf("uploader").forGetter(Entry::uploader),
+                Codec.BOOL.optionalFieldOf("latent", false).forGetter(Entry::latent)
         ).apply(i, Entry::new));
 
         public Entry(PhotoMeta meta, long fileBytes, long cardBytes, int prints, boolean revoked) {
-            this(meta, fileBytes, cardBytes, prints, revoked, 0, java.util.Optional.empty());
+            this(meta, fileBytes, cardBytes, prints, revoked, 0, java.util.Optional.empty(), false);
         }
 
         public Entry withPrints(int p) {
-            return new Entry(meta, fileBytes, cardBytes, p, revoked, rating, uploader);
+            return new Entry(meta, fileBytes, cardBytes, p, revoked, rating, uploader, latent);
         }
 
         public Entry withRating(int r) {
-            return new Entry(meta, fileBytes, cardBytes, prints, revoked, r, uploader);
+            return new Entry(meta, fileBytes, cardBytes, prints, revoked, r, uploader, latent);
         }
 
         public Entry revoke() {
-            return new Entry(meta, 0, cardBytes, prints, true, rating, uploader);
+            return new Entry(meta, 0, cardBytes, prints, true, rating, uploader, latent);
+        }
+
+        /** The film frame after development: visible, with the re-rendered file size. */
+        public Entry developed(long bytes, int w, int h) {
+            return new Entry(meta.withSize(w, h), bytes, cardBytes, prints, revoked, rating, uploader, false);
         }
 
         /** Who pays for the file in their quota: the uploader (an editor of someone else's photo) or the author. */

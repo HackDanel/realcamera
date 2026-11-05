@@ -30,5 +30,12 @@ public final class RCBlockEntities {
             "photo_display", () -> BlockEntityType.Builder.of(dev.hackdanel.realcamera.blockentity.DisplayBlockEntity::new,
                     RCBlocks.TABLE_FRAME.get(), RCBlocks.PHOTO_STAND.get()).build(null));
 
+    public static final Supplier<BlockEntityType<dev.hackdanel.realcamera.blockentity.DevelopingTankBlockEntity>> DEVELOPING_TANK =
+            REGISTER.register("developing_tank", () -> BlockEntityType.Builder.of(
+                    dev.hackdanel.realcamera.blockentity.DevelopingTankBlockEntity::new, RCBlocks.DEVELOPING_TANK.get()).build(null));
+    public static final Supplier<BlockEntityType<dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity>> ENLARGER =
+            REGISTER.register("enlarger", () -> BlockEntityType.Builder.of(
+                    dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity::new, RCBlocks.ENLARGER.get()).build(null));
+
     private RCBlockEntities() {}
 }

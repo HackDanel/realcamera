@@ -1,0 +1,37 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:paper",
+      "count": 2
+    },
+    {
+      "item": "minecraft:slime_ball",
+      "count": 1
+    },
+    {
+      "item": "minecraft:bone_meal",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lime_dye",
+      "count": 1
+    },
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:film_roll",
+    "count": 3,
+    "components": {
+      "realcamera:film_stock": "realcamera:fujifilm_provia_100f",
+      "realcamera:film": {
+        "format": "135",
+        "state": 0
+      }
+    }
+  },
+  "time": 60
+}

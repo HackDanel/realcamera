@@ -34,5 +34,15 @@ public final class RCBlocks {
             () -> new dev.hackdanel.realcamera.block.PhotoStandBlock(BlockBehaviour.Properties.of().mapColor(MapColor.WOOD)
                     .strength(1f).sound(SoundType.WOOD).noOcclusion()));
 
+    public static final DeferredBlock<dev.hackdanel.realcamera.block.DevelopingTankBlock> DEVELOPING_TANK = REGISTER.register(
+            "developing_tank", () -> new dev.hackdanel.realcamera.block.DevelopingTankBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_BLACK).strength(1f).sound(SoundType.METAL).noOcclusion()));
+    public static final DeferredBlock<dev.hackdanel.realcamera.block.EnlargerBlock> ENLARGER = REGISTER.register(
+            "enlarger", () -> new dev.hackdanel.realcamera.block.EnlargerBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_GRAY).strength(2f).sound(SoundType.METAL).noOcclusion()));
+    public static final DeferredBlock<dev.hackdanel.realcamera.block.SafelightBlock> SAFELIGHT = REGISTER.register(
+            "safelight", () -> new dev.hackdanel.realcamera.block.SafelightBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_RED).strength(0.5f).sound(SoundType.GLASS).noOcclusion().lightLevel(s -> 7)));
+
     private RCBlocks() {}
 }

@@ -65,7 +65,7 @@ public class CameraBodyItem extends Item {
             player.displayClientMessage(Component.translatable("message.realcamera.lens_mismatch"), true);
             return InteractionResultHolder.fail(stack);
         }
-        if (!CameraHelper.hasPower(stack)) {
+        if (!CameraHelper.canFire(level.registryAccess(), stack)) {
             player.displayClientMessage(Component.translatable(parts.battery().isEmpty()
                     ? "message.realcamera.no_battery" : "message.realcamera.battery_empty"), true);
             return InteractionResultHolder.fail(stack);
@@ -90,9 +90,11 @@ public class CameraBodyItem extends Item {
             return;
         }
         int used = getUseDuration(stack, entity) - remaining;
-        if (used > 0 && used % EVF_DRAIN_TICKS == 0) {
+        boolean evf = dev.hackdanel.realcamera.camera.Specs.body(level.registryAccess(), stack)
+                .map(b -> b.viewfinder().equals("evf")).orElse(true);
+        if (evf && used > 0 && used % EVF_DRAIN_TICKS == 0) {
             CameraHelper.drain(stack, 1);
-            if (!CameraHelper.hasPower(stack)) {
+            if (!CameraHelper.canFire(level.registryAccess(), stack)) {
                 entity.stopUsingItem();
             }
         }

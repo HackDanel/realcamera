@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 2
+    },
+    {
+      "item": "minecraft:red_stained_glass",
+      "count": 1
+    },
+    {
+      "item": "minecraft:glowstone_dust",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:safelight",
+    "count": 1
+  },
+  "time": 40
+}

@@ -28,5 +28,10 @@ public final class RCMenus {
     public static final Supplier<MenuType<dev.hackdanel.realcamera.menu.ComputerMenu>> COMPUTER = REGISTER.register("computer",
             () -> IMenuTypeExtension.create(dev.hackdanel.realcamera.menu.ComputerMenu::new));
 
+    public static final Supplier<MenuType<dev.hackdanel.realcamera.menu.DevelopingTankMenu>> DEVELOPING_TANK = REGISTER.register(
+            "developing_tank", () -> IMenuTypeExtension.create(dev.hackdanel.realcamera.menu.DevelopingTankMenu::new));
+    public static final Supplier<MenuType<dev.hackdanel.realcamera.menu.EnlargerMenu>> ENLARGER = REGISTER.register(
+            "enlarger", () -> IMenuTypeExtension.create(dev.hackdanel.realcamera.menu.EnlargerMenu::new));
+
     private RCMenus() {}
 }

@@ -1,0 +1,18 @@
+{
+  "name": "Ilford HP5 Plus 400",
+  "process": "bw",
+  "iso": 400,
+  "frames_135": 36,
+  "frames_120": 12,
+  "latitude_over": 3,
+  "latitude_under": 2.5,
+  "look": {
+    "contrast": 1.05,
+    "saturation": 0,
+    "monochrome": true
+  },
+  "grain": {
+    "amount": 0.35,
+    "size": 1.4
+  }
+}

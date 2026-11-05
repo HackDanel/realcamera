@@ -76,6 +76,13 @@ public class CameraMenuScreen extends Screen {
                 s -> s.withFlashComp(s.flashComp() >= 6 ? -6 : s.flashComp() + 1)));
         rows.add(new Row("lens_correction", s -> onOff(s.lensCorrection()), s -> s.withLensCorrection(!s.lensCorrection())));
 
+        boolean film = body != null && body.isFilm();
+        if (film) {
+            // nothing digital on a film camera: no file format, picture profiles or white balance
+            java.util.Set<String> digital = java.util.Set.of("white_balance", "kelvin", "quality", "profile", "shutter_type",
+                    "file_format", "crop_mode", "subject_detect", "peaking", "lens_correction", "stabilization");
+            rows.removeIf(r -> digital.contains(r.key()));
+        }
         // two columns so all settings fit on small screens
         int perColumn = (rows.size() + 1) / 2;
         int top = Math.max(24, height / 2 - perColumn * 11);
@@ -88,6 +95,12 @@ public class CameraMenuScreen extends Screen {
                 btn.setMessage(label(r));
             }).bounds(width / 2 - 204 + col * 208, top + row * 22, 200, 20).build();
             addRenderableWidget(b);
+        }
+        if (film) {
+            addRenderableWidget(Button.builder(Component.translatable("gui.realcamera.rewind"), btn -> {
+                net.neoforged.neoforge.network.PacketDistributor.sendToServer(new dev.hackdanel.realcamera.network.Payloads.RewindFilm(hand));
+                onClose();
+            }).bounds(width / 2 - 100, top + perColumn * 22 + 4, 200, 20).build());
         }
     }
 

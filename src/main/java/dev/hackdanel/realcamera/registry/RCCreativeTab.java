@@ -50,6 +50,23 @@ public final class RCCreativeTab {
                 out.accept(RCItems.PHOTO_ALBUM.get());
                 out.accept(RCItems.TABLE_FRAME.get());
                 out.accept(RCItems.PHOTO_STAND.get());
+                r.lookup(RCRegistries.FILM_STOCK).ifPresent(l -> l.listElements().forEach(h -> {
+                    out.accept(RCStacks.film(h.key(), "135"));
+                    out.accept(RCStacks.film(h.key(), "120"));
+                }));
+                out.accept(RCItems.DEVELOPING_TANK.get());
+                out.accept(RCItems.CHEMISTRY_C41.get());
+                out.accept(RCItems.CHEMISTRY_E6.get());
+                out.accept(RCItems.CHEMISTRY_BW.get());
+                out.accept(RCItems.CHANGING_BAG.get());
+                out.accept(RCItems.ENLARGER.get());
+                out.accept(RCItems.SAFELIGHT.get());
+                out.accept(RCItems.FILM_SCANNER.get());
+                for (String size : PaperData.SIZES) {
+                    for (String finish : dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity.DARKROOM_PAPERS) {
+                        out.accept(RCStacks.paper(size, finish, 1));
+                    }
+                }
                 out.accept(RCItems.INK_CYAN.get());
                 out.accept(RCItems.INK_MAGENTA.get());
                 out.accept(RCItems.INK_YELLOW.get());

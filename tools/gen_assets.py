@@ -882,6 +882,140 @@ def stage4_assets():
     icon(reader_icon, "cfexpress_reader")
 
 
+# ----------------------------------------------------------------------------- stage 5: film and darkroom
+
+def stage5_assets():
+    b = f"{NS}:block/"
+    # film bodies: chrome tops for the classic mechanical cameras
+    save_png(camera_body_texture("NIKON", (200, 40, 30), "FM2", top_color=(186, 188, 192), body_color=(30, 30, 32)),
+             "textures/item/body", "nikon_fm2.png")
+    save_json(camera_body_model("nikon_fm2", "dslr"), "models/item/body", "nikon_fm2.json")
+    save_png(camera_body_texture("LEICA", (210, 30, 30), "M6", top_color=(192, 194, 198), body_color=(26, 26, 27)),
+             "textures/item/body", "leica_m6.png")
+    save_json(camera_body_model("leica_m6", "rangefinder"), "models/item/body", "leica_m6.json")
+    save_png(camera_body_texture("Canon", (200, 30, 30), "EOS-1V"), "textures/item/body", "canon_eos_1v.png")
+    save_json(camera_body_model("canon_eos_1v", "dslr"), "models/item/body", "canon_eos_1v.json")
+
+    def flat(folder, name, fn):
+        img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+        fn(img, ImageDraw.Draw(img))
+        save_png(img, f"textures/item/{folder}", name + ".png")
+        save_json({"parent": "minecraft:item/generated", "textures": {"layer0": f"{NS}:item/{folder}/{name}"}},
+                  f"models/item/{folder}", name + ".json")
+    flat("battery", "sr44", battery_icon(rgba("#b8b8bc"), rgba("#404040")))
+    flat("battery", "cr2", battery_icon(rgba("#2a2a2a"), rgba("#d0a020")))
+
+    # film roll: canister, developed negative strip, ruined (fogged orange strip)
+    def canister(img, d):
+        d.rectangle([3, 3, 12, 13], fill=rgba("#e8b020"), outline=rgba("#6a4a08"))
+        d.rectangle([3, 6, 12, 9], fill=rgba("#c81e1e"))
+        d.rectangle([6, 1, 9, 3], fill=rgba("#3a3a3a"))
+        d.rectangle([12, 8, 15, 11], fill=rgba("#3a2a1a"))
+        text(img, 4, 10, "35", (40, 30, 10, 255))
+    def strip(fill, frame):
+        def f(img, d):
+            d.rectangle([0, 4, 15, 12], fill=rgba(fill))
+            for x in range(1, 16, 3):
+                d.point((x, 5), fill=rgba("#000000", 0))
+                d.point((x, 11), fill=rgba("#000000", 0))
+            for x0 in (1, 6, 11):
+                d.rectangle([x0, 6, x0 + 3, 10], fill=rgba(frame))
+        return f
+    icon(canister, "film_roll")
+    icon(strip("#3a2412", "#c88a50"), "film_roll_developed")
+    icon(strip("#e07020", "#ffb070"), "film_roll_ruined")
+    save_json({"parent": "minecraft:item/generated", "textures": {"layer0": f"{NS}:item/film_roll"},
+               "overrides": [{"predicate": {f"{NS}:state": 0.3}, "model": f"{NS}:item/film_roll_developed"},
+                             {"predicate": {f"{NS}:state": 0.4}, "model": f"{NS}:item/film_roll_ruined"}]},
+              "models/item", "film_roll.json")
+
+    def bottle(label):
+        def f(img, d):
+            d.rectangle([6, 1, 9, 3], fill=rgba("#202020"))
+            d.rectangle([4, 3, 11, 14], fill=rgba("#5a3a1a"), outline=rgba("#2a1a0a"))
+            d.rectangle([4, 7, 11, 11], fill=rgba(label))
+            d.line([(5, 4), (5, 6)], fill=rgba("#a07040"))
+        return f
+    icon(bottle("#f08020"), "chemistry_c41")
+    icon(bottle("#2a6fd6"), "chemistry_e6")
+    icon(bottle("#d0d0d0"), "chemistry_bw")
+
+    def bag(img, d):
+        d.polygon([(2, 4), (13, 4), (14, 14), (1, 14)], fill=rgba("#141414"), outline=rgba("#000000"))
+        d.rectangle([4, 2, 6, 5], fill=rgba("#2a2a2a"))
+        d.rectangle([9, 2, 11, 5], fill=rgba("#2a2a2a"))
+        d.line([(3, 9), (12, 9)], fill=rgba("#3a3a3a"))
+    icon(bag, "changing_bag")
+
+    def scanner(img, d):
+        d.rectangle([1, 6, 14, 12], fill=rgba("#2a2a2e"), outline=rgba("#101012"))
+        d.rectangle([3, 8, 12, 9], fill=rgba("#c88a50"))
+        d.point((12, 11), fill=rgba("#40e060"))
+    icon(scanner, "film_scanner")
+
+    # developing tank: black plastic cylinder with a red lid
+    tank = Image.new("RGBA", (16, 16))
+    noise_fill(tank, (0, 0, 16, 16), (24, 24, 26), 4, seed=51)
+    save_png(tank, "textures/block", "developing_tank.png")
+    lid = Image.new("RGBA", (16, 16))
+    noise_fill(lid, (0, 0, 16, 16), (170, 30, 30), 6, seed=52)
+    ImageDraw.Draw(lid).ellipse([5, 5, 10, 10], fill=(40, 40, 40, 255))
+    save_png(lid, "textures/block", "developing_tank_lid.png")
+    save_json({"parent": "minecraft:block/block", "textures": {"particle": b + "developing_tank", "t": b + "developing_tank",
+                                                               "lid": b + "developing_tank_lid"},
+               "elements": [
+                   {"from": [4.5, 0, 4.5], "to": [11.5, 8, 11.5], "faces": {
+                       f: {"texture": "#t"} for f in ("north", "south", "east", "west", "down")} | {"up": {"texture": "#lid"}}},
+                   {"from": [4, 7, 4], "to": [12, 9, 12], "faces": {
+                       f: {"texture": "#lid"} for f in ("north", "south", "east", "west", "up", "down")}},
+               ]}, "models/block", "developing_tank.json")
+
+    # enlarger: baseboard, column, lamp head
+    base = Image.new("RGBA", (16, 16))
+    noise_fill(base, (0, 0, 16, 16), (230, 228, 220), 3, seed=53)
+    ImageDraw.Draw(base).rectangle([3, 3, 12, 12], outline=(40, 40, 40, 255))
+    save_png(base, "textures/block", "enlarger_base.png")
+    metal = Image.new("RGBA", (16, 16))
+    noise_fill(metal, (0, 0, 16, 16), (60, 62, 66), 6, seed=54)
+    save_png(metal, "textures/block", "enlarger_metal.png")
+    def bx(frm, to, tex):
+        return {"from": frm, "to": to, "faces": {f: {"texture": tex} for f in ("north", "south", "east", "west", "up", "down")}}
+    save_json({"parent": "minecraft:block/block", "textures": {"particle": b + "enlarger_metal", "m": b + "enlarger_metal",
+                                                               "base": b + "enlarger_base"},
+               "elements": [
+                   {"from": [1, 0, 1], "to": [15, 1, 15], "faces": {
+                       f: {"texture": "#m"} for f in ("north", "south", "east", "west", "down")} | {"up": {"texture": "#base"}}},
+                   bx([7, 1, 12], [9, 16, 14], "#m"),
+                   bx([5, 10, 5], [11, 14, 12], "#m"),
+                   bx([6.5, 8, 6.5], [9.5, 10, 9.5], "#m"),
+               ]}, "models/block", "enlarger.json")
+
+    # safelight: dark housing with a glowing red window
+    house = Image.new("RGBA", (16, 16))
+    noise_fill(house, (0, 0, 16, 16), (30, 30, 30), 4, seed=55)
+    save_png(house, "textures/block", "safelight.png")
+    glow = Image.new("RGBA", (16, 16))
+    noise_fill(glow, (0, 0, 16, 16), (220, 30, 20), 12, seed=56)
+    save_png(glow, "textures/block", "safelight_glow.png")
+    save_json({"parent": "minecraft:block/block", "textures": {"particle": b + "safelight", "h": b + "safelight",
+                                                               "g": b + "safelight_glow"},
+               "elements": [
+                   bx([5, 0, 5], [11, 2, 11], "#h"),
+                   {"from": [5.5, 2, 5.5], "to": [10.5, 7, 10.5], "shade": False, "faces": {
+                       f: {"texture": "#g"} for f in ("north", "south", "east", "west")} | {"up": {"texture": "#h"}}},
+                   bx([5, 7, 5], [11, 8, 11], "#h"),
+               ]}, "models/block", "safelight.json")
+
+    for name in ("developing_tank", "enlarger"):
+        v = {}
+        for f, y in (("north", 0), ("east", 90), ("south", 180), ("west", 270)):
+            v[f"facing={f}"] = {"model": f"{NS}:block/{name}", **({"y": y} if y else {})}
+        save_json({"variants": v}, "blockstates", name + ".json")
+        save_json({"parent": f"{NS}:block/{name}"}, "models/item", name + ".json")
+    save_json({"variants": {"": {"model": f"{NS}:block/safelight"}}}, "blockstates", "safelight.json")
+    save_json({"parent": f"{NS}:block/safelight"}, "models/item", "safelight.json")
+
+
 # ----------------------------------------------------------------------------- sounds
 
 def write_ogg(samples, rate, name):
@@ -1093,6 +1227,7 @@ def main():
     block_textures()
     block_models()
     stage4_assets()
+    stage5_assets()
     print_model()
     sounds()
     print("assets written to", os.path.relpath(ASSETS, ROOT))

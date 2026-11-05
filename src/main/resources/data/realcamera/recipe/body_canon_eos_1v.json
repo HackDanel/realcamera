@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 3
+    },
+    {
+      "item": "realcamera:shutter_unit",
+      "count": 1
+    },
+    {
+      "item": "realcamera:af_motor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:processor",
+      "count": 1
+    },
+    {
+      "item": "minecraft:diamond",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:camera_body",
+    "count": 1,
+    "components": {
+      "realcamera:body": "realcamera:canon_eos_1v"
+    }
+  },
+  "time": 300
+}

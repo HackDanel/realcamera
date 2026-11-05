@@ -54,6 +54,20 @@ public final class CameraHelper {
         return parts(camera).grip().get(RCComponents.CHARGE.get());
     }
 
+    /** Film camera with a fully mechanical shutter: fires without a battery (the battery only runs the meter). */
+    public static boolean mechanical(HolderLookup.Provider r, ItemStack camera) {
+        return Specs.body(r, camera).flatMap(CameraBodySpec::film).map(CameraBodySpec.Film::mechanical).orElse(false);
+    }
+
+    public static boolean isFilm(HolderLookup.Provider r, ItemStack camera) {
+        return Specs.body(r, camera).map(CameraBodySpec::isFilm).orElse(false);
+    }
+
+    /** The shutter can be released: powered, or a mechanical film body. */
+    public static boolean canFire(HolderLookup.Provider r, ItemStack camera) {
+        return !wear(camera).dead() && (hasPower(camera) || mechanical(r, camera));
+    }
+
     public static boolean hasPower(ItemStack camera) {
         if (wear(camera).dead()) {
             return false;
@@ -118,6 +132,12 @@ public final class CameraHelper {
     /** Shots that still fit on the inserted card, or -1 if there is no usable card. */
     public static long shotsLeft(HolderLookup.Provider r, ItemStack camera) {
         ItemStack card = parts(camera).card();
+        if (isFilm(r, camera)) {
+            if (!(card.getItem() instanceof dev.hackdanel.realcamera.item.FilmRollItem)) return -1;
+            var roll = dev.hackdanel.realcamera.item.FilmRollItem.roll(card);
+            if (roll.state() > dev.hackdanel.realcamera.component.FilmRoll.LOADED) return -1;
+            return Specs.film(r, card).map(f -> Math.max(0, f.frames(roll.format()) - roll.shot())).orElse(-1);
+        }
         Optional<MemoryCardTypeSpec> type = Specs.card(r, card);
         Optional<CameraBodySpec> body = Specs.body(r, camera);
         if (card.isEmpty() || type.isEmpty() || body.isEmpty()) {

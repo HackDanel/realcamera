@@ -79,6 +79,13 @@ public final class RCStacks {
         return s;
     }
 
+    public static ItemStack film(ResourceKey<dev.hackdanel.realcamera.spec.FilmStockSpec> key, String format) {
+        ItemStack s = new ItemStack(RCItems.FILM_ROLL.get());
+        s.set(RCComponents.FILM_STOCK.get(), key);
+        s.set(RCComponents.FILM.get(), dev.hackdanel.realcamera.component.FilmRoll.fresh(format));
+        return s;
+    }
+
     public static ItemStack paper(String size, String finish, int count) {
         ItemStack s = new ItemStack(RCItems.PHOTO_PAPER.get(), count);
         s.set(RCComponents.PAPER.get(), new PaperData(size, finish));
@@ -99,14 +106,23 @@ public final class RCStacks {
         Optional<Holder.Reference<BatteryTypeSpec>> battery = batteries.get(spec.batteryType());
         Optional<Holder.Reference<MemoryCardTypeSpec>> card = cards.listElements()
                 .filter(c -> spec.cardForms().contains(c.value().form())).findFirst();
-        if (lens.isEmpty() || battery.isEmpty() || card.isEmpty()) {
+        ItemStack medium;
+        if (spec.isFilm()) {
+            var stock = registries.lookupOrThrow(RCRegistries.FILM_STOCK).listElements().findFirst();
+            if (stock.isEmpty()) return Optional.empty();
+            medium = film(stock.get().key(), spec.film().get().format());
+        } else {
+            if (card.isEmpty()) return Optional.empty();
+            medium = card(card.get().key());
+        }
+        if (lens.isEmpty() || battery.isEmpty()) {
             return Optional.empty();
         }
         ItemStack camera = body(body.key());
         camera.set(RCComponents.CAMERA_PARTS.get(), CameraParts.EMPTY
                 .with(CameraParts.SLOT_LENS, lens(lens.get().key()))
                 .with(CameraParts.SLOT_BATTERY, battery(battery.get().key(), battery.get().value(), true))
-                .with(CameraParts.SLOT_CARD, card(card.get().key())));
+                .with(CameraParts.SLOT_CARD, medium));
         return Optional.of(camera);
     }
 }

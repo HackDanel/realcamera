@@ -289,7 +289,11 @@ public final class Viewfinder {
                     : CameraRef.hand(CameraHelper.handHoldingCamera(player).get());
             while (RCKeys.PLAYBACK.consumeClick()) {
                 if (!active) ref = r;
-                ClientBridge.get().openPlayback();
+                if (CameraHelper.isFilm(mc.level.registryAccess(), camera())) {
+                    player.displayClientMessage(Component.translatable("message.realcamera.film_no_playback"), true);
+                } else {
+                    ClientBridge.get().openPlayback();
+                }
             }
             while (RCKeys.MENU.consumeClick()) {
                 if (!active) {
@@ -410,6 +414,14 @@ public final class Viewfinder {
         };
     }
 
+    /** The film loaded in a film camera, or null. */
+    @javax.annotation.Nullable
+    public static dev.hackdanel.realcamera.spec.FilmStockSpec filmStock() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || !body().isFilm()) return null;
+        return dev.hackdanel.realcamera.camera.Specs.film(mc.level.registryAccess(), CameraHelper.parts(camera()).card()).orElse(null);
+    }
+
     public static Exposure.Limits limits() {
         float f = focal();
         int wide = ExposureScales.nearestAperture(chain.maxApertureAt(f));
@@ -421,6 +433,11 @@ public final class Viewfinder {
         int isoMin = ExposureScales.nearestIso(sensor().isoMin());
         int isoMax = ExposureScales.nearestIso(sensor().isoMax());
         int autoMax = Math.min(isoMax, ExposureScales.nearestIso(Exposure.AUTO_ISO_MAX_DEFAULT));
+        var stock = filmStock();
+        if (stock != null) {
+            // film: the box speed is the only sensitivity
+            isoMin = isoMax = autoMax = ExposureScales.nearestIso(stock.iso());
+        }
         double handheld = Optics.handheldLimit(Optics.focal35(f, sensor().cropFactor()), 0);
         return new Exposure.Limits(wide, narrow, fast, slow, isoMin, isoMax, autoMax, handheld);
     }
@@ -611,17 +628,18 @@ public final class Viewfinder {
 
     private static void pressShutter(Minecraft mc, Player player) {
         ItemStack cam = camera();
-        if (!CameraHelper.hasPower(cam)) {
+        if (!CameraHelper.canFire(mc.level.registryAccess(), cam)) {
             player.displayClientMessage(Component.translatable("message.realcamera.battery_empty"), true);
             return;
         }
+        boolean film = body().isFilm();
         long left = CameraHelper.shotsLeft(mc.level.registryAccess(), cam);
         if (left < 0) {
-            player.displayClientMessage(Component.translatable("message.realcamera.no_card"), true);
+            player.displayClientMessage(Component.translatable(film ? "message.realcamera.no_film" : "message.realcamera.no_card"), true);
             return;
         }
         if (left == 0) {
-            player.displayClientMessage(Component.translatable("message.realcamera.card_full"), true);
+            player.displayClientMessage(Component.translatable(film ? "message.realcamera.film_end" : "message.realcamera.card_full"), true);
             return;
         }
         if (!PhotoCapture.canAccept()) {

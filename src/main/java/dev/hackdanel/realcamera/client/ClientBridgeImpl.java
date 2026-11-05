@@ -40,6 +40,15 @@ final class ClientBridgeImpl implements ClientBridge {
     }
 
     @Override
+    public void openContactSheet(ItemStack roll) {
+        var r = roll.get(RCComponents.FILM.get());
+        if (r != null && r.id().isPresent()) {
+            Minecraft.getInstance().setScreen(new dev.hackdanel.realcamera.client.screen.ContactSheetScreen(r.id().get(),
+                    roll.getHoverName()));
+        }
+    }
+
+    @Override
     public void handlePayload(CustomPacketPayload payload) {
         switch (payload) {
             case Payloads.UploadStatus s -> PhotoUploader.onStatus(s);

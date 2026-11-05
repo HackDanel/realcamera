@@ -1,0 +1,18 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:black_wool",
+      "count": 2
+    },
+    {
+      "item": "minecraft:leather",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:changing_bag",
+    "count": 1
+  },
+  "time": 60
+}

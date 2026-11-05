@@ -1,0 +1,28 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:paper",
+      "count": 4
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 1
+    },
+    {
+      "item": "minecraft:slime_ball",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:photo_paper",
+    "count": 4,
+    "components": {
+      "realcamera:paper": {
+        "size": "a5",
+        "finish": "fiber_bw"
+      }
+    }
+  },
+  "time": 40
+}

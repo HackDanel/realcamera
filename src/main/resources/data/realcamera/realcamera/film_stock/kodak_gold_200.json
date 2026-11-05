@@ -1,0 +1,21 @@
+{
+  "name": "Kodak Gold 200",
+  "process": "c41",
+  "iso": 200,
+  "frames_135": 36,
+  "frames_120": 12,
+  "latitude_over": 3,
+  "latitude_under": 1.5,
+  "look": {
+    "contrast": 1.05,
+    "saturation": 1.12,
+    "tint_r": 1.07,
+    "tint_g": 1.02,
+    "tint_b": 0.88,
+    "shadow_lift": 0.01
+  },
+  "grain": {
+    "amount": 0.25,
+    "size": 1.2
+  }
+}

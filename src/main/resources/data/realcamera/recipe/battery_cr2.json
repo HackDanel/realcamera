@@ -1,0 +1,25 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:battery_cell",
+      "count": 2
+    },
+    {
+      "item": "realcamera:plastic",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:battery",
+    "count": 1,
+    "components": {
+      "realcamera:battery_type": "realcamera:cr2",
+      "realcamera:charge": {
+        "charge": 1500,
+        "capacity": 1500
+      }
+    }
+  },
+  "time": 60
+}

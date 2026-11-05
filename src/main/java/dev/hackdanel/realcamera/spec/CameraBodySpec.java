@@ -22,8 +22,24 @@ public record CameraBodySpec(
         int weatherSealing,
         List<ResourceKey<ColorProfileSpec>> colorProfiles,
         Flash flash,
-        ResourceLocation model
+        ResourceLocation model,
+        java.util.Optional<Film> film
 ) {
+    /**
+     * Film body: format ("135" or "120") and whether the shutter is mechanical (works without a battery;
+     * then the battery only powers the light meter).
+     */
+    public record Film(String format, boolean mechanical) {
+        public static final Codec<Film> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.STRING.optionalFieldOf("format", "135").forGetter(Film::format),
+                Codec.BOOL.optionalFieldOf("mechanical", false).forGetter(Film::mechanical)
+        ).apply(i, Film::new));
+    }
+
+    public boolean isFilm() {
+        return film.isPresent();
+    }
+
     /** Built-in flash guide number (0 = none) and the fastest shutter speed a flash syncs at (s). */
     public record Flash(float builtInGn, float sync) {
         public static final Codec<Flash> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -88,10 +104,11 @@ public record CameraBodySpec(
             Codec.FLOAT.optionalFieldOf("ibis_stops", 0f).forGetter(CameraBodySpec::ibisStops),
             ResourceKey.codec(RCRegistries.BATTERY_TYPE).fieldOf("battery_type").forGetter(CameraBodySpec::batteryType),
             Codec.FLOAT.optionalFieldOf("battery_drain", 1f).forGetter(CameraBodySpec::batteryDrain),
-            Codec.STRING.listOf().fieldOf("card_forms").forGetter(CameraBodySpec::cardForms),
+            Codec.STRING.listOf().optionalFieldOf("card_forms", List.of()).forGetter(CameraBodySpec::cardForms),
             Codec.INT.optionalFieldOf("weather_sealing", 0).forGetter(CameraBodySpec::weatherSealing),
             ResourceKey.codec(RCRegistries.COLOR_PROFILE).listOf().fieldOf("color_profiles").forGetter(CameraBodySpec::colorProfiles),
             Flash.CODEC.optionalFieldOf("flash", Flash.DEFAULT).forGetter(CameraBodySpec::flash),
-            ResourceLocation.CODEC.fieldOf("model").forGetter(CameraBodySpec::model)
+            ResourceLocation.CODEC.fieldOf("model").forGetter(CameraBodySpec::model),
+            Film.CODEC.optionalFieldOf("film").forGetter(CameraBodySpec::film)
     ).apply(i, CameraBodySpec::new));
 }

@@ -1,0 +1,29 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 2
+    },
+    {
+      "item": "realcamera:shutter_unit",
+      "count": 1
+    },
+    {
+      "item": "realcamera:lens_element",
+      "count": 2
+    },
+    {
+      "item": "minecraft:gold_ingot",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:camera_body",
+    "count": 1,
+    "components": {
+      "realcamera:body": "realcamera:leica_m6"
+    }
+  },
+  "time": 300
+}

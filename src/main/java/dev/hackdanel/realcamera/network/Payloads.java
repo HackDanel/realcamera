@@ -157,6 +157,17 @@ public final class Payloads {
         }
     }
 
+    /** Rewind the film in a film camera so it can be taken out safely. */
+    public record RewindFilm(CameraRef ref) implements CustomPacketPayload {
+        public static final Type<RewindFilm> TYPE = Payloads.newType("rewind_film");
+        public static final StreamCodec<ByteBuf, RewindFilm> CODEC = CameraRef.STREAM_CODEC.map(RewindFilm::new, RewindFilm::ref);
+
+        @Override
+        public Type<RewindFilm> type() {
+            return TYPE;
+        }
+    }
+
     public static final int PC_DELETE = 0, PC_RATE = 1, PC_COPY = 2, PC_MOVE = 3, PC_FORMAT = 4;
 
     /** Catalogue operations on the computer: delete, rate, copy/move to the other card, format. */

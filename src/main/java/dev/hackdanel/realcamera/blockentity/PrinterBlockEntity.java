@@ -5,6 +5,7 @@ import dev.hackdanel.realcamera.component.CardData;
 import dev.hackdanel.realcamera.component.PaperData;
 import dev.hackdanel.realcamera.component.PrintData;
 import dev.hackdanel.realcamera.item.InkCartridgeItem;
+import dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity;
 import dev.hackdanel.realcamera.item.MemoryCardItem;
 import dev.hackdanel.realcamera.item.PhotoPaperItem;
 import dev.hackdanel.realcamera.menu.PrinterMenu;
@@ -78,7 +79,7 @@ public class PrinterBlockEntity extends MachineBlockEntity {
     protected boolean isItemValid(int slot, ItemStack stack) {
         return switch (slot) {
             case SLOT_CARD -> stack.getItem() instanceof MemoryCardItem;
-            case SLOT_PAPER -> stack.getItem() instanceof PhotoPaperItem;
+            case SLOT_PAPER -> stack.getItem() instanceof PhotoPaperItem && !EnlargerBlockEntity.darkroomPaper(stack);
             case SLOT_OUTPUT -> false;
             default -> stack.getItem() instanceof InkCartridgeItem ink
                     && ink.channel == INK_BITS[slot - SLOT_INK_FIRST];

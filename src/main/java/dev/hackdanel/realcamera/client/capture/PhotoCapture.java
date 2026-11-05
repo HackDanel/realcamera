@@ -320,34 +320,47 @@ public final class PhotoCapture {
                 .orElse(null);
         String artist = mc.getUser().getName();
         int maxUpload = ServerConfig.MAX_UPLOAD_RESOLUTION.get();
+        dev.hackdanel.realcamera.spec.FilmStockSpec film = shot.chain().body().isFilm()
+                ? dev.hackdanel.realcamera.client.camera.Viewfinder.filmStock() : null;
         developing++;
-        WORKER.execute(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, gw, gh, actualSeconds, profile, artist,
+        WORKER.execute(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, gw, gh, actualSeconds, profile, film, artist,
                 maxUpload));
     }
 
     // ------------------------------------------------------------------ worker thread
 
     private static void develop(Shot s, int[] rgb, float[] linear, int w, int h, float[] grid, float[] lightGrid,
-                                int gw, int gh, double seconds, ColorProfileSpec profile, String artist, int maxUpload) {
+                                int gw, int gh, double seconds, ColorProfileSpec profile,
+                                @javax.annotation.Nullable dev.hackdanel.realcamera.spec.FilmStockSpec film, String artist,
+                                int maxUpload) {
         long t0 = System.nanoTime();
         try {
             int[] guide = rgb != null ? rgb : ImagePipeline.toSrgb(linear);
             float[] depth = DepthUpsampler.upsample(grid, gw, gh, guide, w, h);
             float[] light = lightGrid == null ? null : DepthUpsampler.upsample(lightGrid, gw, gh, guide, w, h);
-            ImageParams params = params(s, profile, w, h, seconds);
+            ImageParams params = params(s, profile, film, w, h, seconds);
             if (Boolean.getBoolean("realcamera.debugDumps")) {
                 debugDump(guide, depth, w, h);
             }
             float[] img = linear != null ? linear : ImagePipeline.toLinear(rgb);
             float[] sensor = ImagePipeline.developSensor(img, depth, light, w, h, params);
-            int format = s.settings().fileFormat();
+            int format = film != null ? CameraSettings.FORMAT_JPEG : s.settings().fileFormat();
             float[] rawData = format != CameraSettings.FORMAT_JPEG && ClientConfig.AUTO_EXPORT.get() ? sensor.clone() : null;
-            int[] developed = ImagePipeline.toSrgb(ImagePipeline.finish(sensor, params));
+            float[] finished = ImagePipeline.finish(sensor, params);
+            if (film != null) {
+                double scale = w / 2560.0;
+                dev.hackdanel.realcamera.processing.FilmLook.halation(finished, w, h, film.grain().halation());
+                // underexposed negatives show more grain
+                double under = Math.max(0, -params.sensor().exposureEv());
+                dev.hackdanel.realcamera.processing.FilmLook.grain(finished, w, h,
+                        film.grain().amount() * (1 + under * 0.4), film.grain().size() * scale * 2, params.seed());
+            }
+            int[] developed = ImagePipeline.toSrgb(finished);
 
             float quality = s.settings().quality() == CameraSettings.QUALITY_NORMAL ? 0.8f : 0.93f;
             LocalDateTime now = LocalDateTime.now();
             Path localJpeg = null, localRaw = null;
-            if (ClientConfig.AUTO_EXPORT.get()) {
+            if (ClientConfig.AUTO_EXPORT.get() && film == null) { // film: nothing to see until it is developed
                 Path base = exportBase(s, now);
                 if (format != CameraSettings.FORMAT_RAW) {
                     byte[] full = ExifWriter.insert(JpegCodec.encode(developed, w, h, quality),
@@ -369,7 +382,7 @@ public final class PhotoCapture {
             Path jpegFile = localJpeg, rawFile = localRaw;
             Minecraft.getInstance().execute(() -> {
                 developing--;
-                PhotoUploader.upload(s.ref(), meta, upload, s.settings().quality(), format,
+                PhotoUploader.upload(s.ref(), meta, upload, s.settings().quality(), format, film != null,
                         id -> LocalOriginals.put(id, jpegFile, rawFile));
             });
         } catch (IOException | RuntimeException e) {
@@ -392,7 +405,23 @@ public final class PhotoCapture {
         return s.sceneEv() - Exposure.cameraEv(s.exposure().fNumber(), seconds, s.exposure().iso());
     }
 
-    private static ImageParams params(Shot s, ColorProfileSpec profile, int w, int h, double seconds) {
+    private static ImageParams params(Shot s, ColorProfileSpec profile,
+                                      @javax.annotation.Nullable dev.hackdanel.realcamera.spec.FilmStockSpec film,
+                                      int w, int h, double seconds) {
+        if (film != null) {
+            ImageParams digital = params(s, null, null, w, h, seconds);
+            // film is balanced for daylight (or tungsten for "T" stocks) and cannot auto white-balance
+            double sceneK = s.blockLit() ? 3400 : 5500;
+            double[] wb = ImagePipeline.whiteBalance(sceneK, film.name().endsWith("T") ? 3200 : 5500);
+            var look = film.look();
+            var sn = digital.sensor();
+            return new ImageParams(new ImageParams.Sensor(sn.exposureEv(), 1, 0, 0, sn.resolutionScale(),
+                    dev.hackdanel.realcamera.processing.FilmLook.dynamicRange(film.latitudeOver())),
+                    digital.focus(), digital.lens(), digital.motion(), digital.sun(),
+                    new ImageParams.Colour(wb[0], wb[1], wb[2], look.contrast(), look.saturation(), film.monochrome(),
+                            look.tintR(), look.tintG(), look.tintB(), look.shadowLift()),
+                    digital.extras(), digital.seed());
+        }
         OpticalChain chain = s.chain();
         var sensor = chain.sensor();
         double isoGain = s.exposure().iso() / Math.max(1, sensor.baseIso());

@@ -102,6 +102,7 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     private boolean readable(int slot) {
         ItemStack stack = menu.machineItem(slot);
         if (stack.isEmpty() || minecraft == null || minecraft.level == null) return false;
+        if (menu.isFilm(slot)) return menu.machineItem(ComputerBlockEntity.SLOT_SCANNER).is(RCItems.FILM_SCANNER.get());
         String form = Specs.card(minecraft.level.registryAccess(), stack).map(MemoryCardTypeSpec::form).orElse("sd");
         return form.equals("sd") || menu.machineItem(ComputerBlockEntity.SLOT_READER).is(RCItems.CFEXPRESS_READER.get());
     }
@@ -128,7 +129,9 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     private void openEditor() {
         PhotoMeta m = selectedMeta();
         if (m == null || minecraft == null) return;
-        minecraft.setScreen(new EditorScreen(this, new EditSession(m, menu.pos(), card)));
+        // frames of a film can't be written back: save edits onto the card in the other slot
+        int target = menu.isFilm(card) ? 1 - card : card;
+        minecraft.setScreen(new EditorScreen(this, new EditSession(m, menu.pos(), target)));
     }
 
     @Override
@@ -140,7 +143,8 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
             actionButtons[1].active = has && other && readable(1 - card);
             actionButtons[2].active = has && other && readable(1 - card);
         }
-        formatButton.active = cardId() != null && readable(card);
+        formatButton.active = cardId() != null && readable(card) && !menu.isFilm(card);
+        if (actionButtons.length == 4 && menu.isFilm(card)) actionButtons[3].active = false;
         formatButton.setMessage(Component.translatable(System.currentTimeMillis() < formatArmedUntil
                 ? "gui.realcamera.computer.format_confirm" : "gui.realcamera.computer.format"));
         page = Math.min(page, pages() - 1);
@@ -183,6 +187,7 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         UiDraw.slot(g, l + ComputerMenu.SLOT_X, t + ComputerMenu.CARD_A_Y);
         UiDraw.slot(g, l + ComputerMenu.SLOT_X, t + ComputerMenu.CARD_B_Y);
         UiDraw.slot(g, l + ComputerMenu.SLOT_X, t + ComputerMenu.READER_Y);
+        UiDraw.slot(g, l + ComputerMenu.SLOT_X, t + ComputerMenu.SCANNER_Y);
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 UiDraw.slot(g, l + ComputerMenu.INV_LEFT + col * 18, t + ComputerMenu.INV_TOP + row * 18);
@@ -194,6 +199,7 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         g.drawString(font, "A", l + 10, t + ComputerMenu.CARD_A_Y - 10, card == 0 ? 0xFF2050C0 : 0xFF404040, false);
         g.drawString(font, "B", l + 10, t + ComputerMenu.CARD_B_Y - 10, card == 1 ? 0xFF2050C0 : 0xFF404040, false);
         g.drawString(font, "CFx", l + 6, t + ComputerMenu.READER_Y - 10, 0xFF404040, false);
+        g.drawString(font, "\u25A4", l + 26, t + ComputerMenu.SCANNER_Y + 4, 0xFF404040, false);
         // monitor
         int mx0 = l + GRID_X - 3, my0 = t + GRID_Y - 3, mw = COLS * CELL_W + 4, mh = ROWS * CELL_H + 4;
         UiDraw.inset(g, mx0, my0, mw, mh, 0xFF1C2233);
@@ -201,7 +207,8 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         if (cardId() == null && menu.machineItem(card).isEmpty()) {
             center(g, Component.translatable("gui.realcamera.computer.insert_card"), mx0, my0, mw, mh);
         } else if (!readable(card)) {
-            center(g, Component.translatable("gui.realcamera.computer.need_reader"), mx0, my0, mw, mh);
+            center(g, Component.translatable(menu.isFilm(card) ? "gui.realcamera.computer.need_scanner"
+                    : "gui.realcamera.computer.need_reader"), mx0, my0, mw, mh);
         } else if (list.isEmpty()) {
             center(g, Component.translatable("gui.realcamera.printer.no_photos"), mx0, my0, mw, mh);
         }

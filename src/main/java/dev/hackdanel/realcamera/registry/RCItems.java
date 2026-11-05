@@ -86,6 +86,21 @@ public final class RCItems {
     public static final DeferredItem<BlockItem> TABLE_FRAME = REGISTER.registerSimpleBlockItem(RCBlocks.TABLE_FRAME);
     public static final DeferredItem<BlockItem> PHOTO_STAND = REGISTER.register("photo_stand",
             () -> new net.minecraft.world.item.DoubleHighBlockItem(RCBlocks.PHOTO_STAND.get(), new Item.Properties()));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.FilmRollItem> FILM_ROLL = REGISTER.register("film_roll",
+            () -> new dev.hackdanel.realcamera.item.FilmRollItem(new Item.Properties()));
+    public static final DeferredItem<Item> CHEMISTRY_C41 = REGISTER.registerSimpleItem("chemistry_c41",
+            new Item.Properties().durability(8));
+    public static final DeferredItem<Item> CHEMISTRY_E6 = REGISTER.registerSimpleItem("chemistry_e6",
+            new Item.Properties().durability(8));
+    public static final DeferredItem<Item> CHEMISTRY_BW = REGISTER.registerSimpleItem("chemistry_bw",
+            new Item.Properties().durability(8));
+    public static final DeferredItem<Item> CHANGING_BAG = REGISTER.registerSimpleItem("changing_bag",
+            new Item.Properties().stacksTo(1));
+    public static final DeferredItem<Item> FILM_SCANNER = REGISTER.registerSimpleItem("film_scanner",
+            new Item.Properties().stacksTo(1));
+    public static final DeferredItem<BlockItem> DEVELOPING_TANK = REGISTER.registerSimpleBlockItem(RCBlocks.DEVELOPING_TANK);
+    public static final DeferredItem<BlockItem> ENLARGER = REGISTER.registerSimpleBlockItem(RCBlocks.ENLARGER);
+    public static final DeferredItem<BlockItem> SAFELIGHT = REGISTER.registerSimpleBlockItem(RCBlocks.SAFELIGHT);
     public static final DeferredItem<Item> CFEXPRESS_READER = REGISTER.registerSimpleItem("cfexpress_reader",
             new Item.Properties().stacksTo(1));
     public static final DeferredItem<dev.hackdanel.realcamera.item.PhotoAlbumItem> PHOTO_ALBUM = REGISTER.register("photo_album",

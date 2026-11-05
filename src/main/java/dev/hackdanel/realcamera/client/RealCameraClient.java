@@ -38,7 +38,23 @@ public final class RealCameraClient {
         modBus.addListener(RealCameraClient::screens);
         modBus.addListener(RealCameraClient::renderers);
         modBus.addListener(RealCameraClient::extensions);
+        modBus.addListener(RealCameraClient::setup);
         NeoForge.EVENT_BUS.addListener(RealCameraClient::onLogout);
+    }
+
+    private static void setup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {
+        // film roll icon: canister / developed strip / ruined strip
+        event.enqueueWork(() -> net.minecraft.client.renderer.item.ItemProperties.register(
+                dev.hackdanel.realcamera.registry.RCItems.FILM_ROLL.get(), RealCamera.id("state"),
+                (stack, level, entity, seed) -> {
+                    var roll = stack.get(dev.hackdanel.realcamera.registry.RCComponents.FILM.get());
+                    if (roll == null) return 0;
+                    return switch (roll.state()) {
+                        case dev.hackdanel.realcamera.component.FilmRoll.DEVELOPED -> 0.3f;
+                        case dev.hackdanel.realcamera.component.FilmRoll.RUINED -> 0.4f;
+                        default -> 0f;
+                    };
+                }));
     }
 
     private static void screens(RegisterMenuScreensEvent event) {
@@ -48,6 +64,8 @@ public final class RealCameraClient {
         event.register(RCMenus.PRINTER.get(), PrinterScreen::new);
         event.register(RCMenus.CAMERA_BAG.get(), dev.hackdanel.realcamera.client.screen.CameraBagScreen::new);
         event.register(RCMenus.COMPUTER.get(), dev.hackdanel.realcamera.client.screen.ComputerScreen::new);
+        event.register(RCMenus.DEVELOPING_TANK.get(), dev.hackdanel.realcamera.client.screen.DevelopingTankScreen::new);
+        event.register(RCMenus.ENLARGER.get(), dev.hackdanel.realcamera.client.screen.EnlargerScreen::new);
     }
 
     private static void renderers(EntityRenderersEvent.RegisterRenderers event) {

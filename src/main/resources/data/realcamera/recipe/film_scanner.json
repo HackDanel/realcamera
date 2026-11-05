@@ -1,0 +1,26 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:plastic",
+      "count": 2
+    },
+    {
+      "item": "realcamera:cmos_sensor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:lens_element",
+      "count": 1
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:film_scanner",
+    "count": 1
+  },
+  "time": 160
+}

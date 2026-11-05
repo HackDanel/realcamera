@@ -18,7 +18,7 @@ The system Java may be newer than 21; Gradle downloads JDK 21 itself (foojay too
 - `./gradlew test` — JUnit tests (pure-Java optics and image pipeline)
 - single test: `./gradlew test --tests 'dev.hackdanel.realcamera.processing.ImagePipelineTest'` (append `.methodName` for one method)
 - `./gradlew runClient` / `runClient2` (second client, nick Player2) / `runServer` (the owner must set `eula=true` in `run/eula.txt` themselves — do not do it for them)
-- `./gradlew runClientAutotest -Pautotest=stage1|stage2|stage3|stage4` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
+- `./gradlew runClientAutotest -Pautotest=stage1|stage2|stage3|stage4|stage5` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
 - `-PcaptureWarmup=N` changes warm-up frames for capture in the autotest run; `-PnoShaders` skips copying Sodium/Iris into run dirs. Iris shaders on/off for the autotest: `run-autotest/config/iris.properties`.
 
 Generators (run from the repo root; their output is overwritten every run, so edit the generator, not the output):
@@ -63,10 +63,13 @@ dispatched via `ClientBridge.handlePayload`.
 5. Server: `network/ServerPhotoService` validates (quota, rate, JPEG header), stores files under
    `<world>/realcamera/photos/`, indexes them in SavedData (`photo/PhotoIndex`, `photo/CardStorage` — card
    contents live on the server, the card item only mirrors usage), streams downloads with a bandwidth budget.
-6. The computer's editor (`processing/PhotoEditor`, pure Java; `client/editor/EditSession` loads the local
+6. Film: a film body (`CameraBodySpec.film`) takes a `FilmRoll` in the card slot; frames are uploaded as latent
+   index entries keyed by the roll id (like a card) and only become visible after `photo/FilmLab.developRoll`
+   (developing tank). Darkroom light checks: `gameplay/Darkroom`.
+7. The computer's editor (`processing/PhotoEditor`, pure Java; `client/editor/EditSession` loads the local
    original or the in-game copy and renders previews on a worker) saves results as new photos
    (`PhotoMeta.editedFrom`). Files are removed only when no card references them and they were never printed.
-7. Clients show photos via `client/photo/PhotoCache` (LRU GL textures + per-server disk cache): prints
+8. Clients show photos via `client/photo/PhotoCache` (LRU GL textures + per-server disk cache): prints
    (`PrintItemRenderer` BEWLR), wall frames (`PhotoFrameRenderer`), playback/printer screens.
 
 Network messages identify a camera with `camera/CameraRef` (a hand or a tripod entity id); the server

@@ -18,6 +18,8 @@ public interface ClientBridge {
 
     default void openAlbum(net.minecraft.world.InteractionHand hand) {}
 
+    default void openContactSheet(ItemStack roll) {}
+
     /** Server -> client payloads are dispatched here so common code never references client classes. */
     default void handlePayload(CustomPacketPayload payload) {}
 

@@ -43,6 +43,10 @@ public final class Specs {
         return lookup(r, RCRegistries.MEMORY_CARD_TYPE, stack.get(RCComponents.CARD_TYPE.get()));
     }
 
+    public static Optional<dev.hackdanel.realcamera.spec.FilmStockSpec> film(HolderLookup.Provider r, ItemStack stack) {
+        return lookup(r, RCRegistries.FILM_STOCK, stack.get(RCComponents.FILM_STOCK.get()));
+    }
+
     public static Optional<AdapterSpec> adapter(HolderLookup.Provider r, ItemStack stack) {
         return lookup(r, RCRegistries.MOUNT_ADAPTER, stack.get(RCComponents.ADAPTER.get()));
     }

@@ -1,0 +1,17 @@
+{
+  "name": "Fujifilm Provia 100F",
+  "process": "e6",
+  "iso": 100,
+  "frames_135": 36,
+  "frames_120": 12,
+  "latitude_over": 0.7,
+  "latitude_under": 0.7,
+  "look": {
+    "contrast": 1.18,
+    "saturation": 1.12
+  },
+  "grain": {
+    "amount": 0.08,
+    "size": 0.8
+  }
+}

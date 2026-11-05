@@ -1,0 +1,104 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "realcamera:block/safelight",
+    "h": "realcamera:block/safelight",
+    "g": "realcamera:block/safelight_glow"
+  },
+  "elements": [
+    {
+      "from": [
+        5,
+        0,
+        5
+      ],
+      "to": [
+        11,
+        2,
+        11
+      ],
+      "faces": {
+        "north": {
+          "texture": "#h"
+        },
+        "south": {
+          "texture": "#h"
+        },
+        "east": {
+          "texture": "#h"
+        },
+        "west": {
+          "texture": "#h"
+        },
+        "up": {
+          "texture": "#h"
+        },
+        "down": {
+          "texture": "#h"
+        }
+      }
+    },
+    {
+      "from": [
+        5.5,
+        2,
+        5.5
+      ],
+      "to": [
+        10.5,
+        7,
+        10.5
+      ],
+      "shade": false,
+      "faces": {
+        "north": {
+          "texture": "#g"
+        },
+        "south": {
+          "texture": "#g"
+        },
+        "east": {
+          "texture": "#g"
+        },
+        "west": {
+          "texture": "#g"
+        },
+        "up": {
+          "texture": "#h"
+        }
+      }
+    },
+    {
+      "from": [
+        5,
+        7,
+        5
+      ],
+      "to": [
+        11,
+        8,
+        11
+      ],
+      "faces": {
+        "north": {
+          "texture": "#h"
+        },
+        "south": {
+          "texture": "#h"
+        },
+        "east": {
+          "texture": "#h"
+        },
+        "west": {
+          "texture": "#h"
+        },
+        "up": {
+          "texture": "#h"
+        },
+        "down": {
+          "texture": "#h"
+        }
+      }
+    }
+  ]
+}

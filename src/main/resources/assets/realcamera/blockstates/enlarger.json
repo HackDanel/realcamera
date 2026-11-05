@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "realcamera:block/enlarger"
+    },
+    "facing=east": {
+      "model": "realcamera:block/enlarger",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "realcamera:block/enlarger",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "realcamera:block/enlarger",
+      "y": 270
+    }
+  }
+}

@@ -34,6 +34,7 @@ public final class RCRegistries {
     public static final ResourceKey<Registry<dev.hackdanel.realcamera.spec.FlashSpec>> FLASH_TYPE = key("flash_type");
     public static final ResourceKey<Registry<dev.hackdanel.realcamera.spec.FilterSpec>> FILTER_TYPE = key("filter_type");
     public static final ResourceKey<Registry<dev.hackdanel.realcamera.spec.GripSpec>> GRIP_TYPE = key("grip_type");
+    public static final ResourceKey<Registry<dev.hackdanel.realcamera.spec.FilmStockSpec>> FILM_STOCK = key("film_stock");
 
     private RCRegistries() {}
 
@@ -54,6 +55,7 @@ public final class RCRegistries {
         event.dataPackRegistry(FLASH_TYPE, dev.hackdanel.realcamera.spec.FlashSpec.CODEC, dev.hackdanel.realcamera.spec.FlashSpec.CODEC);
         event.dataPackRegistry(FILTER_TYPE, dev.hackdanel.realcamera.spec.FilterSpec.CODEC, dev.hackdanel.realcamera.spec.FilterSpec.CODEC);
         event.dataPackRegistry(GRIP_TYPE, dev.hackdanel.realcamera.spec.GripSpec.CODEC, dev.hackdanel.realcamera.spec.GripSpec.CODEC);
+        event.dataPackRegistry(FILM_STOCK, dev.hackdanel.realcamera.spec.FilmStockSpec.CODEC, dev.hackdanel.realcamera.spec.FilmStockSpec.CODEC);
     }
 
     public static <T> Optional<T> get(RegistryAccess access, ResourceKey<Registry<T>> registry, ResourceKey<T> key) {

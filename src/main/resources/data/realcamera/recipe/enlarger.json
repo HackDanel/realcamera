@@ -1,0 +1,26 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 4
+    },
+    {
+      "item": "realcamera:lens_element",
+      "count": 1
+    },
+    {
+      "item": "minecraft:glowstone_dust",
+      "count": 2
+    },
+    {
+      "item": "minecraft:smooth_stone_slab",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:enlarger",
+    "count": 1
+  },
+  "time": 200
+}

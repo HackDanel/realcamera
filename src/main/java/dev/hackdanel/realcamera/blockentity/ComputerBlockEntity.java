@@ -33,7 +33,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * Editing happens on the client; the result comes back as a new photo through the upload path.
  */
 public class ComputerBlockEntity extends MachineBlockEntity {
-    public static final int SLOT_CARD_A = 0, SLOT_CARD_B = 1, SLOT_READER = 2, SLOTS = 3;
+    public static final int SLOT_CARD_A = 0, SLOT_CARD_B = 1, SLOT_READER = 2, SLOT_SCANNER = 3, SLOTS = 4;
 
     public ComputerBlockEntity(BlockPos pos, BlockState state) {
         super(RCBlockEntities.COMPUTER.get(), pos, state, SLOTS);
@@ -41,7 +41,12 @@ public class ComputerBlockEntity extends MachineBlockEntity {
 
     @Override
     protected boolean isItemValid(int slot, ItemStack stack) {
-        return slot == SLOT_READER ? stack.is(RCItems.CFEXPRESS_READER.get()) : stack.getItem() instanceof MemoryCardItem;
+        return switch (slot) {
+            case SLOT_READER -> stack.is(RCItems.CFEXPRESS_READER.get());
+            case SLOT_SCANNER -> stack.is(RCItems.FILM_SCANNER.get());
+            default -> stack.getItem() instanceof MemoryCardItem || (stack.getItem() instanceof dev.hackdanel.realcamera.item.FilmRollItem
+                    && dev.hackdanel.realcamera.item.FilmRollItem.roll(stack).state() == dev.hackdanel.realcamera.component.FilmRoll.DEVELOPED);
+        };
     }
 
     @Override
@@ -51,14 +56,23 @@ public class ComputerBlockEntity extends MachineBlockEntity {
 
     @Nullable
     public UUID cardIdOrNull(int slot) {
-        CardData d = items.getStackInSlot(slot).get(RCComponents.CARD.get());
+        ItemStack stack = items.getStackInSlot(slot);
+        var roll = stack.get(RCComponents.FILM.get());
+        if (roll != null) return roll.id().orElse(null);
+        CardData d = stack.get(RCComponents.CARD.get());
         return d == null ? null : d.id().orElse(null);
+    }
+
+    /** A developed roll in the scanner (read-only: frames can be scanned/copied, not added or deleted). */
+    public boolean isFilm(int slot) {
+        return items.getStackInSlot(slot).has(RCComponents.FILM.get());
     }
 
     /** The card's id, giving a never-used card one. Null if the slot holds no card. */
     @Nullable
     public UUID ensureCardId(int slot) {
         ItemStack card = items.getStackInSlot(slot);
+        if (isFilm(slot)) return cardIdOrNull(slot);
         if (!(card.getItem() instanceof MemoryCardItem)) return null;
         CardData d = card.getOrDefault(RCComponents.CARD.get(), CardData.EMPTY);
         if (d.id().isPresent()) return d.id().get();
@@ -73,6 +87,7 @@ public class ComputerBlockEntity extends MachineBlockEntity {
     public boolean readable(int slot) {
         ItemStack card = items.getStackInSlot(slot);
         if (card.isEmpty() || level == null) return false;
+        if (isFilm(slot)) return items.getStackInSlot(SLOT_SCANNER).is(RCItems.FILM_SCANNER.get());
         String form = Specs.card(level.registryAccess(), card).map(MemoryCardTypeSpec::form).orElse("sd");
         return form.equals("sd") || items.getStackInSlot(SLOT_READER).is(RCItems.CFEXPRESS_READER.get());
     }
@@ -114,6 +129,15 @@ public class ComputerBlockEntity extends MachineBlockEntity {
         if (card == null || !be.readable(slot)) {
             return;
         }
+        boolean film = be.isFilm(slot);
+        if (film && (msg.action() == Payloads.PC_DELETE || msg.action() == Payloads.PC_FORMAT)) {
+            player.displayClientMessage(Component.translatable("message.realcamera.computer.film_readonly"), true);
+            return;
+        }
+        if (be.isFilm(other) && (msg.action() == Payloads.PC_COPY || msg.action() == Payloads.PC_MOVE)) {
+            player.displayClientMessage(Component.translatable("message.realcamera.computer.film_readonly"), true);
+            return;
+        }
         MinecraftServer server = player.server;
         CardStorage cards = PhotoStorage.cards(server);
         PhotoIndex index = PhotoStorage.index(server);
@@ -142,7 +166,7 @@ public class ComputerBlockEntity extends MachineBlockEntity {
                 } else {
                     cards.add(target, msg.photo());
                     be.adjustCard(other, e.cardBytes(), 1);
-                    if (msg.action() == Payloads.PC_MOVE) {
+                    if (msg.action() == Payloads.PC_MOVE && !film) {
                         long bytes = ServerPhotoService.removeFromCard(server, card, msg.photo());
                         if (bytes >= 0) be.adjustCard(slot, -bytes, -1);
                     }

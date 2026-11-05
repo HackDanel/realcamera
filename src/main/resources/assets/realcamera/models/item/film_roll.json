@@ -1,0 +1,20 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "realcamera:item/film_roll"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "realcamera:state": 0.3
+      },
+      "model": "realcamera:item/film_roll_developed"
+    },
+    {
+      "predicate": {
+        "realcamera:state": 0.4
+      },
+      "model": "realcamera:item/film_roll_ruined"
+    }
+  ]
+}

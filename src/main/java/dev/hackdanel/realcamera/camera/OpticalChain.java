@@ -107,7 +107,7 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
     }
 
     public boolean afAvailable() {
-        return (adapter == null || adapter.allowsAf()) && !"none".equals(lens.af().motor());
+        return (adapter == null || adapter.allowsAf()) && !"none".equals(lens.af().motor()) && body.af().speed() > 0;
     }
 
     public double afSpeed() {

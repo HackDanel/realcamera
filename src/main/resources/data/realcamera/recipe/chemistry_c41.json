@@ -1,0 +1,26 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:glass_bottle",
+      "count": 3
+    },
+    {
+      "item": "minecraft:sugar",
+      "count": 1
+    },
+    {
+      "item": "minecraft:redstone",
+      "count": 1
+    },
+    {
+      "item": "minecraft:orange_dye",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:chemistry_c41",
+    "count": 1
+  },
+  "time": 80
+}

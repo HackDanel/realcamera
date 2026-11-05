@@ -1,0 +1,18 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:plastic",
+      "count": 3
+    },
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:developing_tank",
+    "count": 1
+  },
+  "time": 80
+}

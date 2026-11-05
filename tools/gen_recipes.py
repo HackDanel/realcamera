@@ -201,12 +201,48 @@ def main():
                          "pattern": [" S ", "SPS", "S S"],
                          "key": {"S": {"item": mc("stick")}, "P": {"tag": mc("planks")}},
                          "result": {"id": rc("photo_stand"), "count": 1}})
+
+    # --- stage 5: film, darkroom
+    stocks = {"kodak_portra_400": "orange_dye", "kodak_ektar_100": "red_dye", "kodak_gold_200": "yellow_dye",
+              "kodak_tri_x_400": "black_dye", "ilford_hp5_plus_400": "white_dye", "ilford_delta_3200": "gray_dye",
+              "fujifilm_velvia_50": "green_dye", "fujifilm_provia_100f": "lime_dye", "cinestill_800t": "blue_dye"}
+    for stock, dye in stocks.items():
+        for fmt, count in (("135", 3), ("120", 2)):
+            spool = (mc("iron_nugget"), 1) if fmt == "135" else (mc("paper"), 1)
+            assembly(f"film_{stock}_{fmt}", [(mc("paper"), 2), (mc("slime_ball"), 1), (mc("bone_meal"), 1),
+                                              (mc(dye), 1), spool],
+                     rc("film_roll"), count, 60,
+                     {f"{NS}:film_stock": rc(stock), f"{NS}:film": {"format": fmt, "state": 0}})
+    for kit, extra in (("c41", "orange_dye"), ("e6", "blue_dye"), ("bw", "charcoal")):
+        assembly(f"chemistry_{kit}", [(mc("glass_bottle"), 3), (mc("sugar"), 1), (mc("redstone"), 1), (mc(extra), 1)],
+                 rc(f"chemistry_{kit}"), 1, 80)
+    assembly("changing_bag", [(mc("black_wool"), 2), (mc("leather"), 1)], rc("changing_bag"), 1, 60)
+    assembly("film_scanner", [(rc("plastic"), 2), (rc("cmos_sensor"), 1), (rc("lens_element"), 1), (rc("circuit_board"), 1)],
+             rc("film_scanner"), 1, 160)
+    assembly("developing_tank", [(rc("plastic"), 3), (mc("iron_nugget"), 2)], rc("developing_tank"), 1, 80)
+    assembly("enlarger", [(mc("iron_ingot"), 4), (rc("lens_element"), 1), (mc("glowstone_dust"), 2), (mc("smooth_stone_slab"), 1)],
+             rc("enlarger"), 1, 200)
+    assembly("safelight", [(mc("iron_nugget"), 2), (mc("red_stained_glass"), 1), (mc("glowstone_dust"), 1)],
+             rc("safelight"), 1, 40)
+    for size, count in (("10x15", 8), ("a5", 4), ("a4", 2), ("a3", 1)):
+        for finish, coating in (("rc_bw", "bone_meal"), ("fiber_bw", "white_wool"), ("ra4", "glowstone_dust")):
+            assembly(f"photo_paper_{size}_{finish}", [(mc("paper"), 4), (mc(coating), 1), (mc("slime_ball"), 1)],
+                     rc("photo_paper"), count, 40, {f"{NS}:paper": {"size": size, "finish": finish}})
+    for body, mats in (("nikon_fm2", [(rc("magnesium_alloy"), 2), (rc("shutter_unit"), 1), (rc("aperture_blades"), 1), (mc("iron_ingot"), 2)]),
+                       ("leica_m6", [(rc("magnesium_alloy"), 2), (rc("shutter_unit"), 1), (rc("lens_element"), 2), (mc("gold_ingot"), 1)]),
+                       ("canon_eos_1v", [(rc("magnesium_alloy"), 3), (rc("shutter_unit"), 1), (rc("af_motor"), 1), (rc("processor"), 1), (mc("diamond"), 1)])):
+        assembly(f"body_{body}", mats, rc("camera_body"), 1, 300, {f"{NS}:body": rc(body)})
+    for bat, cap, mats in (("sr44", 4000, [(rc("battery_cell"), 1), (mc("iron_nugget"), 1)]),
+                           ("cr2", 1500, [(rc("battery_cell"), 2), (rc("plastic"), 1)])):
+        assembly(f"battery_{bat}", mats, rc("battery"), 1, 60,
+                 {f"{NS}:battery_type": rc(bat), f"{NS}:charge": {"charge": cap, "capacity": cap}})
     print(len(os.listdir(OUT)), "recipes written")
 
     # --- block loot tables (each block drops itself; the photo stand only from its lower half)
     shutil.rmtree(LOOT, ignore_errors=True)
     os.makedirs(LOOT)
-    for block in ("assembly_station", "battery_charger", "photo_printer", "computer", "table_frame", "photo_stand"):
+    for block in ("assembly_station", "battery_charger", "photo_printer", "computer", "table_frame", "photo_stand",
+                  "developing_tank", "enlarger", "safelight"):
         entry = {"type": "minecraft:item", "name": rc(block)}
         pool = {"rolls": 1, "entries": [entry], "conditions": [{"condition": "minecraft:survives_explosion"}]}
         if block == "photo_stand":

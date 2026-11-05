@@ -10,7 +10,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 @EventBusSubscriber(modid = RealCamera.MODID)
 public final class RCNetwork {
-    public static final String VERSION = "2";
+    public static final String VERSION = "3";
 
     private RCNetwork() {}
 
@@ -34,6 +34,8 @@ public final class RCNetwork {
 
         r.playToServer(Payloads.TripodAim.TYPE, Payloads.TripodAim.CODEC,
                 (p, ctx) -> ServerPhotoService.aimTripod((ServerPlayer) ctx.player(), p));
+        r.playToServer(Payloads.RewindFilm.TYPE, Payloads.RewindFilm.CODEC,
+                (p, ctx) -> ServerPhotoService.rewind((ServerPlayer) ctx.player(), p.ref()));
         r.playToServer(Payloads.EditUploadBegin.TYPE, Payloads.EditUploadBegin.CODEC,
                 (p, ctx) -> ServerPhotoService.editUploadBegin((ServerPlayer) ctx.player(), p));
         r.playToServer(Payloads.ComputerAction.TYPE, Payloads.ComputerAction.CODEC,

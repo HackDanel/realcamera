@@ -85,5 +85,13 @@ public final class RCComponents {
             "album", b -> b.persistent(dev.hackdanel.realcamera.component.AlbumData.CODEC)
                     .networkSynchronized(dev.hackdanel.realcamera.component.AlbumData.STREAM_CODEC).cacheEncoding());
 
+    public static final Supplier<DataComponentType<net.minecraft.resources.ResourceKey<dev.hackdanel.realcamera.spec.FilmStockSpec>>> FILM_STOCK =
+            REGISTER.registerComponentType("film_stock", b -> b
+                    .persistent(net.minecraft.resources.ResourceKey.codec(RCRegistries.FILM_STOCK))
+                    .networkSynchronized(net.minecraft.resources.ResourceKey.streamCodec(RCRegistries.FILM_STOCK)));
+    public static final Supplier<DataComponentType<dev.hackdanel.realcamera.component.FilmRoll>> FILM = REGISTER.registerComponentType(
+            "film", b -> b.persistent(dev.hackdanel.realcamera.component.FilmRoll.CODEC)
+                    .networkSynchronized(dev.hackdanel.realcamera.component.FilmRoll.STREAM_CODEC));
+
     private RCComponents() {}
 }

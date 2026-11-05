@@ -56,7 +56,8 @@ public final class ServerPhotoService {
     }
 
     private record Session(UUID photoId, int requestId, UUID cardId, PhotoMeta meta, int totalBytes, long cardBytes,
-                           ByteArrayOutputStream data, long started, CardMirror mirror, Optional<UUID> uploader) {}
+                           ByteArrayOutputStream data, long started, CardMirror mirror, Optional<UUID> uploader,
+                           boolean latent) {}
 
     /** A camera the player may operate: in a hand, or mounted on a tripod within reach. */
     public record Handle(ItemStack stack, Runnable commit) {}
@@ -100,7 +101,7 @@ public final class ServerPhotoService {
 
     public static void shutter(ServerPlayer player, Payloads.Shutter msg) {
         Optional<Handle> handle = resolve(player, msg.ref());
-        if (handle.isEmpty() || !CameraHelper.hasPower(handle.get().stack())) {
+        if (handle.isEmpty() || !CameraHelper.canFire(player.registryAccess(), handle.get().stack())) {
             return;
         }
         shutter(player, msg, handle.get().stack());
@@ -143,6 +144,10 @@ public final class ServerPhotoService {
         }
         ItemStack camera = handle.get().stack();
         CameraParts parts = CameraHelper.parts(camera);
+        if (CameraHelper.isFilm(player.registryAccess(), camera)) {
+            filmUploadBegin(player, msg, handle.get(), reject);
+            return;
+        }
         ItemStack card = parts.card();
         Optional<MemoryCardTypeSpec> cardType = Specs.card(player.registryAccess(), card);
         Optional<CameraBodySpec> body = Specs.body(player.registryAccess(), camera);
@@ -199,7 +204,7 @@ public final class ServerPhotoService {
                 msg.meta().width(), msg.meta().height(), msg.meta().exif(), place);
         uploads.put(author, new Session(photoId, msg.requestId(), cardId, meta, msg.totalBytes(), cardBytes,
                 new ByteArrayOutputStream(msg.totalBytes()), now,
-                (bytes, count) -> adjustCardMirror(player, cardId, bytes, count, msg.ref()), Optional.empty()));
+                (bytes, count) -> adjustCardMirror(player, cardId, bytes, count, msg.ref()), Optional.empty(), false));
         PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(msg.requestId(), Payloads.UPLOAD_ACCEPTED,
                 Optional.of(photoId), ""));
     }
@@ -242,6 +247,10 @@ public final class ServerPhotoService {
         }
         var computer = menu.blockEntity();
         UUID cardId = computer.ensureCardId(msg.slot());
+        if (computer.isFilm(msg.slot())) {
+            reject.accept("message.realcamera.computer.film_readonly");
+            return;
+        }
         if (cardId == null || !computer.readable(msg.slot())) {
             reject.accept("message.realcamera.no_card");
             return;
@@ -271,9 +280,84 @@ public final class ServerPhotoService {
         uploads.put(player.getUUID(), new Session(photoId, msg.requestId(), cardId, meta, msg.totalBytes(), cardBytes,
                 new ByteArrayOutputStream(msg.totalBytes()), Util.getMillis(),
                 (bytes, count) -> computer.adjustCard(slot, bytes, count),
-                player.getUUID().equals(meta.authorId()) ? Optional.empty() : Optional.of(player.getUUID())));
+                player.getUUID().equals(meta.authorId()) ? Optional.empty() : Optional.of(player.getUUID()), false));
         PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(msg.requestId(), Payloads.UPLOAD_ACCEPTED,
                 Optional.of(photoId), ""));
+    }
+
+    /**
+     * A film frame: no card space, but a frame of the roll; stored hidden ("latent") until the roll is
+     * developed in the tank.
+     */
+    private static void filmUploadBegin(ServerPlayer player, Payloads.UploadBegin msg, Handle handle, Consumer<String> reject) {
+        ItemStack camera = handle.stack();
+        CameraParts parts = CameraHelper.parts(camera);
+        ItemStack rollStack = parts.card();
+        if (!(rollStack.getItem() instanceof dev.hackdanel.realcamera.item.FilmRollItem)) {
+            reject.accept("message.realcamera.no_film");
+            return;
+        }
+        var roll = dev.hackdanel.realcamera.item.FilmRollItem.roll(rollStack);
+        int frames = Specs.film(player.registryAccess(), rollStack).map(f -> f.frames(roll.format())).orElse(0);
+        if (roll.state() > dev.hackdanel.realcamera.component.FilmRoll.LOADED || roll.shot() >= frames) {
+            reject.accept("message.realcamera.film_end");
+            return;
+        }
+        String problem = quotaProblem(player, msg.totalBytes());
+        if (problem != null) {
+            reject.accept(problem);
+            return;
+        }
+        UUID rollId = roll.id().orElseGet(UUID::randomUUID);
+        ItemStack loaded = rollStack.copy();
+        loaded.set(RCComponents.FILM.get(), roll.withId(rollId).withState(dev.hackdanel.realcamera.component.FilmRoll.LOADED));
+        CameraHelper.setParts(camera, parts.with(CameraParts.SLOT_CARD, loaded));
+        handle.commit().run();
+        UUID photoId = UUID.randomUUID();
+        PhotoMeta.Place place = new PhotoMeta.Place(player.level().dimension().location().toString(),
+                player.level().getBiome(player.blockPosition()).unwrapKey().map(k -> k.location().toString()).orElse("?"),
+                player.getBlockX(), player.getBlockY(), player.getBlockZ(), player.level().getDayTime() / 24000L);
+        PhotoMeta meta = new PhotoMeta(photoId, player.getUUID(), player.getGameProfile().getName(), System.currentTimeMillis(),
+                msg.meta().width(), msg.meta().height(), msg.meta().exif(), place);
+        dev.hackdanel.realcamera.camera.CameraRef ref = msg.ref();
+        uploads.put(player.getUUID(), new Session(photoId, msg.requestId(), rollId, meta, msg.totalBytes(), 0,
+                new ByteArrayOutputStream(msg.totalBytes()), Util.getMillis(),
+                (bytes, count) -> advanceFilm(player, ref, rollId, count), Optional.empty(), true));
+        PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(msg.requestId(), Payloads.UPLOAD_ACCEPTED,
+                Optional.of(photoId), ""));
+    }
+
+    public static void rewind(ServerPlayer player, dev.hackdanel.realcamera.camera.CameraRef ref) {
+        resolve(player, ref).ifPresent(h -> {
+            CameraParts parts = CameraHelper.parts(h.stack());
+            ItemStack rollStack = parts.card();
+            var roll = rollStack.get(RCComponents.FILM.get());
+            if (roll == null || roll.state() != dev.hackdanel.realcamera.component.FilmRoll.LOADED || roll.shot() == 0) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.realcamera.nothing_to_rewind"), true);
+                return;
+            }
+            ItemStack next = rollStack.copy();
+            next.set(RCComponents.FILM.get(), roll.withState(dev.hackdanel.realcamera.component.FilmRoll.EXPOSED));
+            CameraHelper.setParts(h.stack(), parts.with(CameraParts.SLOT_CARD, next));
+            h.commit().run();
+            player.level().playSound(null, player, net.minecraft.sounds.SoundEvents.CROSSBOW_LOADING_MIDDLE.value(),
+                    SoundSource.PLAYERS, 0.6f, 1.6f);
+            player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.realcamera.rewound"), true);
+        });
+    }
+
+    /** Counts a stored frame on the roll inside the camera it was shot with. */
+    private static void advanceFilm(ServerPlayer player, dev.hackdanel.realcamera.camera.CameraRef ref, UUID rollId, int count) {
+        resolve(player, ref).ifPresent(h -> {
+            CameraParts parts = CameraHelper.parts(h.stack());
+            ItemStack rollStack = parts.card();
+            var roll = rollStack.get(RCComponents.FILM.get());
+            if (roll == null || roll.id().isEmpty() || !roll.id().get().equals(rollId)) return;
+            ItemStack next = rollStack.copy();
+            next.set(RCComponents.FILM.get(), roll.withShot(roll.shot() + count));
+            CameraHelper.setParts(h.stack(), parts.with(CameraParts.SLOT_CARD, next));
+            h.commit().run();
+        });
     }
 
     public static void uploadChunk(ServerPlayer player, Payloads.UploadChunk msg) {
@@ -316,7 +400,7 @@ public final class ServerPhotoService {
             }
             server.execute(() -> {
                 PhotoStorage.index(server).put(new PhotoIndex.Entry(meta, bytes.length, s.cardBytes(), 0, false, 0,
-                        s.uploader()));
+                        s.uploader(), s.latent()));
                 PhotoStorage.cards(server).add(s.cardId(), s.photoId());
                 s.mirror().adjust(s.cardBytes(), 1);
                 PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(s.requestId(), Payloads.UPLOAD_STORED,
@@ -381,6 +465,10 @@ public final class ServerPhotoService {
                 && cardId.equals(printer.cardId())) {
             return true;
         }
+        if (player.containerMenu instanceof dev.hackdanel.realcamera.menu.EnlargerMenu enlarger
+                && cardId.equals(enlarger.rollId())) {
+            return true;
+        }
         if (player.containerMenu instanceof dev.hackdanel.realcamera.menu.ComputerMenu computer
                 && (cardId.equals(computer.cardId(0)) || cardId.equals(computer.cardId(1)))) {
             return true;
@@ -395,7 +483,9 @@ public final class ServerPhotoService {
     private static boolean holdsCard(ItemStack stack, UUID cardId) {
         ItemStack card = CameraHelper.isCamera(stack) ? CameraHelper.parts(stack).card() : stack;
         CardData d = card.get(RCComponents.CARD.get());
-        return d != null && d.id().map(cardId::equals).orElse(false);
+        if (d != null && d.id().map(cardId::equals).orElse(false)) return true;
+        var roll = card.get(RCComponents.FILM.get());
+        return roll != null && roll.id().map(cardId::equals).orElse(false);
     }
 
     public static void requestCard(ServerPlayer player, Payloads.RequestCard msg) {
@@ -412,7 +502,7 @@ public final class ServerPhotoService {
         List<Integer> ratings = new ArrayList<>();
         for (UUID id : PhotoStorage.cards(server).photos(cardId)) {
             PhotoIndex.Entry e = index.get(id);
-            if (e != null && !e.revoked()) {
+            if (e != null && !e.revoked() && !e.latent()) {
                 list.add(visibleMeta(player, e.meta()));
                 ratings.add(e.rating());
             }
@@ -470,6 +560,9 @@ public final class ServerPhotoService {
     public static void requestPhoto(ServerPlayer player, Payloads.RequestPhoto msg) {
         MinecraftServer server = player.server;
         PhotoIndex.Entry e = PhotoStorage.index(server).get(msg.id());
+        if (e != null && e.latent()) {
+            return; // undeveloped film: nobody may see it yet
+        }
         if (e == null || e.revoked()) {
             PacketDistributor.sendToPlayer(player, new Payloads.PhotoGone(msg.id()));
             return;

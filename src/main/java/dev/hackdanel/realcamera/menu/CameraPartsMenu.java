@@ -63,6 +63,14 @@ public class CameraPartsMenu extends AbstractContainerMenu {
                 public int getMaxStackSize() {
                     return 1;
                 }
+
+                @Override
+                public void onTake(Player p, ItemStack stack) {
+                    if (part == CameraParts.SLOT_CARD) {
+                        openBack(p, stack);
+                    }
+                    super.onTake(p, stack);
+                }
             });
         }
         int lockedInvSlot = hand == InteractionHand.MAIN_HAND ? inventory.selected : 40;
@@ -111,9 +119,33 @@ public class CameraPartsMenu extends AbstractContainerMenu {
                     .map(g -> g.bodies().contains(player.getItemInHand(hand).get(RCComponents.BODY.get()))).orElse(false);
             case CameraParts.SLOT_BATTERY -> stack.getItem() instanceof BatteryItem
                     && Objects.equals(stack.get(RCComponents.BATTERY_TYPE.get()), body.get().batteryType());
-            default -> stack.getItem() instanceof MemoryCardItem
-                    && Specs.card(r, stack).map(c -> body.get().cardForms().contains(c.form())).orElse(false);
+            default -> body.get().isFilm()
+                    ? stack.getItem() instanceof dev.hackdanel.realcamera.item.FilmRollItem
+                        && dev.hackdanel.realcamera.item.FilmRollItem.roll(stack).state() <= dev.hackdanel.realcamera.component.FilmRoll.LOADED
+                        && dev.hackdanel.realcamera.item.FilmRollItem.roll(stack).format().equals(body.get().film().get().format())
+                    : stack.getItem() instanceof MemoryCardItem
+                        && Specs.card(r, stack).map(c -> body.get().cardForms().contains(c.form())).orElse(false);
         };
+    }
+
+    /**
+     * Taking film out of the camera. Rewound film is safe. A roll still on the take-up spool is ruined
+     * where the light reaches it: in the light (level > 3) it gets fogged; in the dark it is wound back by
+     * hand. An unused roll goes back to fresh.
+     */
+    public static void openBack(Player p, ItemStack stack) {
+        var roll = stack.get(RCComponents.FILM.get());
+        if (roll == null || roll.state() != dev.hackdanel.realcamera.component.FilmRoll.LOADED) return;
+        if (roll.shot() == 0) {
+            stack.set(RCComponents.FILM.get(), roll.withState(dev.hackdanel.realcamera.component.FilmRoll.FRESH));
+            return;
+        }
+        var next = roll.withState(dev.hackdanel.realcamera.component.FilmRoll.EXPOSED);
+        if (!p.level().isClientSide && p.level().getMaxLocalRawBrightness(p.blockPosition()) > 3) {
+            next = next.fog();
+            p.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.realcamera.film_fogged"), true);
+        }
+        stack.set(RCComponents.FILM.get(), next);
     }
 
     private void save() {
@@ -144,6 +176,9 @@ public class CameraPartsMenu extends AbstractContainerMenu {
         ItemStack stack = slot.getItem();
         ItemStack original = stack.copy();
         if (index < PART_SLOTS) {
+            if (index == CameraParts.SLOT_CARD && p.getInventory().getFreeSlot() >= 0) {
+                openBack(p, stack);
+            }
             if (!moveItemStackTo(stack, PART_SLOTS, slots.size(), true)) {
                 return ItemStack.EMPTY;
             }

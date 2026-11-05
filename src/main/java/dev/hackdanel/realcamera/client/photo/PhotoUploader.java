@@ -15,8 +15,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * burst simply queues up behind the shot being written, like a camera's card buffer.
  */
 public final class PhotoUploader {
+    /** cache: keep the uploaded bytes as the local copy (not for film: the server changes it when developing). */
     private record Job(int id, java.util.function.IntFunction<CustomPacketPayload> begin, byte[] jpeg,
-                       java.util.function.Consumer<UUID> onStored, java.util.function.Consumer<String> onRejected) {}
+                       java.util.function.Consumer<UUID> onStored, java.util.function.Consumer<String> onRejected,
+                       boolean cache) {}
 
     private static final Deque<Job> queue = new ArrayDeque<>();
     private static Job current;
@@ -25,9 +27,9 @@ public final class PhotoUploader {
     private PhotoUploader() {}
 
     public static void upload(dev.hackdanel.realcamera.camera.CameraRef hand, PhotoMeta meta, byte[] jpeg, int quality,
-                              int format, java.util.function.Consumer<UUID> onStored) {
+                              int format, boolean film, java.util.function.Consumer<UUID> onStored) {
         queue.addLast(new Job(nextId++, id -> new Payloads.UploadBegin(id, hand, meta, jpeg.length, quality, format),
-                jpeg, onStored, key -> {}));
+                jpeg, onStored, key -> {}, !film));
         pump();
     }
 
@@ -35,7 +37,7 @@ public final class PhotoUploader {
     public static void uploadEdit(net.minecraft.core.BlockPos computer, UUID source, int slot, byte[] jpeg,
                                   java.util.function.Consumer<UUID> onStored, java.util.function.Consumer<String> onRejected) {
         queue.addLast(new Job(nextId++, id -> new Payloads.EditUploadBegin(id, computer, slot, source, jpeg.length),
-                jpeg, onStored, onRejected));
+                jpeg, onStored, onRejected, true));
         pump();
     }
 
@@ -64,7 +66,7 @@ public final class PhotoUploader {
             case Payloads.UPLOAD_STORED -> {
                 current = null;
                 msg.photoId().ifPresent(id -> {
-                    PhotoCache.putLocal(id, job.jpeg);
+                    if (job.cache) PhotoCache.putLocal(id, job.jpeg);
                     job.onStored.accept(id);
                 });
                 if (mc.player != null && queue.isEmpty()) {
