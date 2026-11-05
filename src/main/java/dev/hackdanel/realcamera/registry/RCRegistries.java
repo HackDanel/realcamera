@@ -1,0 +1,50 @@
+package dev.hackdanel.realcamera.registry;
+
+import dev.hackdanel.realcamera.RealCamera;
+import dev.hackdanel.realcamera.spec.BatteryTypeSpec;
+import dev.hackdanel.realcamera.spec.CameraBodySpec;
+import dev.hackdanel.realcamera.spec.ColorProfileSpec;
+import dev.hackdanel.realcamera.spec.LensSpec;
+import dev.hackdanel.realcamera.spec.MemoryCardTypeSpec;
+import dev.hackdanel.realcamera.spec.MountSpec;
+import java.util.Optional;
+import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.ResourceKey;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.registries.DataPackRegistryEvent;
+
+/**
+ * Datapack registries holding the equipment catalog. Synced to clients, so adding a camera is just
+ * a JSON file under data/<namespace>/realcamera/<registry>/.
+ */
+@EventBusSubscriber(modid = RealCamera.MODID)
+public final class RCRegistries {
+    public static final ResourceKey<Registry<MountSpec>> MOUNT = key("mount");
+    public static final ResourceKey<Registry<CameraBodySpec>> CAMERA_BODY = key("camera_body");
+    public static final ResourceKey<Registry<LensSpec>> LENS = key("lens");
+    public static final ResourceKey<Registry<BatteryTypeSpec>> BATTERY_TYPE = key("battery_type");
+    public static final ResourceKey<Registry<MemoryCardTypeSpec>> MEMORY_CARD_TYPE = key("memory_card_type");
+    public static final ResourceKey<Registry<ColorProfileSpec>> COLOR_PROFILE = key("color_profile");
+
+    private RCRegistries() {}
+
+    private static <T> ResourceKey<Registry<T>> key(String path) {
+        return ResourceKey.createRegistryKey(RealCamera.id(path));
+    }
+
+    @SubscribeEvent
+    static void register(DataPackRegistryEvent.NewRegistry event) {
+        event.dataPackRegistry(MOUNT, MountSpec.CODEC, MountSpec.CODEC);
+        event.dataPackRegistry(CAMERA_BODY, CameraBodySpec.CODEC, CameraBodySpec.CODEC);
+        event.dataPackRegistry(LENS, LensSpec.CODEC, LensSpec.CODEC);
+        event.dataPackRegistry(BATTERY_TYPE, BatteryTypeSpec.CODEC, BatteryTypeSpec.CODEC);
+        event.dataPackRegistry(MEMORY_CARD_TYPE, MemoryCardTypeSpec.CODEC, MemoryCardTypeSpec.CODEC);
+        event.dataPackRegistry(COLOR_PROFILE, ColorProfileSpec.CODEC, ColorProfileSpec.CODEC);
+    }
+
+    public static <T> Optional<T> get(RegistryAccess access, ResourceKey<Registry<T>> registry, ResourceKey<T> key) {
+        return access.registry(registry).flatMap(r -> Optional.ofNullable(r.get(key)));
+    }
+}

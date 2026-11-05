@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:plastic",
+      "count": 1
+    },
+    {
+      "item": "minecraft:yellow_dye",
+      "count": 2
+    },
+    {
+      "item": "minecraft:glass_bottle",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:ink_cartridge_yellow",
+    "count": 1
+  },
+  "time": 40
+}

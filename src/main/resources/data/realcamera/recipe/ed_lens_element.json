@@ -1,0 +1,18 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:lens_element",
+      "count": 2
+    },
+    {
+      "item": "minecraft:diamond",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:ed_lens_element",
+    "count": 2
+  },
+  "time": 120
+}

@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:slime_ball",
+      "count": 1
+    },
+    {
+      "item": "minecraft:black_dye",
+      "count": 1
+    },
+    {
+      "item": "minecraft:coal",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:plastic",
+    "count": 4
+  },
+  "time": 40
+}

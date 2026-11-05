@@ -1,0 +1,34 @@
+{
+  "variants": {
+    "charging=false,facing=north": {
+      "model": "realcamera:block/battery_charger"
+    },
+    "charging=false,facing=east": {
+      "model": "realcamera:block/battery_charger",
+      "y": 90
+    },
+    "charging=false,facing=south": {
+      "model": "realcamera:block/battery_charger",
+      "y": 180
+    },
+    "charging=false,facing=west": {
+      "model": "realcamera:block/battery_charger",
+      "y": 270
+    },
+    "charging=true,facing=north": {
+      "model": "realcamera:block/battery_charger_on"
+    },
+    "charging=true,facing=east": {
+      "model": "realcamera:block/battery_charger_on",
+      "y": 90
+    },
+    "charging=true,facing=south": {
+      "model": "realcamera:block/battery_charger_on",
+      "y": 180
+    },
+    "charging=true,facing=west": {
+      "model": "realcamera:block/battery_charger_on",
+      "y": 270
+    }
+  }
+}

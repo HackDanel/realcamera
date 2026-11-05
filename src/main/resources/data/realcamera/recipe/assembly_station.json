@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IGI",
+    "PCP",
+    "PPP"
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "G": {
+      "item": "minecraft:glass_pane"
+    },
+    "C": {
+      "item": "minecraft:crafting_table"
+    },
+    "P": {
+      "tag": "minecraft:planks"
+    }
+  },
+  "result": {
+    "id": "realcamera:assembly_station",
+    "count": 1
+  }
+}

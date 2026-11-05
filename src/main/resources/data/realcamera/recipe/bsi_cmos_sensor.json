@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:cmos_sensor",
+      "count": 1
+    },
+    {
+      "item": "minecraft:amethyst_shard",
+      "count": 2
+    },
+    {
+      "item": "minecraft:gold_ingot",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:bsi_cmos_sensor",
+    "count": 1
+  },
+  "time": 120
+}

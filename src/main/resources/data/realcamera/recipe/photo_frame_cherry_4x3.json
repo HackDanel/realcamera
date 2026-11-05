@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:cherry_planks",
+      "count": 7
+    },
+    {
+      "item": "minecraft:stick",
+      "count": 2
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 1
+    },
+    {
+      "item": "minecraft:paper",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:photo_frame",
+    "count": 1,
+    "components": {
+      "realcamera:frame": {
+        "width": 4,
+        "height": 3,
+        "material": "cherry"
+      }
+    }
+  },
+  "time": 110
+}

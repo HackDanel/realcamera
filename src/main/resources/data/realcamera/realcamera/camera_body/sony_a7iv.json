@@ -1,0 +1,21 @@
+{
+  "info": { "brand": "Sony", "exif_make": "SONY", "exif_model": "ILCE-7M4", "tier": "mid", "type": "mirrorless" },
+  "mount": "realcamera:sony_e",
+  "sensor": {
+    "width_mm": 35.9, "height_mm": 23.9, "megapixels": 33.0,
+    "base_iso": 100, "iso_min": 100, "iso_max": 51200,
+    "dynamic_range_ev": 15.0, "noise_luma": 1.0, "noise_chroma": 1.0
+  },
+  "viewfinder": "evf",
+  "shutter": { "mech_min": 0.000125, "elec_min": 0.000125, "max": 30.0, "rated_life": 200000, "sound": "mirrorless" },
+  "af": { "speed": 1.0, "low_light_ev": -4.0, "subject_detect": "eye" },
+  "ibis_stops": 5.5,
+  "battery_type": "realcamera:np_fz100",
+  "battery_drain": 1.0,
+  "card_forms": ["sd", "cfexpress_a"],
+  "weather_sealing": 1,
+  "color_profiles": [
+    "realcamera:sony_st", "realcamera:sony_pt", "realcamera:sony_vv", "realcamera:sony_fl", "realcamera:sony_bw"
+  ],
+  "model": "realcamera:item/body/sony_a7iv"
+}

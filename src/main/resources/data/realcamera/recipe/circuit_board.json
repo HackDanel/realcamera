@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:copper_ingot",
+      "count": 2
+    },
+    {
+      "item": "minecraft:green_dye",
+      "count": 1
+    },
+    {
+      "item": "minecraft:redstone",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:circuit_board",
+    "count": 2
+  },
+  "time": 60
+}

@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "realcamera:item/ink_cartridge_magenta"
+  }
+}

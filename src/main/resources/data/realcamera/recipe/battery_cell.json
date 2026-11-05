@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:copper_ingot",
+      "count": 1
+    },
+    {
+      "item": "minecraft:redstone",
+      "count": 2
+    },
+    {
+      "item": "minecraft:glow_ink_sac",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:battery_cell",
+    "count": 2
+  },
+  "time": 60
+}

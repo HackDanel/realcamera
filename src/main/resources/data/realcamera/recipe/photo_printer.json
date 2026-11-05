@@ -1,0 +1,30 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:plastic",
+      "count": 4
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 2
+    },
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 2
+    },
+    {
+      "item": "realcamera:processor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:af_motor",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:photo_printer",
+    "count": 1
+  },
+  "time": 200
+}

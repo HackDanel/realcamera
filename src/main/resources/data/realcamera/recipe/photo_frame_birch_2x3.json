@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:birch_planks",
+      "count": 5
+    },
+    {
+      "item": "minecraft:stick",
+      "count": 2
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 1
+    },
+    {
+      "item": "minecraft:paper",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:photo_frame",
+    "count": 1,
+    "components": {
+      "realcamera:frame": {
+        "width": 2,
+        "height": 3,
+        "material": "birch"
+      }
+    }
+  },
+  "time": 90
+}

@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 2
+    },
+    {
+      "item": "minecraft:redstone",
+      "count": 1
+    },
+    {
+      "item": "minecraft:piston",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:shutter_unit",
+    "count": 1
+  },
+  "time": 80
+}

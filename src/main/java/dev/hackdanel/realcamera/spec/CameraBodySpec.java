@@ -1,0 +1,72 @@
+package dev.hackdanel.realcamera.spec;
+
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import dev.hackdanel.realcamera.registry.RCRegistries;
+import java.util.List;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+
+/** Everything that defines a camera body model. Loaded from data/<ns>/realcamera/camera_body/*.json. */
+public record CameraBodySpec(
+        Info info,
+        ResourceKey<MountSpec> mount,
+        SensorSpec sensor,
+        String viewfinder,
+        Shutter shutter,
+        Af af,
+        float ibisStops,
+        ResourceKey<BatteryTypeSpec> batteryType,
+        float batteryDrain,
+        List<String> cardForms,
+        int weatherSealing,
+        List<ResourceKey<ColorProfileSpec>> colorProfiles,
+        ResourceLocation model
+) {
+    /** Identity: brand, EXIF Make/Model written into exported JPEGs, tier and body type. */
+    public record Info(String brand, String exifMake, String exifModel, String tier, String type) {
+        public static final Codec<Info> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.STRING.fieldOf("brand").forGetter(Info::brand),
+                Codec.STRING.fieldOf("exif_make").forGetter(Info::exifMake),
+                Codec.STRING.fieldOf("exif_model").forGetter(Info::exifModel),
+                Codec.STRING.fieldOf("tier").forGetter(Info::tier),
+                Codec.STRING.fieldOf("type").forGetter(Info::type)
+        ).apply(i, Info::new));
+    }
+
+    /** Shutter speeds in seconds: fastest mechanical / electronic, slowest timed; rated life; sound set. */
+    public record Shutter(float mechMin, float elecMin, float max, int ratedLife, String sound) {
+        public static final Codec<Shutter> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.FLOAT.fieldOf("mech_min").forGetter(Shutter::mechMin),
+                Codec.FLOAT.fieldOf("elec_min").forGetter(Shutter::elecMin),
+                Codec.FLOAT.optionalFieldOf("max", 30f).forGetter(Shutter::max),
+                Codec.INT.fieldOf("rated_life").forGetter(Shutter::ratedLife),
+                Codec.STRING.optionalFieldOf("sound", "mirrorless").forGetter(Shutter::sound)
+        ).apply(i, Shutter::new));
+    }
+
+    /** Autofocus: speed multiplier, lowest scene EV it still locks at, subject detection class. */
+    public record Af(float speed, float lowLightEv, String subjectDetect) {
+        public static final Codec<Af> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.FLOAT.optionalFieldOf("speed", 1f).forGetter(Af::speed),
+                Codec.FLOAT.optionalFieldOf("low_light_ev", -3f).forGetter(Af::lowLightEv),
+                Codec.STRING.optionalFieldOf("subject_detect", "none").forGetter(Af::subjectDetect)
+        ).apply(i, Af::new));
+    }
+
+    public static final Codec<CameraBodySpec> CODEC = RecordCodecBuilder.create(i -> i.group(
+            Info.CODEC.fieldOf("info").forGetter(CameraBodySpec::info),
+            ResourceKey.codec(RCRegistries.MOUNT).fieldOf("mount").forGetter(CameraBodySpec::mount),
+            SensorSpec.CODEC.fieldOf("sensor").forGetter(CameraBodySpec::sensor),
+            Codec.STRING.fieldOf("viewfinder").forGetter(CameraBodySpec::viewfinder),
+            Shutter.CODEC.fieldOf("shutter").forGetter(CameraBodySpec::shutter),
+            Af.CODEC.fieldOf("af").forGetter(CameraBodySpec::af),
+            Codec.FLOAT.optionalFieldOf("ibis_stops", 0f).forGetter(CameraBodySpec::ibisStops),
+            ResourceKey.codec(RCRegistries.BATTERY_TYPE).fieldOf("battery_type").forGetter(CameraBodySpec::batteryType),
+            Codec.FLOAT.optionalFieldOf("battery_drain", 1f).forGetter(CameraBodySpec::batteryDrain),
+            Codec.STRING.listOf().fieldOf("card_forms").forGetter(CameraBodySpec::cardForms),
+            Codec.INT.optionalFieldOf("weather_sealing", 0).forGetter(CameraBodySpec::weatherSealing),
+            ResourceKey.codec(RCRegistries.COLOR_PROFILE).listOf().fieldOf("color_profiles").forGetter(CameraBodySpec::colorProfiles),
+            ResourceLocation.CODEC.fieldOf("model").forGetter(CameraBodySpec::model)
+    ).apply(i, CameraBodySpec::new));
+}

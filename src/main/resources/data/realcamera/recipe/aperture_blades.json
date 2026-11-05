@@ -1,0 +1,14 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 6
+    }
+  ],
+  "result": {
+    "id": "realcamera:aperture_blades",
+    "count": 1
+  },
+  "time": 40
+}

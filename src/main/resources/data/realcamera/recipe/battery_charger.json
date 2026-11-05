@@ -1,0 +1,26 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:plastic",
+      "count": 3
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    },
+    {
+      "item": "minecraft:copper_ingot",
+      "count": 2
+    },
+    {
+      "item": "minecraft:redstone",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:battery_charger",
+    "count": 1
+  },
+  "time": 120
+}

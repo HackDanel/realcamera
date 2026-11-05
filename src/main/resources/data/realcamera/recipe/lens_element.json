@@ -1,0 +1,18 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:optical_glass",
+      "count": 1
+    },
+    {
+      "item": "minecraft:amethyst_shard",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:lens_element",
+    "count": 1
+  },
+  "time": 60
+}

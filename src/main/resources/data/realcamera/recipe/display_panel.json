@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:glass_pane",
+      "count": 1
+    },
+    {
+      "item": "minecraft:glowstone_dust",
+      "count": 2
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:display_panel",
+    "count": 1
+  },
+  "time": 80
+}

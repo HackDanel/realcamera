@@ -1,0 +1,19 @@
+{
+  "shutter.mirrorless": {
+    "subtitle": "subtitles.realcamera.shutter",
+    "sounds": [
+      {
+        "name": "realcamera:shutter_mirrorless",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "af_confirm": {
+    "subtitle": "subtitles.realcamera.af_confirm",
+    "sounds": [
+      {
+        "name": "realcamera:af_confirm"
+      }
+    ]
+  }
+}

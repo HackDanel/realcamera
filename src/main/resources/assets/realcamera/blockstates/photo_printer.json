@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "realcamera:block/photo_printer"
+    },
+    "facing=east": {
+      "model": "realcamera:block/photo_printer",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "realcamera:block/photo_printer",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "realcamera:block/photo_printer",
+      "y": 270
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:stick",
+      "count": 2
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 1
+    },
+    {
+      "item": "minecraft:paper",
+      "count": 1
+    },
+    {
+      "item": "minecraft:black_dye",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:photo_frame",
+    "count": 1,
+    "components": {
+      "realcamera:frame": {
+        "width": 3,
+        "height": 4,
+        "material": "black_metal"
+      }
+    }
+  },
+  "time": 110
+}

@@ -1,0 +1,77 @@
+package dev.hackdanel.realcamera.registry;
+
+import dev.hackdanel.realcamera.RealCamera;
+import dev.hackdanel.realcamera.component.PrintData;
+import dev.hackdanel.realcamera.item.BatteryItem;
+import dev.hackdanel.realcamera.item.CameraBodyItem;
+import dev.hackdanel.realcamera.item.InkCartridgeItem;
+import dev.hackdanel.realcamera.item.LensItem;
+import dev.hackdanel.realcamera.item.MemoryCardItem;
+import dev.hackdanel.realcamera.item.PhotoFrameItem;
+import dev.hackdanel.realcamera.item.PhotoPaperItem;
+import dev.hackdanel.realcamera.item.PhotoPrintItem;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.neoforged.neoforge.registries.DeferredItem;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+public final class RCItems {
+    public static final DeferredRegister.Items REGISTER = DeferredRegister.createItems(RealCamera.MODID);
+
+    public static final DeferredItem<CameraBodyItem> CAMERA_BODY = REGISTER.register("camera_body",
+            () -> new CameraBodyItem(new Item.Properties()));
+    public static final DeferredItem<LensItem> LENS = REGISTER.register("lens", () -> new LensItem(new Item.Properties()));
+    public static final DeferredItem<BatteryItem> BATTERY = REGISTER.register("battery",
+            () -> new BatteryItem(new Item.Properties()));
+    public static final DeferredItem<MemoryCardItem> MEMORY_CARD = REGISTER.register("memory_card",
+            () -> new MemoryCardItem(new Item.Properties()));
+    public static final DeferredItem<PhotoPrintItem> PHOTO_PRINT = REGISTER.register("photo_print",
+            () -> new PhotoPrintItem(new Item.Properties()));
+    public static final DeferredItem<PhotoPaperItem> PHOTO_PAPER = REGISTER.register("photo_paper",
+            () -> new PhotoPaperItem(new Item.Properties()));
+    public static final DeferredItem<PhotoFrameItem> PHOTO_FRAME = REGISTER.register("photo_frame",
+            () -> new PhotoFrameItem(new Item.Properties()));
+
+    public static final DeferredItem<InkCartridgeItem> INK_CYAN = REGISTER.register("ink_cartridge_cyan",
+            () -> new InkCartridgeItem(new Item.Properties(), PrintData.INK_C, 0x00B7EB));
+    public static final DeferredItem<InkCartridgeItem> INK_MAGENTA = REGISTER.register("ink_cartridge_magenta",
+            () -> new InkCartridgeItem(new Item.Properties(), PrintData.INK_M, 0xFF00A0));
+    public static final DeferredItem<InkCartridgeItem> INK_YELLOW = REGISTER.register("ink_cartridge_yellow",
+            () -> new InkCartridgeItem(new Item.Properties(), PrintData.INK_Y, 0xFFE600));
+    public static final DeferredItem<InkCartridgeItem> INK_BLACK = REGISTER.register("ink_cartridge_black",
+            () -> new InkCartridgeItem(new Item.Properties(), PrintData.INK_K, 0x303030));
+
+    /** Intermediate parts made from vanilla resources (plan §8.1). */
+    public static final List<DeferredItem<Item>> MATERIALS = new ArrayList<>();
+    public static final DeferredItem<Item> OPTICAL_GLASS = material("optical_glass");
+    public static final DeferredItem<Item> LENS_ELEMENT = material("lens_element");
+    public static final DeferredItem<Item> ED_LENS_ELEMENT = material("ed_lens_element");
+    public static final DeferredItem<Item> SILICON_WAFER = material("silicon_wafer");
+    public static final DeferredItem<Item> CMOS_SENSOR = material("cmos_sensor");
+    public static final DeferredItem<Item> BSI_CMOS_SENSOR = material("bsi_cmos_sensor");
+    public static final DeferredItem<Item> PROCESSOR = material("processor");
+    public static final DeferredItem<Item> CIRCUIT_BOARD = material("circuit_board");
+    public static final DeferredItem<Item> DISPLAY_PANEL = material("display_panel");
+    public static final DeferredItem<Item> SHUTTER_UNIT = material("shutter_unit");
+    public static final DeferredItem<Item> MAGNESIUM_ALLOY = material("magnesium_alloy");
+    public static final DeferredItem<Item> PLASTIC = material("plastic");
+    public static final DeferredItem<Item> APERTURE_BLADES = material("aperture_blades");
+    public static final DeferredItem<Item> AF_MOTOR = material("af_motor");
+    public static final DeferredItem<Item> STABILIZER = material("stabilizer");
+    public static final DeferredItem<Item> BATTERY_CELL = material("battery_cell");
+    public static final DeferredItem<Item> FLASH_MEMORY = material("flash_memory");
+
+    public static final DeferredItem<BlockItem> ASSEMBLY_STATION = REGISTER.registerSimpleBlockItem(RCBlocks.ASSEMBLY_STATION);
+    public static final DeferredItem<BlockItem> BATTERY_CHARGER = REGISTER.registerSimpleBlockItem(RCBlocks.BATTERY_CHARGER);
+    public static final DeferredItem<BlockItem> PHOTO_PRINTER = REGISTER.registerSimpleBlockItem(RCBlocks.PHOTO_PRINTER);
+
+    private static DeferredItem<Item> material(String name) {
+        DeferredItem<Item> item = REGISTER.registerSimpleItem(name);
+        MATERIALS.add(item);
+        return item;
+    }
+
+    private RCItems() {}
+}

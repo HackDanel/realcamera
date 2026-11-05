@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/orientable_with_bottom",
+  "textures": {
+    "top": "realcamera:block/assembly_station_top",
+    "front": "realcamera:block/assembly_station_front",
+    "side": "realcamera:block/assembly_station_side",
+    "bottom": "realcamera:block/assembly_station_bottom"
+  }
+}

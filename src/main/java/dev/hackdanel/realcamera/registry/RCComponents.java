@@ -1,0 +1,60 @@
+package dev.hackdanel.realcamera.registry;
+
+import com.mojang.serialization.Codec;
+import dev.hackdanel.realcamera.RealCamera;
+import dev.hackdanel.realcamera.component.BatteryCharge;
+import dev.hackdanel.realcamera.component.CameraParts;
+import dev.hackdanel.realcamera.component.CameraSettings;
+import dev.hackdanel.realcamera.component.CardData;
+import dev.hackdanel.realcamera.component.FrameData;
+import dev.hackdanel.realcamera.component.PaperData;
+import dev.hackdanel.realcamera.component.PrintData;
+import dev.hackdanel.realcamera.spec.BatteryTypeSpec;
+import dev.hackdanel.realcamera.spec.CameraBodySpec;
+import dev.hackdanel.realcamera.spec.LensSpec;
+import dev.hackdanel.realcamera.spec.MemoryCardTypeSpec;
+import java.util.function.Supplier;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.resources.ResourceKey;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+public final class RCComponents {
+    public static final DeferredRegister.DataComponents REGISTER =
+            DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, RealCamera.MODID);
+
+    public static final Supplier<DataComponentType<ResourceKey<CameraBodySpec>>> BODY = REGISTER.registerComponentType(
+            "body", b -> b.persistent(ResourceKey.codec(RCRegistries.CAMERA_BODY))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.CAMERA_BODY)));
+    public static final Supplier<DataComponentType<ResourceKey<LensSpec>>> LENS = REGISTER.registerComponentType(
+            "lens", b -> b.persistent(ResourceKey.codec(RCRegistries.LENS))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.LENS)));
+    public static final Supplier<DataComponentType<ResourceKey<BatteryTypeSpec>>> BATTERY_TYPE = REGISTER.registerComponentType(
+            "battery_type", b -> b.persistent(ResourceKey.codec(RCRegistries.BATTERY_TYPE))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.BATTERY_TYPE)));
+    public static final Supplier<DataComponentType<ResourceKey<MemoryCardTypeSpec>>> CARD_TYPE = REGISTER.registerComponentType(
+            "card_type", b -> b.persistent(ResourceKey.codec(RCRegistries.MEMORY_CARD_TYPE))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.MEMORY_CARD_TYPE)));
+
+    public static final Supplier<DataComponentType<CameraParts>> CAMERA_PARTS = REGISTER.registerComponentType(
+            "camera_parts", b -> b.persistent(CameraParts.CODEC).networkSynchronized(CameraParts.STREAM_CODEC).cacheEncoding());
+    public static final Supplier<DataComponentType<CameraSettings>> CAMERA_SETTINGS = REGISTER.registerComponentType(
+            "camera_settings", b -> b.persistent(CameraSettings.CODEC).networkSynchronized(CameraSettings.STREAM_CODEC));
+    public static final Supplier<DataComponentType<Integer>> SHUTTER_COUNT = REGISTER.registerComponentType(
+            "shutter_count", b -> b.persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT));
+    public static final Supplier<DataComponentType<BatteryCharge>> CHARGE = REGISTER.registerComponentType(
+            "charge", b -> b.persistent(BatteryCharge.CODEC).networkSynchronized(BatteryCharge.STREAM_CODEC));
+    public static final Supplier<DataComponentType<CardData>> CARD = REGISTER.registerComponentType(
+            "card", b -> b.persistent(CardData.CODEC).networkSynchronized(CardData.STREAM_CODEC));
+    public static final Supplier<DataComponentType<PrintData>> PRINT = REGISTER.registerComponentType(
+            "print", b -> b.persistent(PrintData.CODEC).networkSynchronized(PrintData.STREAM_CODEC).cacheEncoding());
+    public static final Supplier<DataComponentType<PaperData>> PAPER = REGISTER.registerComponentType(
+            "paper", b -> b.persistent(PaperData.CODEC).networkSynchronized(PaperData.STREAM_CODEC));
+    public static final Supplier<DataComponentType<Integer>> INK = REGISTER.registerComponentType(
+            "ink", b -> b.persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT));
+    public static final Supplier<DataComponentType<FrameData>> FRAME = REGISTER.registerComponentType(
+            "frame", b -> b.persistent(FrameData.CODEC).networkSynchronized(FrameData.STREAM_CODEC));
+
+    private RCComponents() {}
+}

@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:copper_ingot",
+      "count": 2
+    },
+    {
+      "item": "minecraft:redstone",
+      "count": 1
+    },
+    {
+      "item": "minecraft:slime_ball",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:af_motor",
+    "count": 1
+  },
+  "time": 60
+}

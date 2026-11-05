@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:gold_ingot",
+      "count": 1
+    },
+    {
+      "item": "minecraft:stick",
+      "count": 2
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 1
+    },
+    {
+      "item": "minecraft:paper",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:photo_frame",
+    "count": 1,
+    "components": {
+      "realcamera:frame": {
+        "width": 2,
+        "height": 1,
+        "material": "gold"
+      }
+    }
+  },
+  "time": 70
+}

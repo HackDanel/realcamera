@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:silicon_wafer",
+      "count": 1
+    },
+    {
+      "item": "minecraft:gold_ingot",
+      "count": 1
+    },
+    {
+      "item": "minecraft:redstone",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:cmos_sensor",
+    "count": 1
+  },
+  "time": 100
+}
