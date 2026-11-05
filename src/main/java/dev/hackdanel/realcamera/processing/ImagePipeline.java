@@ -35,11 +35,27 @@ public final class ImagePipeline {
         return out;
     }
 
+    /** Linear 0..1 -> sRGB byte, 65536 steps (fine enough near black, where sRGB is steepest). */
+    private static final byte[] LINEAR_TO_SRGB = new byte[65536];
+
+    static {
+        for (int i = 0; i < LINEAR_TO_SRGB.length; i++) {
+            LINEAR_TO_SRGB[i] = (byte) encode((i + 0.5f) / LINEAR_TO_SRGB.length);
+        }
+    }
+
+    private static int fastEncode(float v) {
+        if (!(v > 0)) return 0;
+        if (v >= 1) return 255;
+        return LINEAR_TO_SRGB[(int) (v * 65536)] & 255;
+    }
+
     public static int[] toSrgb(float[] lin) {
         int[] out = new int[lin.length / 3];
-        for (int i = 0, j = 0; i < out.length; i++, j += 3) {
-            out[i] = 0xFF000000 | (encode(lin[j]) << 16) | (encode(lin[j + 1]) << 8) | encode(lin[j + 2]);
-        }
+        java.util.stream.IntStream.range(0, out.length).parallel().forEach(i -> {
+            int j = i * 3;
+            out[i] = 0xFF000000 | (fastEncode(lin[j]) << 16) | (fastEncode(lin[j + 1]) << 8) | fastEncode(lin[j + 2]);
+        });
         return out;
     }
 
@@ -311,31 +327,33 @@ public final class ImagePipeline {
         for (int k = 1; k <= levels; k++) {
             pyr[k] = buildLevel(img, radius, w, h, k);
         }
-        float[] out = new float[img.length];
-        float[] a = new float[3];
-        float[] b = new float[3];
-        for (int y = 0; y < h; y++) {
+        float[] blurred = new float[img.length];
+        float[] src = img;
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+            float[] a = new float[3], b = new float[3]; // per row: rows run in parallel
+            float[] out = blurred, img2 = src;
             for (int x = 0; x < w; x++) {
                 int i = y * w + x;
                 float r = radius[i];
                 int j = i * 3;
                 if (r < 0.5f) {
-                    out[j] = img[j];
-                    out[j + 1] = img[j + 1];
-                    out[j + 2] = img[j + 2];
+                    out[j] = img2[j];
+                    out[j + 1] = img2[j + 1];
+                    out[j + 2] = img2[j + 2];
                     continue;
                 }
                 double lv = Math.max(0, Math.log(r) / Math.log(2) + 1); // r=1 -> level 1
                 int k0 = Math.min(levels, (int) Math.floor(lv));
                 int k1 = Math.min(levels, k0 + 1);
                 float t = (float) (lv - Math.floor(lv));
-                sampleLevel(pyr[k0], img, w, h, x, y, a);
-                sampleLevel(pyr[k1], img, w, h, x, y, b);
+                sampleLevel(pyr[k0], img2, w, h, x, y, a);
+                sampleLevel(pyr[k1], img2, w, h, x, y, b);
                 out[j] = a[0] + (b[0] - a[0]) * t;
                 out[j + 1] = a[1] + (b[1] - a[1]) * t;
                 out[j + 2] = a[2] + (b[2] - a[2]) * t;
             }
-        }
+        });
+        float[] out = blurred;
         if (p.lens().bokeh() == ImageParams.BOKEH_SWIRL) {
             out = swirl(out, radius, w, h);
         }
@@ -351,7 +369,7 @@ public final class ImagePipeline {
         double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, halfDiag = Math.hypot(cx, cy);
         float[] out = img.clone();
         int taps = 9;
-        for (int y = 0; y < h; y++) {
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             for (int x = 0; x < w; x++) {
                 int i = y * w + x;
                 double ox = x - cx, oy = y - cy;
@@ -382,7 +400,7 @@ public final class ImagePipeline {
                     out[j + 2] = img[j + 2];
                 }
             }
-        }
+        });
         return out;
     }
 
@@ -394,22 +412,24 @@ public final class ImagePipeline {
         int lh = Math.max(1, (h + scale - 1) / scale);
         float[] acc = new float[lw * lh * 4];
         float levelR = scale;
-        for (int y = 0; y < h; y++) {
-            int ly = y / scale;
-            for (int x = 0; x < w; x++) {
-                int i = y * w + x;
-                float r = radius[i];
-                // smoothstep(0.25 R, R, r): pixels sharper than this level contribute little
-                float t = clamp01((r - 0.25f * levelR) / (0.75f * levelR));
-                float wgt = 0.02f + t * t * (3 - 2 * t);
-                int li = (ly * lw + x / scale) * 4;
-                int j = i * 3;
-                acc[li] += img[j] * wgt;
-                acc[li + 1] += img[j + 1] * wgt;
-                acc[li + 2] += img[j + 2] * wgt;
-                acc[li + 3] += wgt;
+        // each level row gathers its own block of source rows, so level rows can run in parallel
+        java.util.stream.IntStream.range(0, lh).parallel().forEach(ly -> {
+            for (int y = ly * scale; y < Math.min(h, (ly + 1) * scale); y++) {
+                for (int x = 0; x < w; x++) {
+                    int i = y * w + x;
+                    float r = radius[i];
+                    // smoothstep(0.25 R, R, r): pixels sharper than this level contribute little
+                    float t = clamp01((r - 0.25f * levelR) / (0.75f * levelR));
+                    float wgt = 0.02f + t * t * (3 - 2 * t);
+                    int li = (ly * lw + x / scale) * 4;
+                    int j = i * 3;
+                    acc[li] += img[j] * wgt;
+                    acc[li + 1] += img[j + 1] * wgt;
+                    acc[li + 2] += img[j + 2] * wgt;
+                    acc[li + 3] += wgt;
+                }
             }
-        }
+        });
         tent(acc, lw, lh);
         tent(acc, lw, lh);
         float[] rgb = new float[lw * lh * 3];
@@ -425,22 +445,22 @@ public final class ImagePipeline {
     /** Separable [1 2 1]/4 blur on 4-channel data, in place. */
     private static void tent(float[] a, int w, int h) {
         float[] tmp = new float[a.length];
-        for (int y = 0; y < h; y++) {
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             for (int x = 0; x < w; x++) {
                 int l = Math.max(0, x - 1), r = Math.min(w - 1, x + 1);
                 for (int c = 0; c < 4; c++) {
                     tmp[(y * w + x) * 4 + c] = (a[(y * w + l) * 4 + c] + 2 * a[(y * w + x) * 4 + c] + a[(y * w + r) * 4 + c]) * 0.25f;
                 }
             }
-        }
-        for (int y = 0; y < h; y++) {
+        });
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             int u = Math.max(0, y - 1), d = Math.min(h - 1, y + 1);
             for (int x = 0; x < w; x++) {
                 for (int c = 0; c < 4; c++) {
                     a[(y * w + x) * 4 + c] = (tmp[(u * w + x) * 4 + c] + 2 * tmp[(y * w + x) * 4 + c] + tmp[(d * w + x) * 4 + c]) * 0.25f;
                 }
             }
-        }
+        });
     }
 
     private static void sampleLevel(Level lvl, float[] img, int w, int h, int x, int y, float[] out) {
@@ -607,12 +627,12 @@ public final class ImagePipeline {
         for (int t = 0; t < taps; t++) {
             double f = taps == 1 ? 0 : (double) t / (taps - 1) - 0.5;
             float sx = (float) (dx * f), sy = (float) (dy * f);
-            for (int y = 0; y < h; y++) {
+            java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
                 for (int x = 0; x < w; x++) {
                     int j = (y * w + x) * 3;
                     bilinearAdd(img, w, h, x + sx, y + sy, out, j, inv);
                 }
-            }
+            });
         }
         return out;
     }
@@ -636,12 +656,12 @@ public final class ImagePipeline {
             return img;
         }
         float[] out = new float[img.length];
-        for (int y = 0; y < h; y++) {
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             float shift = (float) (skewPx * ((double) y / h - 0.5));
             for (int x = 0; x < w; x++) {
                 bilinearAdd(img, w, h, x + shift, y, out, (y * w + x) * 3, 1f);
             }
-        }
+        });
         return out;
     }
 
@@ -661,7 +681,7 @@ public final class ImagePipeline {
         double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, halfDiag = Math.hypot(cx, cy);
         double caScale = ca / halfDiag; // relative magnification difference at the corner
         float[] out = new float[img.length];
-        for (int y = 0; y < h; y++) {
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             for (int x = 0; x < w; x++) {
                 double nx = (x - cx) / halfDiag, ny = (y - cy) / halfDiag;
                 double r2 = nx * nx + ny * ny;
@@ -681,7 +701,7 @@ public final class ImagePipeline {
                     out[j + 2] *= fall;
                 }
             }
-        }
+        });
         return out;
     }
 
@@ -701,7 +721,7 @@ public final class ImagePipeline {
         double beta = Math.atan2(s, f), sb = Math.sin(beta), cb = Math.cos(beta);
         double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0;
         float[] out = new float[img.length];
-        for (int y = 0; y < h; y++) {
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             double v = (y - cy) - s;
             double zr = -v * sb + f * cb, yr = v * cb + f * sb;
             for (int x = 0; x < w; x++) {
@@ -712,7 +732,7 @@ public final class ImagePipeline {
                     out[j + c] = sampleChannel(img, w, h, sx, sy, c);
                 }
             }
-        }
+        });
         return out;
     }
 
@@ -732,7 +752,7 @@ public final class ImagePipeline {
         double tanRender = Math.tan(render);
         double caScale = l.caPx() / halfDiag;
         float[] out = new float[img.length];
-        for (int y = 0; y < h; y++) {
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             for (int x = 0; x < w; x++) {
                 double nx = x - cx, ny = y - cy, rPx = Math.hypot(nx, ny);
                 int j = (y * w + x) * 3;
@@ -752,7 +772,7 @@ public final class ImagePipeline {
                     out[j + c] = sampleChannel(img, w, h, sx, sy, c) * fall;
                 }
             }
-        }
+        });
         return out;
     }
 
@@ -786,7 +806,7 @@ public final class ImagePipeline {
         double vig = l.vignettingEv() * Math.max(0, 1 - stopsDown * 0.45);
         double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, norm = cx * cx + cy * cy;
         if (vig > 0.01) {
-            for (int y = 0; y < h; y++) {
+            java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
                 for (int x = 0; x < w; x++) {
                     double r2 = ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / norm;
                     float m = (float) Math.pow(2, -vig * r2 * r2 * 0.5 - vig * r2 * 0.5);
@@ -795,7 +815,7 @@ public final class ImagePipeline {
                     img[j + 1] *= m;
                     img[j + 2] *= m;
                 }
-            }
+            });
         }
         // Softness / crispness: unsharp mask with a 3x3 box (negative amount softens).
         double amount = (l.sharpness() - 0.95) * 1.5;
@@ -810,7 +830,7 @@ public final class ImagePipeline {
 
     private static float[] box3(float[] img, int w, int h) {
         float[] out = new float[img.length];
-        for (int y = 0; y < h; y++) {
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             for (int x = 0; x < w; x++) {
                 for (int c = 0; c < 3; c++) {
                     float s = 0;
@@ -828,7 +848,7 @@ public final class ImagePipeline {
                     out[(y * w + x) * 3 + c] = s / n;
                 }
             }
-        }
+        });
         return out;
     }
 
@@ -854,7 +874,7 @@ public final class ImagePipeline {
         double diag = Math.hypot(w, h);
         boolean inFrame = Math.abs(sun.x()) <= 1 && Math.abs(sun.y()) <= 1;
         // veiling glare: stronger near the sun
-        for (int y = 0; y < h; y++) {
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             for (int x = 0; x < w; x++) {
                 double d = Math.hypot(x - sx, y - sy) / diag;
                 float g = (float) (strength * (0.012 + 0.06 * Math.exp(-d * 6)));
@@ -863,7 +883,7 @@ public final class ImagePipeline {
                 img[j + 1] += g * 0.95f;
                 img[j + 2] += g * 0.85f;
             }
-        }
+        });
         int blades = Math.max(5, p.lens().blades());
         for (int i = 0; i < GHOST_POS.length; i++) {
             double gx = cx + (sx - cx) * GHOST_POS[i], gy = cy + (sy - cy) * GHOST_POS[i];

@@ -695,5 +695,15 @@
   "realcamera.phenomenon.lightning": "Lightning",
   "realcamera.phenomenon.snowfall": "Snowfall",
   "realcamera.phenomenon.end_sky": "Sky of the End",
-  "realcamera.phenomenon.underwater": "Under water"
+  "realcamera.phenomenon.underwater": "Under water",
+  "recipe_viewer.realcamera.assembly": "Photo Workshop",
+  "recipe_viewer.realcamera.developing": "Film Development",
+  "recipe_viewer.realcamera.enlarging": "Darkroom Enlarger",
+  "recipe_viewer.realcamera.repair.shutter": "Repair: new shutter",
+  "recipe_viewer.realcamera.repair.electronics": "Repair: dries and fixes electronics",
+  "recipe_viewer.realcamera.repair.lens": "Repair: realigns the lens",
+  "recipe_viewer.realcamera.repair.filter": "Repair: new filter glass",
+  "recipe_viewer.realcamera.process.c41": "C-41 colour negative",
+  "recipe_viewer.realcamera.process.e6": "E-6 slide film",
+  "recipe_viewer.realcamera.process.bw": "Black and white"
 }

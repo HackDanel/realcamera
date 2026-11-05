@@ -19,7 +19,9 @@ The system Java may be newer than 21; Gradle downloads JDK 21 itself (foojay too
   in the NeoForge unit-test environment, the project dir comes in as `realcamera.projectDir`
 - single test: `./gradlew test --tests 'dev.hackdanel.realcamera.processing.ImagePipelineTest'` (append `.methodName` for one method)
 - `./gradlew runClient` / `runClient2` (second client, nick Player2) / `runServer` (the owner must set `eula=true` in `run/eula.txt` themselves — do not do it for them)
-- `./gradlew runClientAutotest -Pautotest=stage1|stage2|stage3|stage4|stage5|stage6|stage7` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
+- `./gradlew runClientAutotest -Pautotest=stage1|…|stage7`, and `-Pautotest=stage8 -Pviewer=jei|emi|rei` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
+- `-Pviewer=jei|emi|rei` puts that recipe viewer on the dev runtime classpath (any run task); plugins live in
+  `client/compat/` and share `RecipeViews`
 - `-PcaptureWarmup=N` changes warm-up frames for capture in the autotest run; `-PnoShaders` skips copying Sodium/Iris into run dirs. Iris shaders on/off for the autotest: `run-autotest/config/iris.properties`.
 
 Generators (run from the repo root; their output is overwritten every run, so edit the generator, not the output):
@@ -112,6 +114,7 @@ axis; 1 model unit ≈ 9 mm, shared mount point in `tools/gen_assets.py`).
 - Sodium 0.8 is jar-in-jar and breaks on the dev classpath: Sodium/Iris come from the `devMods`
   configuration copied into each run dir's `mods/`.
 - A record component cannot be named `wait` (clashes with `Object.wait()`).
+- The pipeline's row loops run as parallel streams: no shared scratch arrays inside them (allocate per row).
 - Model elements must stay inside -16..32 and rotate only by ±22.5/45° on one axis: `cylinder()` in gen_assets builds a
   16-sided prism from 8 rotated spokes; very long lenses are shortened to 24.5 units.
 - The depth map comes from ray casts against entity bounding boxes, not the rendered model: wide-open portraits get a

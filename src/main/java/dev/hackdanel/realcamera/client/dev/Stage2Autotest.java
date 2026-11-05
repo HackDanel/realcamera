@@ -311,7 +311,11 @@ public final class Stage2Autotest {
         lower();
 
         // 9) sun flare: low morning sun in the east, stopped down
-        step("morning", () -> server(p -> cmd(p, "time set 3000")), 40);
+        step("morning", () -> server(p -> {
+            cmd(p, "time set 3000");
+            // the spawn point varies within the spawn radius: clear the eastern sky so terrain never hides the sun
+            cmd(p, "fill ~ ~ ~-10 ~30 ~30 ~10 minecraft:air");
+        }), 40);
         look(-90, -40);
         camera("sony_a7iv", "sony_fe_28_70_oss", null, null, s -> s.withMode(CameraSettings.MODE_A)
                 .withApertureIndex(ExposureScales.nearestAperture(11)).withFocal(28).withFocusMode(CameraSettings.FOCUS_MF)

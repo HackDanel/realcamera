@@ -27,6 +27,13 @@ repositories {
         }
         filter { includeGroup 'maven.modrinth' }
     }
+    // recipe viewers: JEI, EMI, REI (+ REI's libraries)
+    maven { name = 'BlameJared'; url = 'https://maven.blamejared.com' ; content { includeGroup 'mezz.jei'; includeGroupByRegex 'net[.]mezzdev.*' } }
+    maven { name = 'TerraformersMC'; url = 'https://maven.terraformersmc.com/releases' ; content { includeGroup 'dev.emi' } }
+    maven { name = 'shedaniel'; url = 'https://maven.shedaniel.me'
+        content { includeGroup 'me.shedaniel'; includeGroup 'me.shedaniel.cloth'; includeGroup 'dev.architectury' } }
+    maven { name = 'architectury'; url = 'https://maven.architectury.dev'
+        content { includeGroup 'dev.architectury' } }
 }
 
 base {
@@ -63,6 +70,7 @@ neoForge {
             gameDirectory = project.file('run-autotest')
             systemProperty 'realcamera.autotest', project.findProperty('autotest') ?: 'stage1'
             systemProperty 'realcamera.fastLab', 'true'
+            systemProperty 'realcamera.viewer', project.findProperty('viewer') ?: ''
             systemProperty 'realcamera.debugDumps', 'true'
             systemProperty 'realcamera.captureWarmup', project.findProperty('captureWarmup') ?: '1'
             programArguments.addAll '--width', '1280', '--height', '720'
@@ -118,6 +126,21 @@ dependencies {
     devMods "maven.modrinth:sodium:${sodium_version}"
     devMods "maven.modrinth:iris:${iris_version}"
 
+    // Recipe viewer plugins (compat/): compiled against the APIs, loaded only when the viewer is installed.
+    compileOnly "mezz.jei:jei-1.21.1-common-api:${jei_version}"
+    compileOnly "mezz.jei:jei-1.21.1-neoforge-api:${jei_version}"
+    compileOnly "dev.emi:emi-neoforge:${emi_version}:api"
+    compileOnly "me.shedaniel:RoughlyEnoughItems-api-neoforge:${rei_version}"
+    compileOnly "me.shedaniel:RoughlyEnoughItems-default-plugin-neoforge:${rei_version}"
+    // Try one in dev with -Pviewer=jei|emi|rei (e.g. ./gradlew runClient -Pviewer=jei)
+    if (project.findProperty('viewer') == 'jei') {
+        localRuntime "mezz.jei:jei-1.21.1-neoforge:${jei_version}"
+    } else if (project.findProperty('viewer') == 'emi') {
+        localRuntime "dev.emi:emi-neoforge:${emi_version}"
+    } else if (project.findProperty('viewer') == 'rei') {
+        localRuntime "me.shedaniel:RoughlyEnoughItems-neoforge:${rei_version}"
+    }
+
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -127,6 +150,7 @@ test {
     useJUnitPlatform()
     // unit tests run inside a game environment with its own working directory
     systemProperty 'realcamera.projectDir', projectDir.absolutePath
+    maxHeapSize = '3g' // the 4K pipeline benchmark
 }
 
 // Copy Sodium + Iris into every client run directory. Skip with -PnoShaders (then delete the jars

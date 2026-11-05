@@ -62,6 +62,9 @@ def stage6_catalog():
         ing = [housing[tier]]
         if "film" in spec:
             ing += [(rc("shutter_unit"), 1), (rc("aperture_blades"), 1), (mc("iron_ingot"), 2)]
+            # classic film cameras are precision mechanics: the better ones cost real gold and diamonds
+            ing += {"entry": [], "mid": [(mc("gold_ingot"), 2)], "pro": [(mc("diamond"), 1)],
+                    "flagship": [(mc("gold_ingot"), 3), (mc("diamond"), 2)]}[tier]
             if not spec["film"]["mechanical"]:
                 ing.append((rc("circuit_board"), 1))
             if spec["af"]["speed"] > 0:
@@ -88,8 +91,11 @@ def stage6_catalog():
         spec, tier = l["spec"], l["tier"]
         elements = 3 + (2 if l["zoom"] else 0) + (2 if spec["aperture_wide"] <= 1.8 else 0) + (2 if spec["focal_max"] >= 300 else 0)
         ing = [(rc("lens_element"), elements), (rc("aperture_blades"), 1)]
-        if tier in ("pro", "flagship"):
+        if tier == "pro":
             ing.append((rc("ed_lens_element"), 2 if spec["focal_max"] < 300 else 4))
+        elif tier == "flagship":
+            # hand-made glass: many exotic elements and a precious barrel instead of motors
+            ing += [(rc("ed_lens_element"), 4), (mc("gold_ingot"), 2)]
         if spec["af"]["motor"] != "none":
             ing.append((rc("af_motor"), 1))
         if spec["ois_stops"] > 0:

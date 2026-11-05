@@ -617,7 +617,7 @@ def ring_part(name, folder, length_units, radius, colour):
         els = cylinder(cx, cy, z_back - length_units, z_back, radius, R["side"], cap_front=R["dark"], cap_back=R["dark"])
         els += cylinder(cx, cy, z_back - 0.4, z_back, radius * 0.8, R["metal"])
         return els
-    save_json(model(tex, build(8, 8, 8 + length_units / 2), LENS_DISPLAY), f"models/item/{folder}", name + ".json")
+    save_json(model(tex, build(8, 8, 8 + length_units / 2), lens_display(length_units, radius)), f"models/item/{folder}", name + ".json")
     save_json(model(tex, build(MOUNT_X, MOUNT_Y, MOUNT_Z)), f"models/item/{folder}", name + "_mounted.json")
 
 
@@ -807,11 +807,14 @@ MAX_LENS_UNITS = 24.5  # model elements must stay inside -16..32; the longest te
 
 def lens_display(length, radius):
     """Long lenses are drawn smaller in the inventory and in hand so they fit the slot."""
-    k = min(1.0, 13.0 / max(length, 2 * radius, 1))
+    fit = 13.0 / max(length, 2 * radius, 1)
     out = json.loads(json.dumps(LENS_DISPLAY))
     for key, v in out.items():
-        if key != "ground":
-            v["scale"] = [round(x * k, 3) for x in v["scale"]]
+        if key == "ground":
+            continue
+        # small parts (adapters, pancakes) are drawn bigger in slots and frames, never bigger in hand
+        k = min(1.8, fit) if key in ("gui", "fixed") else min(1.0, fit)
+        v["scale"] = [round(x * k, 3) for x in v["scale"]]
     return out
 
 
