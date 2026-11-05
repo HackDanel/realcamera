@@ -322,13 +322,22 @@ def main():
         assembly(f"battery_{bat}", mats, rc("battery"), 1, 60,
                  {f"{NS}:battery_type": rc(bat), f"{NS}:charge": {"charge": cap, "capacity": cap}})
     stage6_catalog()
+    # --- stage 7: encyclopedia and the newspaper
+    save("editorial_desk", {"type": "minecraft:crafting_shaped", "category": "misc",
+                            "pattern": ["PBP", "SSS", "S S"],
+                            "key": {"P": {"item": mc("paper")}, "B": {"item": mc("ink_sac")}, "S": {"tag": mc("planks")}},
+                            "result": {"id": rc("editorial_desk"), "count": 1}})
+    save("field_journal", {"type": "minecraft:crafting_shapeless", "category": "misc",
+                           "ingredients": [{"item": mc("book")}, {"item": mc("ink_sac")}, {"item": mc("feather")},
+                                           {"item": mc("leather")}],
+                           "result": {"id": rc("field_journal"), "count": 1}})
     print(len(os.listdir(OUT)), "recipes written")
 
     # --- block loot tables (each block drops itself; the photo stand only from its lower half)
     shutil.rmtree(LOOT, ignore_errors=True)
     os.makedirs(LOOT)
     for block in ("assembly_station", "battery_charger", "photo_printer", "computer", "table_frame", "photo_stand",
-                  "developing_tank", "enlarger", "safelight"):
+                  "developing_tank", "enlarger", "safelight", "editorial_desk"):
         entry = {"type": "minecraft:item", "name": rc(block)}
         pool = {"rolls": 1, "entries": [entry], "conditions": [{"condition": "minecraft:survives_explosion"}]}
         if block == "photo_stand":

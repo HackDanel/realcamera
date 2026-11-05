@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "realcamera:block/editorial_desk"
+    },
+    "facing=east": {
+      "model": "realcamera:block/editorial_desk",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "realcamera:block/editorial_desk",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "realcamera:block/editorial_desk",
+      "y": 270
+    }
+  }
+}

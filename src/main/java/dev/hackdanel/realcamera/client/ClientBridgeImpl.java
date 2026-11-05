@@ -49,12 +49,18 @@ final class ClientBridgeImpl implements ClientBridge {
     }
 
     @Override
+    public void openJournal() {
+        Minecraft.getInstance().setScreen(new dev.hackdanel.realcamera.client.screen.JournalScreen());
+    }
+
+    @Override
     public void handlePayload(CustomPacketPayload payload) {
         switch (payload) {
             case Payloads.UploadStatus s -> PhotoUploader.onStatus(s);
             case Payloads.PhotoData d -> PhotoCache.onData(d);
             case Payloads.PhotoGone g -> PhotoCache.onGone(g.id());
             case Payloads.CardContents c -> CardListings.onContents(c);
+            case Payloads.JournalSync j -> dev.hackdanel.realcamera.client.screen.JournalScreen.onSync(j);
             case Payloads.ViewPhoto v -> Minecraft.getInstance().setScreen(
                     new PrintViewerScreen(new PrintData(v.meta(), "10x15", "glossy", 0, "")));
             case Payloads.OpenLecternAlbum a -> Minecraft.getInstance().setScreen(

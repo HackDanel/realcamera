@@ -97,6 +97,12 @@ neoForge {
             sourceSet(sourceSets.main)
         }
     }
+
+    // JUnit with the game's classes and libraries on the classpath (records with codecs, PhotoMeta …)
+    unitTest {
+        enable()
+        testedMod = mods."${mod_id}"
+    }
 }
 
 // 'localRuntime' = present only when running from dev, never a published dependency.
@@ -115,12 +121,12 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    // the processing package uses Gson (RAW sidecars); the game ships 2.11.0
-    testImplementation 'com.google.code.gson:gson:2.11.0'
 }
 
 test {
     useJUnitPlatform()
+    // unit tests run inside a game environment with its own working directory
+    systemProperty 'realcamera.projectDir', projectDir.absolutePath
 }
 
 // Copy Sodium + Iris into every client run directory. Skip with -PnoShaders (then delete the jars

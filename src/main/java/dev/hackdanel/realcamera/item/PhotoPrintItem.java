@@ -39,10 +39,39 @@ public class PhotoPrintItem extends Item {
 
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> lines, TooltipFlag flag) {
+        dev.hackdanel.realcamera.component.Commission order = stack.get(RCComponents.COMMISSION.get());
+        if (order != null) {
+            // the cost item of a newspaper order: say what picture is wanted
+            lines.add(Component.translatable("tooltip.realcamera.commission").withStyle(ChatFormatting.GOLD));
+            order.entity().ifPresent(e -> lines.add(Component.literal(" • ").append(
+                    dev.hackdanel.realcamera.gameplay.PhotoEvents.pageName("creature/" + e)).withStyle(ChatFormatting.WHITE)));
+            order.biome().ifPresent(b -> lines.add(Component.literal(" • ").append(Component.translatable("tooltip.realcamera.commission.in",
+                    dev.hackdanel.realcamera.gameplay.PhotoEvents.pageName("biome/" + b))).withStyle(ChatFormatting.WHITE)));
+            order.phenomenon().ifPresent(p -> lines.add(Component.literal(" • ").append(
+                    dev.hackdanel.realcamera.gameplay.PhotoEvents.pageName("phenomenon/" + p)).withStyle(ChatFormatting.WHITE)));
+            lines.add(Component.translatable("tooltip.realcamera.commission.stars", "★".repeat(order.minStars()))
+                    .withStyle(ChatFormatting.YELLOW));
+        }
         PrintData print = stack.get(RCComponents.PRINT.get());
         if (print == null) {
             return;
         }
+        print.photo().analysis().ifPresent(a -> {
+            lines.add(Component.literal("★".repeat(a.stars()) + "☆".repeat(3 - a.stars()) + "  ")
+                    .append(Component.translatable("tooltip.realcamera.quality", a.quality())).withStyle(ChatFormatting.YELLOW));
+            List<Component> seen = new java.util.ArrayList<>();
+            a.subjects().stream().filter(s -> s.inFocus() && s.area() >= 0.01f).map(s -> s.type()).distinct().limit(3)
+                    .forEach(t -> seen.add(dev.hackdanel.realcamera.gameplay.PhotoEvents.pageName("creature/" + t)));
+            a.phenomena().stream().limit(2).forEach(p -> seen.add(dev.hackdanel.realcamera.gameplay.PhotoEvents.pageName("phenomenon/" + p)));
+            if (!seen.isEmpty()) {
+                net.minecraft.network.chat.MutableComponent line = Component.empty();
+                for (int i = 0; i < seen.size(); i++) {
+                    if (i > 0) line.append(", ");
+                    line.append(seen.get(i));
+                }
+                lines.add(line.withStyle(ChatFormatting.GRAY));
+            }
+        });
         if (!print.caption().isEmpty()) {
             lines.add(Component.literal("«" + print.caption() + "»").withStyle(ChatFormatting.WHITE));
         }

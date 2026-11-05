@@ -10,7 +10,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 @EventBusSubscriber(modid = RealCamera.MODID)
 public final class RCNetwork {
-    public static final String VERSION = "3";
+    public static final String VERSION = "4";
 
     private RCNetwork() {}
 
@@ -47,6 +47,7 @@ public final class RCNetwork {
         r.playToClient(Payloads.PhotoData.TYPE, Payloads.PhotoData.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.PhotoGone.TYPE, Payloads.PhotoGone.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.ViewPhoto.TYPE, Payloads.ViewPhoto.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
+        r.playToClient(Payloads.JournalSync.TYPE, Payloads.JournalSync.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.CardContents.TYPE, Payloads.CardContents.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
     }
 }

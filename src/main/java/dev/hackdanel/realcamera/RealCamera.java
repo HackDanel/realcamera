@@ -38,6 +38,10 @@ public final class RealCamera {
         RCSounds.REGISTER.register(modBus);
         RCCreativeTab.REGISTER.register(modBus);
         dev.hackdanel.realcamera.gameplay.AddItemsLootModifier.REGISTER.register(modBus);
+        dev.hackdanel.realcamera.gameplay.Journal.REGISTER.register(modBus);
+        dev.hackdanel.realcamera.gameplay.RCTriggers.REGISTER.register(modBus);
+        dev.hackdanel.realcamera.gameplay.NewspaperEditor.POI.register(modBus);
+        dev.hackdanel.realcamera.gameplay.NewspaperEditor.PROFESSIONS.register(modBus);
     }
 
     public static ResourceLocation id(String path) {

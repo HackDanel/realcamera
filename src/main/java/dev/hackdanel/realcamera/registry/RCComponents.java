@@ -58,6 +58,9 @@ public final class RCComponents {
     public static final Supplier<DataComponentType<dev.hackdanel.realcamera.component.CameraWear>> WEAR = REGISTER.registerComponentType(
             "wear", b -> b.persistent(dev.hackdanel.realcamera.component.CameraWear.CODEC)
                     .networkSynchronized(dev.hackdanel.realcamera.component.CameraWear.STREAM_CODEC));
+    public static final Supplier<DataComponentType<dev.hackdanel.realcamera.component.Commission>> COMMISSION = REGISTER.registerComponentType(
+            "commission", b -> b.persistent(dev.hackdanel.realcamera.component.Commission.CODEC)
+                    .networkSynchronized(dev.hackdanel.realcamera.component.Commission.STREAM_CODEC));
     /** Lens decentring after a fall (0 = fine .. 1 = badly knocked), cracked filter glass, etc. */
     public static final Supplier<DataComponentType<Float>> DAMAGE = REGISTER.registerComponentType(
             "damage", b -> b.persistent(Codec.FLOAT).networkSynchronized(ByteBufCodecs.FLOAT));

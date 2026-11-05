@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:map"
+    },
+    "title": {
+      "translate": "advancements.realcamera.medium_format.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.medium_format.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "flag": "medium_format"
+      }
+    }
+  },
+  "parent": "realcamera:darkroom"
+}

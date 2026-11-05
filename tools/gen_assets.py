@@ -1230,6 +1230,80 @@ def stage5_assets():
 
 # ----------------------------------------------------------------------------- sounds
 
+def stage7_assets():
+    """Editorial desk (newspaper editor's job site), field journal, the editor's villager outfit."""
+    b = f"{NS}:block/"
+    wood = Image.new("RGBA", (16, 16))
+    noise_fill(wood, (0, 0, 16, 16), (122, 86, 52), 8, seed=71)
+    for y in (3, 8, 13):
+        ImageDraw.Draw(wood).line([(0, y), (15, y)], fill=(100, 68, 40, 255))
+    save_png(wood, "textures/block", "editorial_desk_wood.png")
+    top = Image.new("RGBA", (16, 16))
+    noise_fill(top, (0, 0, 16, 16), (60, 92, 64), 5, seed=72)   # green leather writing surface
+    ImageDraw.Draw(top).rectangle([0, 0, 15, 15], outline=(122, 86, 52, 255))
+    save_png(top, "textures/block", "editorial_desk_top.png")
+    metal = Image.new("RGBA", (16, 16))
+    noise_fill(metal, (0, 0, 16, 16), (36, 36, 38), 5, seed=73)
+    for x in range(2, 14, 2):
+        for y in (9, 11, 13):
+            metal.putpixel((x, y), (200, 200, 190, 255))     # typewriter keys
+    save_png(metal, "textures/block", "editorial_desk_typewriter.png")
+    paper = Image.new("RGBA", (16, 16))
+    noise_fill(paper, (0, 0, 16, 16), (236, 232, 220), 3, seed=74)
+    for y in range(2, 15, 2):
+        ImageDraw.Draw(paper).line([(2, y), (13, y)], fill=(120, 118, 112, 255))
+    ImageDraw.Draw(paper).rectangle([2, 2, 7, 6], fill=(70, 70, 70, 255))  # a photo on the front page
+    save_png(paper, "textures/block", "editorial_desk_paper.png")
+
+    def bx(frm, to, tex, up=None):
+        faces = {f: {"texture": tex} for f in ("north", "south", "east", "west", "up", "down")}
+        if up:
+            faces["up"] = {"texture": up}
+        return {"from": frm, "to": to, "faces": faces}
+    els = [bx([0, 12, 0], [16, 15, 16], "#w", "#t"),
+           bx([1, 0, 1], [3, 12, 3], "#w"), bx([13, 0, 1], [15, 12, 3], "#w"),
+           bx([1, 0, 13], [3, 12, 15], "#w"), bx([13, 0, 13], [15, 12, 15], "#w"),
+           bx([3, 8, 2], [13, 12, 3], "#w"),
+           bx([3.5, 15, 4], [10.5, 17.5, 10], "#k"),
+           bx([4.5, 17.5, 8.5], [9.5, 21, 9], "#p"),
+           bx([11.5, 15, 3], [15, 16.4, 7.5], "#p")]
+    save_json({"parent": "minecraft:block/block",
+               "textures": {"particle": b + "editorial_desk_wood", "w": b + "editorial_desk_wood", "t": b + "editorial_desk_top",
+                            "k": b + "editorial_desk_typewriter", "p": b + "editorial_desk_paper"},
+               "elements": els}, "models/block", "editorial_desk.json")
+    v = {}
+    for f, y in (("north", 0), ("east", 90), ("south", 180), ("west", 270)):
+        v[f"facing={f}"] = {"model": f"{NS}:block/editorial_desk", **({"y": y} if y else {})}
+    save_json({"variants": v}, "blockstates", "editorial_desk.json")
+    save_json({"parent": f"{NS}:block/editorial_desk"}, "models/item", "editorial_desk.json")
+
+    def journal_icon(img, d):
+        outline_rect(d, [3, 1, 13, 14], rgba("#6b4a2a"), rgba("#3a2814"))
+        d.rectangle([3, 1, 4, 14], fill=rgba("#4a3018"))
+        d.rectangle([6, 5, 11, 9], fill=rgba("#222222"))       # camera emblem
+        d.ellipse([7, 6, 10, 9], fill=rgba("#9fd3ea"))
+        d.rectangle([7, 4, 8, 5], fill=rgba("#222222"))
+        d.line([(12, 2), (12, 13)], fill=rgba("#e8e2d0"))       # page edges
+    icon(journal_icon, "field_journal")
+
+    # villager profession overlay (64x64, villager model UV layout): green visor cap, tweed waistcoat, press card
+    t = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    d = ImageDraw.Draw(t)
+    cap, cap_dark = (46, 104, 70, 255), (30, 74, 48, 255)
+    d.rectangle([40, 0, 47, 7], fill=cap)                       # hat layer top
+    for x0 in (32, 40, 48, 56):                                  # hat layer band on all four sides
+        d.rectangle([x0, 8, x0 + 7, 9], fill=cap_dark)
+    d.rectangle([40, 10, 47, 10], fill=(20, 54, 34, 200))       # visor shadow on the forehead
+    tweed = (112, 96, 74, 255)
+    for x0, x1 in ((0, 5), (6, 13), (14, 19), (20, 27)):        # jacket layer: waistcoat down to the hips
+        noise_fill(t, (x0, 44, x1 + 1, 57), tweed[:3], 10, seed=75 + x0)
+    d.rectangle([9, 44, 10, 56], fill=(232, 230, 222, 255))     # shirt between the lapels
+    d.rectangle([9, 45, 10, 47], fill=(150, 30, 30, 255))       # tie
+    d.rectangle([11, 47, 13, 49], fill=(240, 240, 240, 255))    # press card
+    d.point((12, 48), fill=(200, 30, 30, 255))
+    save_png(t, "textures/entity/villager/profession", "newspaper_editor.png")
+
+
 def stage6_assets():
     """Models and textures for the full catalog (tools/catalog.py)."""
     import sys
@@ -1473,6 +1547,7 @@ def main():
     stage4_assets()
     stage5_assets()
     stage6_assets()
+    stage7_assets()
     print_model()
     sounds()
     print("assets written to", os.path.relpath(ASSETS, ROOT))

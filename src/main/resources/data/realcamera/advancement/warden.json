@@ -1,0 +1,31 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:sculk_shrieker"
+    },
+    "title": {
+      "translate": "advancements.realcamera.warden.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.warden.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "entity": "minecraft:warden",
+        "min_stars": 3,
+        "flag": "electronic"
+      }
+    }
+  },
+  "parent": "realcamera:three_stars",
+  "rewards": {
+    "experience": 100
+  }
+}

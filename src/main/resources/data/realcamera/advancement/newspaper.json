@@ -1,0 +1,27 @@
+{
+  "display": {
+    "icon": {
+      "id": "realcamera:editorial_desk"
+    },
+    "title": {
+      "translate": "advancements.realcamera.newspaper.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.newspaper.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:event",
+      "conditions": {
+        "event": "commissions",
+        "min": 1
+      }
+    }
+  },
+  "parent": "realcamera:first_print"
+}

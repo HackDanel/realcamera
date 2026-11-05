@@ -1,0 +1,30 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:player_head"
+    },
+    "title": {
+      "translate": "advancements.realcamera.portrait.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.portrait.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "entity": "minecraft:villager",
+        "min_stars": 3,
+        "shot": {
+          "max_aperture": 2.0
+        }
+      }
+    }
+  },
+  "parent": "realcamera:three_stars"
+}

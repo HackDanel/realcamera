@@ -20,6 +20,8 @@ public interface ClientBridge {
 
     default void openContactSheet(ItemStack roll) {}
 
+    default void openJournal() {}
+
     /** Server -> client payloads are dispatched here so common code never references client classes. */
     default void handlePayload(CustomPacketPayload payload) {}
 

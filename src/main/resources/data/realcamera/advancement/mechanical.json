@@ -1,0 +1,30 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:clock"
+    },
+    "title": {
+      "translate": "advancements.realcamera.mechanical.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.mechanical.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:event",
+      "conditions": {
+        "event": "shutter_count",
+        "min": 100000
+      }
+    }
+  },
+  "parent": "realcamera:root",
+  "rewards": {
+    "experience": 100
+  }
+}

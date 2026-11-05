@@ -15,10 +15,11 @@ published. The owner is not a programmer; Claude writes all code and assets. The
 The system Java may be newer than 21; Gradle downloads JDK 21 itself (foojay toolchain).
 
 - `./gradlew build` — jar in `build/libs/`
-- `./gradlew test` — JUnit tests (pure-Java optics and image pipeline)
+- `./gradlew test` — JUnit tests (pure-Java optics and image pipeline, catalog consistency, analysis records); they run
+  in the NeoForge unit-test environment, the project dir comes in as `realcamera.projectDir`
 - single test: `./gradlew test --tests 'dev.hackdanel.realcamera.processing.ImagePipelineTest'` (append `.methodName` for one method)
 - `./gradlew runClient` / `runClient2` (second client, nick Player2) / `runServer` (the owner must set `eula=true` in `run/eula.txt` themselves — do not do it for them)
-- `./gradlew runClientAutotest -Pautotest=stage1|stage2|stage3|stage4|stage5|stage6` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
+- `./gradlew runClientAutotest -Pautotest=stage1|stage2|stage3|stage4|stage5|stage6|stage7` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
 - `-PcaptureWarmup=N` changes warm-up frames for capture in the autotest run; `-PnoShaders` skips copying Sodium/Iris into run dirs. Iris shaders on/off for the autotest: `run-autotest/config/iris.properties`.
 
 Generators (run from the repo root; their output is overwritten every run, so edit the generator, not the output):
@@ -29,6 +30,7 @@ Generators (run from the repo root; their output is overwritten every run, so ed
   teleconverters, batteries, cards) → registry JSON + en/ru names. `gen_assets.py` and `gen_recipes.py` read the same
   file for models (body `style`, lens `look`) and recipes (tier/kind). Earlier-stage entries are hand-written JSON.
 - `python3 tools/gen_loot.py` — structure loot (`realcamera:add_items` global loot modifiers)
+- `python3 tools/gen_advancements.py` — the advancement tab + its en/ru names
 Run order after editing the catalog: gen_catalog → gen_assets → gen_recipes. `CatalogTest` checks references, flange
 rule for adapters, models, names and recipes.
 
@@ -82,6 +84,13 @@ dispatched via `ClientBridge.handlePayload`.
    (`PhotoMeta.editedFrom`). Files are removed only when no card references them and they were never printed.
 8. Clients show photos via `client/photo/PhotoCache` (LRU GL textures + per-server disk cache): prints
    (`PrintItemRenderer` BEWLR), wall frames (`PhotoFrameRenderer`), playback/printer screens.
+
+9. Game goals: the `Shutter` packet carries a `ShotInfo` (nonce); `analysis/FrameAnalyzer` analyses the frame on the
+   server from its own world state and the result waits by nonce for the upload (`PhotoMeta.analysis`).
+   `gameplay/PhotoEvents.photoStored` (digital: on store; film: on development) feeds the encyclopedia
+   (`gameplay/Journal`, player attachment, synced with `JournalSync`) and the advancement triggers
+   (`gameplay/RCTriggers`); other deeds go through `PhotoEvents.count/event`. Newspaper orders: `component/Commission`
+   on a trade cost, matched by `mixin/ItemCostMixin` (the only mixin).
 
 Network messages identify a camera with `camera/CameraRef` (a hand or a tripod entity id); the server
 resolves it with `ServerPhotoService.resolve`, mutates the stack and must call the handle's `commit()`

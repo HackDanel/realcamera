@@ -116,6 +116,9 @@ public class PhotoFrameEntity extends HangingEntity {
         if (print().isEmpty() && held.getItem() instanceof PhotoPrintItem && held.has(RCComponents.PRINT.get())) {
             if (!level().isClientSide) {
                 entityData.set(PRINT, held.copyWithCount(1));
+                if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                    dev.hackdanel.realcamera.gameplay.PhotoEvents.count(sp, "frames_hung");
+                }
                 held.consume(1, player);
                 playSound(SoundEvents.ITEM_FRAME_ADD_ITEM, 1f, 1f);
             }

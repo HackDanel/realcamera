@@ -104,6 +104,9 @@ public final class RCItems {
     public static final DeferredItem<BlockItem> DEVELOPING_TANK = REGISTER.registerSimpleBlockItem(RCBlocks.DEVELOPING_TANK);
     public static final DeferredItem<BlockItem> ENLARGER = REGISTER.registerSimpleBlockItem(RCBlocks.ENLARGER);
     public static final DeferredItem<BlockItem> SAFELIGHT = REGISTER.registerSimpleBlockItem(RCBlocks.SAFELIGHT);
+    public static final DeferredItem<BlockItem> EDITORIAL_DESK = REGISTER.registerSimpleBlockItem(RCBlocks.EDITORIAL_DESK);
+    public static final DeferredItem<dev.hackdanel.realcamera.item.FieldJournalItem> FIELD_JOURNAL = REGISTER.register("field_journal",
+            () -> new dev.hackdanel.realcamera.item.FieldJournalItem(new Item.Properties()));
     public static final DeferredItem<Item> CFEXPRESS_READER = REGISTER.registerSimpleItem("cfexpress_reader",
             new Item.Properties().stacksTo(1));
     public static final DeferredItem<dev.hackdanel.realcamera.item.PhotoAlbumItem> PHOTO_ALBUM = REGISTER.register("photo_album",

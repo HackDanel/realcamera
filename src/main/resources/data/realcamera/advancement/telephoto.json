@@ -1,0 +1,28 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:spyglass"
+    },
+    "title": {
+      "translate": "advancements.realcamera.telephoto.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.telephoto.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "shot": {
+          "min_distance": 150
+        }
+      }
+    }
+  },
+  "parent": "realcamera:root"
+}

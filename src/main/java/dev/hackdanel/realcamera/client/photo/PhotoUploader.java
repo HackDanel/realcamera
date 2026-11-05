@@ -27,8 +27,8 @@ public final class PhotoUploader {
     private PhotoUploader() {}
 
     public static void upload(dev.hackdanel.realcamera.camera.CameraRef hand, PhotoMeta meta, byte[] jpeg, int quality,
-                              int format, boolean film, java.util.function.Consumer<UUID> onStored) {
-        queue.addLast(new Job(nextId++, id -> new Payloads.UploadBegin(id, hand, meta, jpeg.length, quality, format),
+                              int format, boolean film, int shotNonce, java.util.function.Consumer<UUID> onStored) {
+        queue.addLast(new Job(nextId++, id -> new Payloads.UploadBegin(id, hand, meta, jpeg.length, quality, format, shotNonce),
                 jpeg, onStored, key -> {}, !film));
         pump();
     }

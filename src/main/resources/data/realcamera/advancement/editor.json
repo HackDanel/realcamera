@@ -1,0 +1,27 @@
+{
+  "display": {
+    "icon": {
+      "id": "realcamera:computer"
+    },
+    "title": {
+      "translate": "advancements.realcamera.editor.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.editor.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:event",
+      "conditions": {
+        "event": "edits",
+        "min": 1
+      }
+    }
+  },
+  "parent": "realcamera:root"
+}

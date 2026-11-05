@@ -49,11 +49,33 @@ public final class Payloads {
      * The shutter fired: drain battery, count the actuation (mechanical/EFCS) and play the sound to
      * everyone else (not for the silent electronic shutter).
      */
-    public record Shutter(CameraRef ref, int shutterType, boolean flash) implements CustomPacketPayload {
+    /**
+     * What only the client knows about a release, for the server's frame analysis: a nonce that ties the later upload
+     * to it, focal length, f-number, shutter (s, -1 = bulb), ISO, focus distance, exposure error (EV) and motion blur
+     * (fraction of the frame width).
+     */
+    public record ShotInfo(int nonce, float focal, float fNumber, float shutter, int iso, float focusM, float exposureEv,
+                           float blur) {
+        public static final StreamCodec<ByteBuf, ShotInfo> CODEC = new StreamCodec<>() {
+            @Override
+            public ShotInfo decode(ByteBuf b) {
+                return new ShotInfo(b.readInt(), b.readFloat(), b.readFloat(), b.readFloat(), b.readInt(), b.readFloat(),
+                        b.readFloat(), b.readFloat());
+            }
+
+            @Override
+            public void encode(ByteBuf b, ShotInfo s) {
+                b.writeInt(s.nonce).writeFloat(s.focal).writeFloat(s.fNumber).writeFloat(s.shutter).writeInt(s.iso)
+                        .writeFloat(s.focusM).writeFloat(s.exposureEv).writeFloat(s.blur);
+            }
+        };
+    }
+
+    public record Shutter(CameraRef ref, int shutterType, boolean flash, ShotInfo info) implements CustomPacketPayload {
         public static final Type<Shutter> TYPE = Payloads.newType("shutter");
         public static final StreamCodec<ByteBuf, Shutter> CODEC = StreamCodec.composite(
                 CameraRef.STREAM_CODEC, Shutter::ref, ByteBufCodecs.VAR_INT, Shutter::shutterType, ByteBufCodecs.BOOL,
-                Shutter::flash, Shutter::new);
+                Shutter::flash, ShotInfo.CODEC, Shutter::info, Shutter::new);
 
         @Override
         public Type<Shutter> type() {
@@ -62,17 +84,28 @@ public final class Payloads {
     }
 
     /** quality/format decide how much card space the shot takes (the in-game copy is always a small JPEG). */
-    public record UploadBegin(int requestId, CameraRef ref, PhotoMeta meta, int totalBytes, int quality, int format)
-            implements CustomPacketPayload {
+    public record UploadBegin(int requestId, CameraRef ref, PhotoMeta meta, int totalBytes, int quality, int format,
+                              int shotNonce) implements CustomPacketPayload {
         public static final Type<UploadBegin> TYPE = Payloads.newType("upload_begin");
-        public static final StreamCodec<ByteBuf, UploadBegin> CODEC = StreamCodec.composite(
-                ByteBufCodecs.VAR_INT, UploadBegin::requestId,
-                CameraRef.STREAM_CODEC, UploadBegin::ref,
-                PhotoMeta.STREAM_CODEC, UploadBegin::meta,
-                ByteBufCodecs.VAR_INT, UploadBegin::totalBytes,
-                ByteBufCodecs.VAR_INT, UploadBegin::quality,
-                ByteBufCodecs.VAR_INT, UploadBegin::format,
-                UploadBegin::new);
+        public static final StreamCodec<ByteBuf, UploadBegin> CODEC = new StreamCodec<>() {
+            @Override
+            public UploadBegin decode(ByteBuf b) {
+                return new UploadBegin(ByteBufCodecs.VAR_INT.decode(b), CameraRef.STREAM_CODEC.decode(b),
+                        PhotoMeta.STREAM_CODEC.decode(b), ByteBufCodecs.VAR_INT.decode(b), ByteBufCodecs.VAR_INT.decode(b),
+                        ByteBufCodecs.VAR_INT.decode(b), b.readInt());
+            }
+
+            @Override
+            public void encode(ByteBuf b, UploadBegin m) {
+                ByteBufCodecs.VAR_INT.encode(b, m.requestId());
+                CameraRef.STREAM_CODEC.encode(b, m.ref());
+                PhotoMeta.STREAM_CODEC.encode(b, m.meta());
+                ByteBufCodecs.VAR_INT.encode(b, m.totalBytes());
+                ByteBufCodecs.VAR_INT.encode(b, m.quality());
+                ByteBufCodecs.VAR_INT.encode(b, m.format());
+                b.writeInt(m.shotNonce());
+            }
+        };
 
         @Override
         public Type<UploadBegin> type() {
@@ -298,4 +331,18 @@ public final class Payloads {
         }
     }
 
+
+    /** The player's photo encyclopedia and the dimensions the server has (for the "Dimensions" tab). */
+    public record JournalSync(dev.hackdanel.realcamera.gameplay.Journal journal, java.util.List<String> dimensions)
+            implements CustomPacketPayload {
+        public static final Type<JournalSync> TYPE = Payloads.newType("journal_sync");
+        public static final StreamCodec<ByteBuf, JournalSync> CODEC = StreamCodec.composite(
+                dev.hackdanel.realcamera.gameplay.Journal.STREAM_CODEC, JournalSync::journal,
+                ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), JournalSync::dimensions, JournalSync::new);
+
+        @Override
+        public Type<JournalSync> type() {
+            return TYPE;
+        }
+    }
 }

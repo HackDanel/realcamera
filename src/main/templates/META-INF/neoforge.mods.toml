@@ -11,8 +11,8 @@ description='''
 Realistic photography: digital and film cameras, interchangeable lenses, real exposure and optics, printing, darkroom.
 '''
 
-#[[mixins]]
-#config="${mod_id}.mixins.json"
+[[mixins]]
+config="${mod_id}.mixins.json"
 
 [[dependencies.${mod_id}]]
     modId="neoforge"

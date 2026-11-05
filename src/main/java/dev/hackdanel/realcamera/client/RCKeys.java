@@ -47,11 +47,25 @@ public final class RCKeys {
     public static final KeyMapping AF_UP = key("af_up", GLFW.GLFW_KEY_UP);
     public static final KeyMapping AF_DOWN = key("af_down", GLFW.GLFW_KEY_DOWN);
 
+    /** The photo encyclopedia: works anywhere in game. */
+    public static final KeyMapping JOURNAL = new KeyMapping("key.realcamera.journal",
+            net.neoforged.neoforge.client.settings.KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, CATEGORY);
+
     /** Keys that only do something with the camera at the eye (drained otherwise). */
     public static final KeyMapping[] VIEWFINDER_KEYS = {PREV_PARAM, NEXT_PARAM, MODE, FOCUS_MODE, DISP, MAGNIFY, DRIVE, FLASH,
             AF_AREA, AF_LEFT, AF_RIGHT, AF_UP, AF_DOWN};
 
     private RCKeys() {}
+
+    @SubscribeEvent
+    static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event) {
+        Minecraft mc = Minecraft.getInstance();
+        while (JOURNAL.consumeClick()) {
+            if (mc.screen == null && mc.player != null) {
+                mc.setScreen(new dev.hackdanel.realcamera.client.screen.JournalScreen());
+            }
+        }
+    }
 
     private static KeyMapping key(String name, int code) {
         return new KeyMapping("key.realcamera." + name, CAMERA_IN_HAND, InputConstants.Type.KEYSYM, code, CATEGORY);
@@ -59,6 +73,7 @@ public final class RCKeys {
 
     @SubscribeEvent
     static void register(RegisterKeyMappingsEvent event) {
+        event.register(JOURNAL);
         event.register(PREV_PARAM);
         event.register(NEXT_PARAM);
         event.register(MODE);

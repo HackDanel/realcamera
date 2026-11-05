@@ -1,0 +1,27 @@
+{
+  "display": {
+    "icon": {
+      "id": "realcamera:photo_print"
+    },
+    "title": {
+      "translate": "advancements.realcamera.first_print.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.first_print.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:event",
+      "conditions": {
+        "event": "prints",
+        "min": 1
+      }
+    }
+  },
+  "parent": "realcamera:root"
+}

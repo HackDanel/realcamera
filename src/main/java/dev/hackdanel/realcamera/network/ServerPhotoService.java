@@ -83,6 +83,39 @@ public final class ServerPhotoService {
     }
 
     private static final Map<UUID, Session> uploads = new HashMap<>();
+
+    /** Frame analyses made at the release, waiting for their picture (keyed by player, then shot nonce). */
+    private record PendingShot(PhotoMeta.Analysis analysis, long time) {}
+
+    private static final Map<UUID, java.util.LinkedHashMap<Integer, PendingShot>> pendingShots = new HashMap<>();
+
+    private static Optional<PhotoMeta.Analysis> takeAnalysis(ServerPlayer player, int nonce, PhotoMeta.Exif exif) {
+        var map = pendingShots.get(player.getUUID());
+        PendingShot p = map == null ? null : map.remove(nonce);
+        return p == null ? Optional.empty()
+                : Optional.of(dev.hackdanel.realcamera.analysis.FrameAnalyzer.complete(p.analysis(), exif));
+    }
+
+    private static void analyse(ServerPlayer player, Payloads.Shutter msg, ItemStack camera) {
+        try {
+            var chain = dev.hackdanel.realcamera.camera.OpticalChain.resolve(player.registryAccess(), camera);
+            if (chain.isEmpty()) return;
+            net.minecraft.world.entity.Entity viewer = msg.ref().isTripod()
+                    ? player.serverLevel().getEntity(msg.ref().tripodId()) : player;
+            if (viewer == null) return;
+            PhotoMeta.Analysis a = dev.hackdanel.realcamera.analysis.FrameAnalyzer.analyze(player.serverLevel(), viewer,
+                    player, chain.get(), CameraHelper.settings(camera), msg.info(),
+                    msg.shutterType() == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_ELECTRONIC,
+                    msg.flash(), msg.ref().isTripod());
+            var map = pendingShots.computeIfAbsent(player.getUUID(), k -> new java.util.LinkedHashMap<>());
+            long now = Util.getMillis();
+            map.values().removeIf(p -> now - p.time() > 300_000);
+            while (map.size() > 64) map.remove(map.keySet().iterator().next());
+            map.put(msg.info().nonce(), new PendingShot(a, now));
+        } catch (RuntimeException e) {
+            RealCamera.LOGGER.warn("Frame analysis failed", e);
+        }
+    }
     private static final Map<UUID, Deque<Long>> uploadTimes = new HashMap<>();
     private static final Map<UUID, Deque<PhotoData>> downloadQueues = new HashMap<>();
 
@@ -109,6 +142,7 @@ public final class ServerPhotoService {
     }
 
     private static void shutter(ServerPlayer player, Payloads.Shutter msg, ItemStack camera) {
+        analyse(player, msg, camera);
         Optional<CameraBodySpec> body = Specs.body(player.registryAccess(), camera);
         int drain = Math.max(1, Math.round(body.map(CameraBodySpec::batteryDrain).orElse(1f)));
         CameraHelper.drain(camera, dev.hackdanel.realcamera.gameplay.WearEvents.coldDrain(player, drain));
@@ -123,6 +157,7 @@ public final class ServerPhotoService {
             return; // silent and wear-free
         }
         camera.set(RCComponents.SHUTTER_COUNT.get(), CameraHelper.shutterCount(camera) + 1);
+        dev.hackdanel.realcamera.gameplay.PhotoEvents.event(player, "shutter_count", CameraHelper.shutterCount(camera));
         body.ifPresent(b -> dev.hackdanel.realcamera.gameplay.WearEvents.shutterWear(player, camera, b.shutter().ratedLife()));
         boolean efcs = msg.shutterType() == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_EFCS;
         // Heard by everyone around except the photographer, who already played it locally.
@@ -201,7 +236,8 @@ public final class ServerPhotoService {
                 player.level().getBiome(player.blockPosition()).unwrapKey().map(k -> k.location().toString()).orElse("?"),
                 player.getBlockX(), player.getBlockY(), player.getBlockZ(), player.level().getDayTime() / 24000L);
         PhotoMeta meta = new PhotoMeta(photoId, author, player.getGameProfile().getName(), System.currentTimeMillis(),
-                msg.meta().width(), msg.meta().height(), msg.meta().exif(), place);
+                msg.meta().width(), msg.meta().height(), msg.meta().exif(), place)
+                .withAnalysis(takeAnalysis(player, msg.shotNonce(), msg.meta().exif()));
         uploads.put(author, new Session(photoId, msg.requestId(), cardId, meta, msg.totalBytes(), cardBytes,
                 new ByteArrayOutputStream(msg.totalBytes()), now,
                 (bytes, count) -> adjustCardMirror(player, cardId, bytes, count, msg.ref()), Optional.empty(), false));
@@ -281,6 +317,7 @@ public final class ServerPhotoService {
                 new ByteArrayOutputStream(msg.totalBytes()), Util.getMillis(),
                 (bytes, count) -> computer.adjustCard(slot, bytes, count),
                 player.getUUID().equals(meta.authorId()) ? Optional.empty() : Optional.of(player.getUUID()), false));
+        dev.hackdanel.realcamera.gameplay.PhotoEvents.count(player, "edits");
         PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(msg.requestId(), Payloads.UPLOAD_ACCEPTED,
                 Optional.of(photoId), ""));
     }
@@ -318,7 +355,8 @@ public final class ServerPhotoService {
                 player.level().getBiome(player.blockPosition()).unwrapKey().map(k -> k.location().toString()).orElse("?"),
                 player.getBlockX(), player.getBlockY(), player.getBlockZ(), player.level().getDayTime() / 24000L);
         PhotoMeta meta = new PhotoMeta(photoId, player.getUUID(), player.getGameProfile().getName(), System.currentTimeMillis(),
-                msg.meta().width(), msg.meta().height(), msg.meta().exif(), place);
+                msg.meta().width(), msg.meta().height(), msg.meta().exif(), place)
+                .withAnalysis(takeAnalysis(player, msg.shotNonce(), msg.meta().exif()));
         dev.hackdanel.realcamera.camera.CameraRef ref = msg.ref();
         uploads.put(player.getUUID(), new Session(photoId, msg.requestId(), rollId, meta, msg.totalBytes(), 0,
                 new ByteArrayOutputStream(msg.totalBytes()), Util.getMillis(),
@@ -403,6 +441,9 @@ public final class ServerPhotoService {
                         s.uploader(), s.latent()));
                 PhotoStorage.cards(server).add(s.cardId(), s.photoId());
                 s.mirror().adjust(s.cardBytes(), 1);
+                if (!s.latent() && player.getUUID().equals(meta.authorId()) && meta.editedFrom().isEmpty()) {
+                    dev.hackdanel.realcamera.gameplay.PhotoEvents.photoStored(player, meta);
+                }
                 PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(s.requestId(), Payloads.UPLOAD_STORED,
                         Optional.of(s.photoId()), ""));
                 RealCamera.LOGGER.debug("Stored photo {} ({} bytes) for {}", s.photoId(), bytes.length,

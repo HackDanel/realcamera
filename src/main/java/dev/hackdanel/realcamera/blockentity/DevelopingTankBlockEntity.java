@@ -112,6 +112,9 @@ public class DevelopingTankBlockEntity extends MachineBlockEntity {
                 player.displayClientMessage(Component.translatable("message.realcamera.tank.fogged"), true);
             }
             progress = 0;
+            if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                dev.hackdanel.realcamera.gameplay.PhotoEvents.count(sp, "film_developed");
+            }
             level.playSound(null, worldPosition, SoundEvents.BUCKET_EMPTY, SoundSource.BLOCKS, 0.6f, 1.3f);
         }
         setChanged();

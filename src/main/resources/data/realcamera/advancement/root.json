@@ -1,0 +1,24 @@
+{
+  "display": {
+    "icon": {
+      "id": "realcamera:camera_body"
+    },
+    "title": {
+      "translate": "advancements.realcamera.root.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.root.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false,
+    "background": "minecraft:textures/block/black_concrete.png"
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {}
+    }
+  }
+}

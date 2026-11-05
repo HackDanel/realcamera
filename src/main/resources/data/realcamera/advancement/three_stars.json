@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:sunflower"
+    },
+    "title": {
+      "translate": "advancements.realcamera.three_stars.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.three_stars.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "min_stars": 3
+      }
+    }
+  },
+  "parent": "realcamera:root"
+}

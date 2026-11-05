@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:clock"
+    },
+    "title": {
+      "translate": "advancements.realcamera.star_trails.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.star_trails.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "phenomenon": "star_trails"
+      }
+    }
+  },
+  "parent": "realcamera:tripod",
+  "rewards": {
+    "experience": 100
+  }
+}

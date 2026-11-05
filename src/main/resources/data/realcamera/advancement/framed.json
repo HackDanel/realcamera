@@ -1,0 +1,27 @@
+{
+  "display": {
+    "icon": {
+      "id": "realcamera:photo_frame"
+    },
+    "title": {
+      "translate": "advancements.realcamera.framed.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.framed.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:event",
+      "conditions": {
+        "event": "frames_hung",
+        "min": 1
+      }
+    }
+  },
+  "parent": "realcamera:first_print"
+}

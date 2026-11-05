@@ -44,5 +44,9 @@ public final class RCBlocks {
             "safelight", () -> new dev.hackdanel.realcamera.block.SafelightBlock(BlockBehaviour.Properties.of()
                     .mapColor(MapColor.COLOR_RED).strength(0.5f).sound(SoundType.GLASS).noOcclusion().lightLevel(s -> 7)));
 
+    public static final DeferredBlock<dev.hackdanel.realcamera.block.EditorialDeskBlock> EDITORIAL_DESK = REGISTER.register(
+            "editorial_desk", () -> new dev.hackdanel.realcamera.block.EditorialDeskBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.WOOD).strength(2f).sound(SoundType.WOOD).noOcclusion()));
+
     private RCBlocks() {}
 }

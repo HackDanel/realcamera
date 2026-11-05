@@ -736,7 +736,8 @@ public final class Viewfinder {
         PhotoCapture.Shot shot = new PhotoCapture.Shot(ref, chain, settings, exposure, focal(), focusDistance, meteredEv,
                 blockLit, CameraHelper.shutterCount(camera()) + 1, camera().getHoverName().getString(),
                 CameraHelper.parts(camera()).lens().getHoverName().getString(), seconds, motion(seconds),
-                SunTracker.sun(mc.level, mc.getCameraEntity(), cam, sensorVfov(), sensor().aspect()), extras);
+                SunTracker.sun(mc.level, mc.getCameraEntity(), cam, sensorVfov(), sensor().aspect()), extras,
+                SHAKE.nextInt());
         return new Release(shot, type, extras.flashAt1m() > 0, bulb, body().shutter().sound());
     }
 
@@ -747,7 +748,11 @@ public final class Viewfinder {
             mc.getSoundManager().play(SimpleSoundInstance.forUI(RCSounds.shutter(r.soundSet()),
                     type == CameraSettings.SHUTTER_EFCS ? 1.15f : 1f, 0.9f * volume));
         }
-        PacketDistributor.sendToServer(new Payloads.Shutter(r.shot().ref(), type, r.flash()));
+        var shot = r.shot();
+        PacketDistributor.sendToServer(new Payloads.Shutter(shot.ref(), type, r.flash(), new Payloads.ShotInfo(shot.nonce(),
+                shot.focal(), (float) shot.exposure().fNumber(), (float) shot.seconds(), (int) shot.exposure().iso(),
+                shot.focusDistance(), (float) shot.exposure().delta(),
+                (float) Math.hypot(shot.motion().blurX(), shot.motion().blurY()))));
         if (isBurst()) {
             nextBurstMs = System.currentTimeMillis() + (long) (1000 / Math.max(0.5, burstFps()));
         }

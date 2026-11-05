@@ -1,0 +1,30 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:book"
+    },
+    "title": {
+      "translate": "advancements.realcamera.creatures_30.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.creatures_30.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:event",
+      "conditions": {
+        "event": "journal_creatures",
+        "min": 30
+      }
+    }
+  },
+  "parent": "realcamera:creatures_10",
+  "rewards": {
+    "experience": 100
+  }
+}

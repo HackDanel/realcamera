@@ -61,6 +61,8 @@ public final class RCCreativeTab {
                 out.accept(RCItems.CHEMISTRY_E6.get());
                 out.accept(RCItems.CHEMISTRY_BW.get());
                 out.accept(RCItems.CHANGING_BAG.get());
+                out.accept(RCItems.FIELD_JOURNAL.get());
+                out.accept(RCItems.EDITORIAL_DESK.get());
                 out.accept(RCItems.ENLARGER.get());
                 out.accept(RCItems.SAFELIGHT.get());
                 out.accept(RCItems.FILM_SCANNER.get());

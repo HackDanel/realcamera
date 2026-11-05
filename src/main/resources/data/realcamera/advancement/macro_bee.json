@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:bee_nest"
+    },
+    "title": {
+      "translate": "advancements.realcamera.macro_bee.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.macro_bee.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "entity": "minecraft:bee",
+        "shot": {
+          "min_magnification": 0.5
+        }
+      }
+    }
+  },
+  "parent": "realcamera:root"
+}

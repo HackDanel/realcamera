@@ -1,0 +1,27 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:item_frame"
+    },
+    "title": {
+      "translate": "advancements.realcamera.exhibition.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.exhibition.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:event",
+      "conditions": {
+        "event": "frames_hung",
+        "min": 10
+      }
+    }
+  },
+  "parent": "realcamera:framed"
+}

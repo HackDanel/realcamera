@@ -74,7 +74,7 @@ public final class PhotoCapture {
     public record Shot(dev.hackdanel.realcamera.camera.CameraRef ref, OpticalChain chain, CameraSettings settings, Exposure.Result exposure,
                        float focal, float focusDistance, double sceneEv, boolean blockLit, int frameNumber,
                        String cameraName, String lensName, double seconds, ImageParams.Motion motion,
-                       ImageParams.Sun sun, ImageParams.Extras extras) {
+                       ImageParams.Sun sun, ImageParams.Extras extras, int nonce) {
         boolean longExposure() {
             return seconds < 0 || seconds >= LONG_EXPOSURE_S;
         }
@@ -394,7 +394,7 @@ public final class PhotoCapture {
             Path jpegFile = localJpeg, rawFile = localRaw;
             Minecraft.getInstance().execute(() -> {
                 developing--;
-                PhotoUploader.upload(s.ref(), meta, upload, s.settings().quality(), format, film != null,
+                PhotoUploader.upload(s.ref(), meta, upload, s.settings().quality(), format, film != null, s.nonce(),
                         id -> LocalOriginals.put(id, jpegFile, rawFile));
             });
         } catch (IOException | RuntimeException e) {

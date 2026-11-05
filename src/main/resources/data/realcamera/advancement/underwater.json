@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:heart_of_the_sea"
+    },
+    "title": {
+      "translate": "advancements.realcamera.underwater.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.underwater.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "flag": "underwater"
+      }
+    }
+  },
+  "parent": "realcamera:root"
+}

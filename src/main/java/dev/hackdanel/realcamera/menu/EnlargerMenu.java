@@ -50,6 +50,9 @@ public class EnlargerMenu extends MachineMenu<EnlargerBlockEntity> {
     @Override
     public boolean clickMenuButton(Player p, int id) {
         if (be != null) be.handleButton(p, id);
+        if (be != null && id == EnlargerBlockEntity.B_EXPOSE && p instanceof net.minecraft.server.level.ServerPlayer sp) {
+            dev.hackdanel.realcamera.gameplay.PhotoEvents.count(sp, "prints");
+        }
         return true;
     }
 }

@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:glow_berries"
+    },
+    "title": {
+      "translate": "advancements.realcamera.starry_night.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.starry_night.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "phenomenon": "starry_night"
+      }
+    }
+  },
+  "parent": "realcamera:tripod"
+}

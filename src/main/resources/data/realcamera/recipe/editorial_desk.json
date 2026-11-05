@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "PBP",
+    "SSS",
+    "S S"
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:paper"
+    },
+    "B": {
+      "item": "minecraft:ink_sac"
+    },
+    "S": {
+      "tag": "minecraft:planks"
+    }
+  },
+  "result": {
+    "id": "realcamera:editorial_desk",
+    "count": 1
+  }
+}

@@ -69,8 +69,14 @@ public final class FilmLab {
                     PhotoIndex.Entry e = index.get((UUID) r[0]);
                     if (e == null) continue;
                     long bytes = (long) r[1];
-                    index.put(bytes < 0 ? e.developed(e.fileBytes(), e.meta().width(), e.meta().height())
-                            : e.developed(bytes, (int) r[2], (int) r[3]));
+                    PhotoIndex.Entry done2 = bytes < 0 ? e.developed(e.fileBytes(), e.meta().width(), e.meta().height())
+                            : e.developed(bytes, (int) r[2], (int) r[3]);
+                    index.put(done2);
+                    // the frame is visible now: the photographer's encyclopedia and advancements learn of it
+                    var author = server.getPlayerList().getPlayer(done2.meta().authorId());
+                    if (author != null && fog != FOG_ALL) {
+                        dev.hackdanel.realcamera.gameplay.PhotoEvents.photoStored(author, done2.meta());
+                    }
                 }
                 done.run();
             });

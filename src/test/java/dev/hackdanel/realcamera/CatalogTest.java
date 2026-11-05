@@ -20,9 +20,10 @@ import org.junit.jupiter.api.Test;
  * entry has a model and names in both languages, and every non-built-in item can be crafted.
  */
 class CatalogTest {
-    private static final Path DATA = Path.of("src/main/resources/data/realcamera/realcamera");
-    private static final Path ASSETS = Path.of("src/main/resources/assets/realcamera");
-    private static final Path RECIPES = Path.of("src/main/resources/data/realcamera/recipe");
+    private static final Path PROJECT = Path.of(System.getProperty("realcamera.projectDir", "."));
+    private static final Path DATA = PROJECT.resolve("src/main/resources/data/realcamera/realcamera");
+    private static final Path ASSETS = PROJECT.resolve("src/main/resources/assets/realcamera");
+    private static final Path RECIPES = PROJECT.resolve("src/main/resources/data/realcamera/recipe");
 
     private static Map<String, JsonObject> load(String registry) throws IOException {
         Map<String, JsonObject> out = new HashMap<>();

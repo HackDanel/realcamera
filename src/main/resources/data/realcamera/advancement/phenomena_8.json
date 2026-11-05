@@ -1,0 +1,30 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:recovery_compass"
+    },
+    "title": {
+      "translate": "advancements.realcamera.phenomena_8.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.phenomena_8.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:event",
+      "conditions": {
+        "event": "journal_phenomena",
+        "min": 8
+      }
+    }
+  },
+  "parent": "realcamera:creatures_10",
+  "rewards": {
+    "experience": 100
+  }
+}

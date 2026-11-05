@@ -1,0 +1,29 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:dragon_head"
+    },
+    "title": {
+      "translate": "advancements.realcamera.dragon.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.dragon.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "entity": "minecraft:ender_dragon"
+      }
+    }
+  },
+  "parent": "realcamera:end_sky",
+  "rewards": {
+    "experience": 100
+  }
+}

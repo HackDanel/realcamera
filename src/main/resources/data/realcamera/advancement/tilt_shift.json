@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:piston"
+    },
+    "title": {
+      "translate": "advancements.realcamera.tilt_shift.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.tilt_shift.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "flag": "tilt_shift"
+      }
+    }
+  },
+  "parent": "realcamera:fisheye"
+}

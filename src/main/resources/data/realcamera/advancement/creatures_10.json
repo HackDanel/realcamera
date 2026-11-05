@@ -1,0 +1,27 @@
+{
+  "display": {
+    "icon": {
+      "id": "realcamera:field_journal"
+    },
+    "title": {
+      "translate": "advancements.realcamera.creatures_10.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.creatures_10.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:event",
+      "conditions": {
+        "event": "journal_creatures",
+        "min": 10
+      }
+    }
+  },
+  "parent": "realcamera:root"
+}

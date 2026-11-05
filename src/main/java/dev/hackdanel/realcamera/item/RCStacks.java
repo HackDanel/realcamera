@@ -93,6 +93,23 @@ public final class RCStacks {
     }
 
     /**
+     * How well a lens suits as the kit lens of a body: an everyday zoom made for the sensor size, with autofocus if the
+     * body has it; no fisheye, tilt-shift or macro specialities.
+     */
+    static int kitScore(CameraBodySpec body, LensSpec lens) {
+        int score = 0;
+        boolean crop = body.sensor().cropFactor() > 1.2f;
+        if (lens.imageCircle().equals(crop ? "apsc" : body.sensor().widthMm() > 40 ? "mf" : "ff")) score += 40;
+        if (lens.optics().fisheye() || lens.optics().tiltShift().isPresent()) score -= 100;
+        if (lens.optics().maxMagnification() >= 0.5f) score -= 20;
+        if (!"none".equals(lens.af().motor()) == body.af().speed() > 0) score += 20;
+        if (lens.isZoom()) score += 15;
+        float equiv = lens.focalMin() * body.sensor().cropFactor();
+        score -= (int) Math.abs(equiv - 28) / 4;
+        return score;
+    }
+
+    /**
      * A ready-to-shoot camera: the body with the first matching lens, a charged battery and a
      * compatible card. Used by the creative tab and the dev autotest.
      */
@@ -102,7 +119,8 @@ public final class RCStacks {
         var batteries = registries.lookupOrThrow(RCRegistries.BATTERY_TYPE);
         var cards = registries.lookupOrThrow(RCRegistries.MEMORY_CARD_TYPE);
         Optional<Holder.Reference<LensSpec>> lens = spec.fixedLens().isPresent() ? lenses.get(spec.fixedLens().get())
-                : lenses.listElements().filter(l -> l.value().mount().equals(spec.mount())).findFirst();
+                : lenses.listElements().filter(l -> l.value().mount().equals(spec.mount()))
+                .max(java.util.Comparator.comparingInt(l -> kitScore(spec, l.value())));
         Optional<Holder.Reference<BatteryTypeSpec>> battery = batteries.get(spec.batteryType());
         Optional<Holder.Reference<MemoryCardTypeSpec>> card = cards.listElements()
                 .filter(c -> spec.cardForms().contains(c.value().form())).findFirst();

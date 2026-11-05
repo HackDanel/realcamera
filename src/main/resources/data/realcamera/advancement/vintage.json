@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:iron_ingot"
+    },
+    "title": {
+      "translate": "advancements.realcamera.vintage.title"
+    },
+    "description": {
+      "translate": "advancements.realcamera.vintage.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "done": {
+      "trigger": "realcamera:photo_taken",
+      "conditions": {
+        "flag": "adapter"
+      }
+    }
+  },
+  "parent": "realcamera:fisheye"
+}

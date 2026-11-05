@@ -78,6 +78,9 @@ public abstract class DisplayBlock extends BaseEntityBlock {
         }
         if (!level.isClientSide) {
             be.setPrint(stack);
+            if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                dev.hackdanel.realcamera.gameplay.PhotoEvents.count(sp, "frames_hung");
+            }
             stack.consume(1, player);
             level.playSound(null, pos, SoundEvents.ITEM_FRAME_ADD_ITEM, SoundSource.BLOCKS, 1, 1);
         }

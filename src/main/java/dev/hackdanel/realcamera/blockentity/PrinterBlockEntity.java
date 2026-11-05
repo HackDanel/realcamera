@@ -116,6 +116,10 @@ public class PrinterBlockEntity extends MachineBlockEntity {
         return level != null && !level.isClientSide ? photos().size() : 0;
     }
 
+    public boolean printing() {
+        return progress >= 0;
+    }
+
     public void handleButton(int id) {
         int count = photos().size();
         switch (id) {
