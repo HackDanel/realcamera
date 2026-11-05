@@ -1,0 +1,19 @@
+{
+  "key.categories.realcamera": "RealCamera",
+  "key.realcamera.spike_capture": "[Dev] Capture frame",
+  "key.realcamera.spike_capture_hires": "[Dev] Capture frame (4K)",
+  "key.realcamera.spike_long_exposure": "[Dev] Long exposure 2 s",
+
+  "realcamera.configuration.title": "RealCamera",
+  "realcamera.configuration.autoExport": "Auto-export photos",
+  "realcamera.configuration.textureCacheMb": "Photo texture cache (MB)",
+  "realcamera.configuration.limits": "Limits",
+  "realcamera.configuration.maxPhotosPerPlayer": "Max photos per player",
+  "realcamera.configuration.maxStorageMbPerPlayer": "Max storage per player (MB)",
+  "realcamera.configuration.maxUploadResolution": "Max stored resolution (px)",
+  "realcamera.configuration.maxFileKb": "Max file size (KB)",
+  "realcamera.configuration.uploadsPerMinute": "Uploads per minute",
+  "realcamera.configuration.privacy": "Privacy",
+  "realcamera.configuration.storeRawOnServer": "Store RAW files on server",
+  "realcamera.configuration.showCoordinatesToOthers": "Show photo coordinates to other players"
+}

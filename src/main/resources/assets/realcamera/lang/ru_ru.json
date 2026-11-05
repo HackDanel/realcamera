@@ -1,0 +1,19 @@
+{
+  "key.categories.realcamera": "RealCamera",
+  "key.realcamera.spike_capture": "[Отладка] Снимок кадра",
+  "key.realcamera.spike_capture_hires": "[Отладка] Снимок кадра (4K)",
+  "key.realcamera.spike_long_exposure": "[Отладка] Длинная выдержка 2 с",
+
+  "realcamera.configuration.title": "RealCamera",
+  "realcamera.configuration.autoExport": "Автоэкспорт снимков",
+  "realcamera.configuration.textureCacheMb": "Кэш текстур снимков (МБ)",
+  "realcamera.configuration.limits": "Лимиты",
+  "realcamera.configuration.maxPhotosPerPlayer": "Макс. снимков на игрока",
+  "realcamera.configuration.maxStorageMbPerPlayer": "Макс. объём на игрока (МБ)",
+  "realcamera.configuration.maxUploadResolution": "Макс. разрешение на сервере (px)",
+  "realcamera.configuration.maxFileKb": "Макс. размер файла (КБ)",
+  "realcamera.configuration.uploadsPerMinute": "Загрузок в минуту",
+  "realcamera.configuration.privacy": "Приватность",
+  "realcamera.configuration.storeRawOnServer": "Хранить RAW на сервере",
+  "realcamera.configuration.showCoordinatesToOthers": "Показывать координаты снимков другим игрокам"
+}

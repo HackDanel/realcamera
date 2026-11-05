@@ -1,0 +1,164 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+    id 'idea'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
+
+sourceSets.main.resources {
+    srcDir('src/generated/resources')
+    exclude("**/*.bbmodel")
+    exclude("src/generated/**/.cache")
+}
+
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'Modrinth'
+                url = 'https://api.modrinth.com/maven'
+            }
+        }
+        filter { includeGroup 'maven.modrinth' }
+    }
+}
+
+base {
+    archivesName = mod_id
+}
+
+// Minecraft 1.21.1 ships Java 21; Gradle downloads JDK 21 automatically (foojay) if missing.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        // Second client for multiplayer testing: ./gradlew runClient2
+        client2 {
+            client()
+            gameDirectory = project.file('run-client2')
+            programArguments.addAll '--username', 'Player2'
+        }
+
+        // Unattended capture check: ./gradlew runClientAutotest
+        clientAutotest {
+            client()
+            gameDirectory = project.file('run-autotest')
+            systemProperty 'realcamera.autotest', 'spike'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+            programArguments.addAll '--mod', project.mod_id, '--all',
+                    '--output', file('src/generated/resources/').getAbsolutePath(),
+                    '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+// 'localRuntime' = present only when running from dev, never a published dependency.
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+    // Real release jars dropped into <run dir>/mods, exactly like a player installs them.
+    // (Sodium 0.8 is a jar-in-jar wrapper that does not load correctly from the dev classpath.)
+    devMods { transitive = false }
+}
+
+dependencies {
+    // Shader stack for compatibility testing in dev.
+    devMods "maven.modrinth:sodium:${sodium_version}"
+    devMods "maven.modrinth:iris:${iris_version}"
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// Copy Sodium + Iris into every client run directory. Skip with -PnoShaders (then delete the jars
+// from <run dir>/mods by hand to test pure vanilla rendering).
+def clientRunDirs = ['run', 'run-client2', 'run-autotest']
+def devModTasks = clientRunDirs.collect { dir ->
+    tasks.register("copyDevMods_${dir.replace('-', '_')}", Copy) {
+        from configurations.devMods
+        into layout.projectDirectory.dir("${dir}/mods")
+    }
+}
+tasks.configureEach { t ->
+    if (t.name.startsWith('runClient') && !project.hasProperty('noShaders')) {
+        t.dependsOn(devModTasks)
+    }
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
