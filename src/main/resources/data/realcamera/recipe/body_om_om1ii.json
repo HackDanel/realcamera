@@ -1,0 +1,41 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 4
+    },
+    {
+      "item": "realcamera:stacked_cmos_sensor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:processor",
+      "count": 2
+    },
+    {
+      "item": "realcamera:display_panel",
+      "count": 2
+    },
+    {
+      "item": "realcamera:shutter_unit",
+      "count": 1
+    },
+    {
+      "item": "realcamera:stabilizer",
+      "count": 1
+    },
+    {
+      "item": "minecraft:slime_ball",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:camera_body",
+    "count": 1,
+    "components": {
+      "realcamera:body": "realcamera:om_om1ii"
+    }
+  },
+  "time": 500
+}

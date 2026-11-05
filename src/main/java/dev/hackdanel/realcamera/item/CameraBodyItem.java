@@ -36,6 +36,18 @@ public class CameraBodyItem extends Item {
         super(properties.stacksTo(1));
     }
 
+    /** Bodies with a built-in lens always carry it (crafted, looted or creative stacks get it on the first tick). */
+    @Override
+    public void inventoryTick(ItemStack stack, Level level, net.minecraft.world.entity.Entity entity, int slot, boolean selected) {
+        if (level.isClientSide || level.getGameTime() % 10 != 0) return;
+        dev.hackdanel.realcamera.camera.Specs.body(level.registryAccess(), stack).flatMap(CameraBodySpec::fixedLens).ifPresent(key -> {
+            CameraParts parts = CameraHelper.parts(stack);
+            if (!key.equals(parts.lens().get(RCComponents.LENS.get()))) {
+                CameraHelper.setParts(stack, parts.with(CameraParts.SLOT_LENS, RCStacks.lens(key)));
+            }
+        });
+    }
+
     @Override
     public Component getName(ItemStack stack) {
         ResourceKey<CameraBodySpec> key = stack.get(RCComponents.BODY.get());

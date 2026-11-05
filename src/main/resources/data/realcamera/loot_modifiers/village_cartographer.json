@@ -1,0 +1,87 @@
+{
+  "type": "realcamera:add_items",
+  "conditions": [
+    {
+      "condition": "neoforge:loot_table_id",
+      "loot_table_id": "minecraft:chests/village/village_cartographer"
+    }
+  ],
+  "entries": [
+    {
+      "item": {
+        "id": "realcamera:film_roll",
+        "count": 2,
+        "components": {
+          "realcamera:film_stock": "realcamera:kodak_tri_x_400",
+          "realcamera:film": {
+            "format": "135",
+            "state": 0
+          }
+        }
+      },
+      "chance": 0.35
+    },
+    {
+      "item": {
+        "id": "realcamera:film_roll",
+        "count": 1,
+        "components": {
+          "realcamera:film_stock": "realcamera:kodak_portra_400",
+          "realcamera:film": {
+            "format": "135",
+            "state": 0
+          }
+        }
+      },
+      "chance": 0.25
+    },
+    {
+      "item": {
+        "id": "realcamera:camera_body",
+        "count": 1,
+        "components": {
+          "realcamera:body": "realcamera:zenit_e"
+        }
+      },
+      "chance": 0.12
+    },
+    {
+      "item": {
+        "id": "realcamera:lens",
+        "count": 1,
+        "components": {
+          "realcamera:lens": "realcamera:helios_44_2"
+        }
+      },
+      "chance": 0.15
+    },
+    {
+      "item": {
+        "id": "realcamera:lens",
+        "count": 1,
+        "components": {
+          "realcamera:lens": "realcamera:jupiter_9"
+        }
+      },
+      "chance": 0.06
+    },
+    {
+      "item": {
+        "id": "realcamera:chemistry_bw",
+        "count": 1
+      },
+      "chance": 0.2
+    },
+    {
+      "item": {
+        "id": "realcamera:mount_adapter",
+        "count": 1,
+        "components": {
+          "realcamera:adapter": "realcamera:m42_to_e"
+        }
+      },
+      "chance": 0.1
+    }
+  ],
+  "max_items": 2
+}

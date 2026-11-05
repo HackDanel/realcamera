@@ -1,0 +1,25 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:lens_element",
+      "count": 3
+    },
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 1
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:teleconverter",
+    "count": 1,
+    "components": {
+      "realcamera:teleconverter": "realcamera:canon_ef_ext14_3"
+    }
+  },
+  "time": 160
+}

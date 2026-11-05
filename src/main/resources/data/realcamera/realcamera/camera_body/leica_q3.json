@@ -1,0 +1,57 @@
+{
+  "info": {
+    "brand": "Leica",
+    "exif_make": "LEICA CAMERA AG",
+    "exif_model": "LEICA Q3",
+    "tier": "flagship",
+    "type": "fixed_lens"
+  },
+  "mount": "realcamera:fixed",
+  "sensor": {
+    "width_mm": 35.9,
+    "height_mm": 23.9,
+    "megapixels": 60.3,
+    "base_iso": 100,
+    "iso_min": 50,
+    "iso_max": 100000,
+    "dynamic_range_ev": 15.0,
+    "noise_luma": 1.05,
+    "noise_chroma": 1.0
+  },
+  "viewfinder": "evf",
+  "shutter": {
+    "mech_min": 0.0005,
+    "elec_min": 6.25e-05,
+    "max": 120,
+    "rated_life": 200000,
+    "sound": "leaf",
+    "readout_ms": 90,
+    "burst_mech": 15,
+    "burst_elec": 15,
+    "buffer_shots": 30,
+    "efcs": false
+  },
+  "af": {
+    "speed": 1.0,
+    "low_light_ev": -6,
+    "subject_detect": "face"
+  },
+  "ibis_stops": 0,
+  "battery_type": "realcamera:bp_scl6",
+  "battery_drain": 1.0,
+  "card_forms": [
+    "sd"
+  ],
+  "weather_sealing": 1,
+  "color_profiles": [
+    "realcamera:leica_std",
+    "realcamera:leica_vivid",
+    "realcamera:leica_mono"
+  ],
+  "model": "realcamera:item/body/leica_q3",
+  "flash": {
+    "built_in_gn": 0,
+    "sync": 0.0005
+  },
+  "fixed_lens": "realcamera:leica_q3_28"
+}

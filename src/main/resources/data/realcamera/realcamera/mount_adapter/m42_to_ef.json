@@ -1,0 +1,10 @@
+{
+  "name": "Adapter M42 → Canon EF",
+  "from": "realcamera:m42",
+  "to": "realcamera:canon_ef",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 1.46,
+  "model": "realcamera:item/adapter/m42_to_ef"
+}

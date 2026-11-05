@@ -18,13 +18,19 @@ The system Java may be newer than 21; Gradle downloads JDK 21 itself (foojay too
 - `./gradlew test` — JUnit tests (pure-Java optics and image pipeline)
 - single test: `./gradlew test --tests 'dev.hackdanel.realcamera.processing.ImagePipelineTest'` (append `.methodName` for one method)
 - `./gradlew runClient` / `runClient2` (second client, nick Player2) / `runServer` (the owner must set `eula=true` in `run/eula.txt` themselves — do not do it for them)
-- `./gradlew runClientAutotest -Pautotest=stage1|stage2|stage3|stage4|stage5` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
+- `./gradlew runClientAutotest -Pautotest=stage1|stage2|stage3|stage4|stage5|stage6` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
 - `-PcaptureWarmup=N` changes warm-up frames for capture in the autotest run; `-PnoShaders` skips copying Sodium/Iris into run dirs. Iris shaders on/off for the autotest: `run-autotest/config/iris.properties`.
 
 Generators (run from the repo root; their output is overwritten every run, so edit the generator, not the output):
 - `python3 tools/gen_assets.py` — all textures, item/block models, blockstates, sounds (`.ogg` via ffmpeg)
 - `python3 tools/gen_recipes.py` — everything in `src/main/resources/data/realcamera/recipe/` and block loot tables
 - `python3 tools/gen_settings.py` — `component/CameraSettings.java` (record, codecs, `withX` methods)
+- `python3 tools/gen_catalog.py` — the stage 6 catalog in `tools/catalog.py` (bodies, lenses, mounts, adapters,
+  teleconverters, batteries, cards) → registry JSON + en/ru names. `gen_assets.py` and `gen_recipes.py` read the same
+  file for models (body `style`, lens `look`) and recipes (tier/kind). Earlier-stage entries are hand-written JSON.
+- `python3 tools/gen_loot.py` — structure loot (`realcamera:add_items` global loot modifiers)
+Run order after editing the catalog: gen_catalog → gen_assets → gen_recipes. `CatalogTest` checks references, flange
+rule for adapters, models, names and recipes.
 
 ## Architecture
 
@@ -32,7 +38,9 @@ Generators (run from the repo root; their output is overwritten every run, so ed
 filters, grips and colour profiles are datapack registries (`registry/RCRegistries`, records in `spec/`),
 loaded from `data/realcamera/realcamera/<registry>/*.json` and synced to clients. Items are generic
 (`camera_body`, `lens`, …); the concrete model is a `ResourceKey` data component (`registry/RCComponents`).
-Adding equipment = JSON + model (generator) + lang keys `realcamera.<registry>.<ns>.<path>` + recipe.
+Adding equipment = an entry in `tools/catalog.py` (or JSON + model + lang keys `realcamera.<registry>.<ns>.<path>` +
+recipe by hand). Compact cameras: the body names a `fixed_lens` on the pseudo-mount `realcamera:fixed`; the body
+item fills its lens slot itself and the parts menu locks it.
 Mojang record codecs allow at most 16 fields per group: use nested records (see `CameraBodySpec`) or the
 settings generator.
 
@@ -54,7 +62,10 @@ dispatched via `ClientBridge.handlePayload`.
    (`CameraRays`); exposures ≥ 1/4 s accumulate every frame through PBOs. Development runs on a worker thread.
 3. `processing/ImagePipeline` + `ImageParams` — pure Java (no Minecraft classes, unit-tested): exposure,
    DoF/bokeh, flash, motion blur, rolling shutter, distortion/CA, vignetting, wear, flare, noise, colour.
-   `optics/` is pure Java too. Keep both packages free of game classes.
+   `optics/` is pure Java too. Keep both packages free of game classes. Special optics: fisheyes render a capped
+   wide rectilinear frame (`Optics.renderVfovDeg`) and `ImagePipeline.fisheye` remaps it; a shifted tilt-shift lens
+   renders the frame pitched up by atan(shift/f) (`ComputeCameraAngles`) and `lensShift` re-projects it; tilt
+   changes the focus distance per row (`Optics.tiltedFocusM`); bokeh styles smooth/busy/swirl/bubble.
 4. Export: full-size JPEG with EXIF (`processing/ExifWriter`) and optional RAW to `screenshots/realcamera/`.
    RAW = output of `ImagePipeline.developSensor` (before `finish`: roll-off, WB, profile) as a 16-bit linear PNG +
    JSON sidecar (`processing/RawFile`); `client/photo/LocalOriginals` remembers which local files belong to which
@@ -92,3 +103,7 @@ axis; 1 model unit ≈ 9 mm, shared mount point in `tools/gen_assets.py`).
 - Sodium 0.8 is jar-in-jar and breaks on the dev classpath: Sodium/Iris come from the `devMods`
   configuration copied into each run dir's `mods/`.
 - A record component cannot be named `wait` (clashes with `Object.wait()`).
+- Model elements must stay inside -16..32 and rotate only by ±22.5/45° on one axis: `cylinder()` in gen_assets builds a
+  16-sided prism from 8 rotated spokes; very long lenses are shortened to 24.5 units.
+- The depth map comes from ray casts against entity bounding boxes, not the rendered model: wide-open portraits get a
+  sharp halo where the box is wider than the model. Tiny light sources get the blur radius of their surroundings.

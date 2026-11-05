@@ -1,0 +1,31 @@
+{
+  "brand": "Fujifilm",
+  "exif_lens_model": "XF16-55mmF2.8 R LM WR",
+  "mount": "realcamera:fuji_x",
+  "image_circle": "apsc",
+  "focal_min": 16,
+  "focal_max": 55,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 22,
+  "min_focus_m": 0.3,
+  "af": {
+    "motor": "linear",
+    "speed": 1.0
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 1.4,
+    "sharpness": 1.1,
+    "distortion_wide": -0.05,
+    "distortion_tele": 0.02,
+    "ca_px": 0.8,
+    "flare": 0.4,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 77,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/fuji_xf_16_55_f28"
+}

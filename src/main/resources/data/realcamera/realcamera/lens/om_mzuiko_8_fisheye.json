@@ -1,0 +1,32 @@
+{
+  "brand": "OM System",
+  "exif_lens_model": "M.ZUIKO DIGITAL ED 8mm F1.8 Fisheye PRO",
+  "mount": "realcamera:mft",
+  "image_circle": "mft",
+  "focal_min": 8,
+  "focal_max": 8,
+  "aperture_wide": 1.8,
+  "aperture_tele": 1.8,
+  "aperture_min": 22,
+  "min_focus_m": 0.12,
+  "af": {
+    "motor": "linear",
+    "speed": 1.0
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 7,
+    "rounded": true,
+    "vignetting_ev": 0.8,
+    "sharpness": 1.05,
+    "distortion_wide": 0.0,
+    "distortion_tele": 0.0,
+    "ca_px": 1.2,
+    "flare": 0.6,
+    "bokeh": "smooth",
+    "projection": "equisolid"
+  },
+  "filter_mm": 0,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/om_mzuiko_8_fisheye"
+}

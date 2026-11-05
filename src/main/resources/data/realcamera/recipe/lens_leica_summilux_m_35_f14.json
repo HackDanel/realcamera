@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:lens_element",
+      "count": 5
+    },
+    {
+      "item": "realcamera:aperture_blades",
+      "count": 1
+    },
+    {
+      "item": "realcamera:ed_lens_element",
+      "count": 2
+    },
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 2
+    },
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:lens",
+    "count": 1,
+    "components": {
+      "realcamera:lens": "realcamera:leica_summilux_m_35_f14"
+    }
+  },
+  "time": 400
+}

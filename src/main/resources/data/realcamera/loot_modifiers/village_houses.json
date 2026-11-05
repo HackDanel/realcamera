@@ -1,0 +1,61 @@
+{
+  "type": "realcamera:add_items",
+  "conditions": [
+    {
+      "condition": "minecraft:any_of",
+      "terms": [
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/village/village_plains_house"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/village/village_taiga_house"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/village/village_snowy_house"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/village/village_savanna_house"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/village/village_desert_house"
+        }
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "item": {
+        "id": "realcamera:film_roll",
+        "count": 1,
+        "components": {
+          "realcamera:film_stock": "realcamera:kodak_gold_200",
+          "realcamera:film": {
+            "format": "135",
+            "state": 0
+          }
+        }
+      },
+      "chance": 0.08
+    },
+    {
+      "item": {
+        "id": "realcamera:film_roll",
+        "count": 1,
+        "components": {
+          "realcamera:film_stock": "realcamera:ilford_hp5_plus_400",
+          "realcamera:film": {
+            "format": "135",
+            "state": 0
+          }
+        }
+      },
+      "chance": 0.05
+    }
+  ],
+  "max_items": 1
+}

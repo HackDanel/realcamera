@@ -78,6 +78,9 @@ public final class RCItems {
     public static final DeferredItem<Item> STABILIZER = material("stabilizer");
     public static final DeferredItem<Item> BATTERY_CELL = material("battery_cell");
     public static final DeferredItem<Item> FLASH_MEMORY = material("flash_memory");
+    public static final DeferredItem<Item> STACKED_CMOS_SENSOR = material("stacked_cmos_sensor");
+    public static final DeferredItem<Item> MEDIUM_FORMAT_SENSOR = material("medium_format_sensor");
+    public static final DeferredItem<Item> TITANIUM_ALLOY = material("titanium_alloy");
 
     public static final DeferredItem<BlockItem> ASSEMBLY_STATION = REGISTER.registerSimpleBlockItem(RCBlocks.ASSEMBLY_STATION);
     public static final DeferredItem<BlockItem> BATTERY_CHARGER = REGISTER.registerSimpleBlockItem(RCBlocks.BATTERY_CHARGER);

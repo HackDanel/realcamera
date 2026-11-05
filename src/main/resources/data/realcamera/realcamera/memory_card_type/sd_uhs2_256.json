@@ -1,0 +1,7 @@
+{
+  "name": "SD UHS-II 256 GB",
+  "form": "sd",
+  "capacity_gb": 256,
+  "write_mb_s": 280,
+  "model": "realcamera:item/card/sd_uhs2"
+}

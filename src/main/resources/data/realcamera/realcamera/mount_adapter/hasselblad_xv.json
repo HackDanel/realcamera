@@ -1,0 +1,10 @@
+{
+  "name": "Hasselblad XV Lens Adapter (V → XCD)",
+  "from": "realcamera:hasselblad_v",
+  "to": "realcamera:hasselblad_xcd",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 54.4,
+  "model": "realcamera:item/adapter/hasselblad_xv"
+}

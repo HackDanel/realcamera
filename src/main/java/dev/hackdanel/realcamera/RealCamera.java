@@ -37,6 +37,7 @@ public final class RealCamera {
         RCRecipes.SERIALIZERS.register(modBus);
         RCSounds.REGISTER.register(modBus);
         RCCreativeTab.REGISTER.register(modBus);
+        dev.hackdanel.realcamera.gameplay.AddItemsLootModifier.REGISTER.register(modBus);
     }
 
     public static ResourceLocation id(String path) {

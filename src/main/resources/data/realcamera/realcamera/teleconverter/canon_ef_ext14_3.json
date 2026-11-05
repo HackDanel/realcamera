@@ -1,0 +1,10 @@
+{
+  "name": "Canon Extender EF 1.4x III",
+  "exif_name": "EXTENDER EF1.4x III",
+  "mount": "realcamera:canon_ef",
+  "factor": 1.4,
+  "af_speed": 0.85,
+  "sharpness": 0.96,
+  "length_mm": 27.2,
+  "model": "realcamera:item/teleconverter/canon_ef_ext14_3"
+}

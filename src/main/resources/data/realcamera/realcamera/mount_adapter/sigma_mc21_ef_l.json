@@ -1,0 +1,10 @@
+{
+  "name": "Sigma MC-21 (EF → L)",
+  "from": "realcamera:canon_ef",
+  "to": "realcamera:l_mount",
+  "af": "slow",
+  "af_speed": 0.8,
+  "electronic": true,
+  "length_mm": 24.0,
+  "model": "realcamera:item/adapter/sigma_mc21_ef_l"
+}

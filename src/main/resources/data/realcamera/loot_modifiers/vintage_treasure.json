@@ -1,0 +1,89 @@
+{
+  "type": "realcamera:add_items",
+  "conditions": [
+    {
+      "condition": "minecraft:any_of",
+      "terms": [
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/buried_treasure"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/stronghold_library"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/woodland_mansion"
+        }
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "item": {
+        "id": "realcamera:camera_body",
+        "count": 1,
+        "components": {
+          "realcamera:body": "realcamera:leica_m6"
+        }
+      },
+      "chance": 0.06
+    },
+    {
+      "item": {
+        "id": "realcamera:camera_body",
+        "count": 1,
+        "components": {
+          "realcamera:body": "realcamera:hasselblad_500cm"
+        }
+      },
+      "chance": 0.05
+    },
+    {
+      "item": {
+        "id": "realcamera:lens",
+        "count": 1,
+        "components": {
+          "realcamera:lens": "realcamera:leica_summicron_m_50_f2"
+        }
+      },
+      "chance": 0.08
+    },
+    {
+      "item": {
+        "id": "realcamera:lens",
+        "count": 1,
+        "components": {
+          "realcamera:lens": "realcamera:zeiss_planar_80_f28"
+        }
+      },
+      "chance": 0.06
+    },
+    {
+      "item": {
+        "id": "realcamera:film_roll",
+        "count": 2,
+        "components": {
+          "realcamera:film_stock": "realcamera:kodak_portra_400",
+          "realcamera:film": {
+            "format": "120",
+            "state": 0
+          }
+        }
+      },
+      "chance": 0.15
+    },
+    {
+      "item": {
+        "id": "realcamera:lens",
+        "count": 1,
+        "components": {
+          "realcamera:lens": "realcamera:meyer_trioplan_100"
+        }
+      },
+      "chance": 0.05
+    }
+  ],
+  "max_items": 1
+}

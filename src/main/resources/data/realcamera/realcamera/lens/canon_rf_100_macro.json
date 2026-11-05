@@ -1,0 +1,32 @@
+{
+  "brand": "Canon",
+  "exif_lens_model": "RF100mm F2.8 L MACRO IS USM",
+  "mount": "realcamera:canon_rf",
+  "image_circle": "ff",
+  "focal_min": 100,
+  "focal_max": 100,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 32,
+  "min_focus_m": 0.26,
+  "af": {
+    "motor": "linear",
+    "speed": 1.1
+  },
+  "ois_stops": 5,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 0.9,
+    "sharpness": 1.15,
+    "distortion_wide": 0.005,
+    "distortion_tele": 0.005,
+    "ca_px": 0.5,
+    "flare": 0.35,
+    "bokeh": "smooth",
+    "max_magnification": 1.4
+  },
+  "filter_mm": 67,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/canon_rf_100_macro"
+}

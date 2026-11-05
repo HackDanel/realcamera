@@ -97,7 +97,8 @@ public final class WearEvents {
                 CameraHelper.setParts(camera, parts.with(CameraParts.SLOT_FILTER, cracked));
                 player.displayClientMessage(Component.translatable("message.realcamera.filter_cracked"), true);
                 player.level().playSound(null, player.blockPosition(), SoundEvents.GLASS_BREAK, SoundSource.PLAYERS, 0.6f, 1.5f);
-            } else if (!parts.lens().isEmpty()) {
+            } else if (!parts.lens().isEmpty() && !dev.hackdanel.realcamera.camera.Specs.body(player.registryAccess(), camera)
+                    .map(b -> b.hasFixedLens()).orElse(false)) {
                 ItemStack lens = parts.lens().copy();
                 float damage = Math.min(1f, lens.getOrDefault(RCComponents.DAMAGE.get(), 0f) + 0.3f + rnd.nextFloat() * 0.3f);
                 lens.set(RCComponents.DAMAGE.get(), damage);

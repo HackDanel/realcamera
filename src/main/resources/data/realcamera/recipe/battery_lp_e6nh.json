@@ -1,0 +1,29 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:battery_cell",
+      "count": 2
+    },
+    {
+      "item": "realcamera:plastic",
+      "count": 1
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:battery",
+    "count": 1,
+    "components": {
+      "realcamera:battery_type": "realcamera:lp_e6nh",
+      "realcamera:charge": {
+        "charge": 290,
+        "capacity": 580
+      }
+    }
+  },
+  "time": 80
+}

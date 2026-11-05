@@ -425,6 +425,15 @@ public final class ViewfinderHud {
         cx = text(g, font, iso, cx, y, color(sel == CameraSettings.PARAM_ISO, isoFree, baseColor)) + 10;
         cx = text(g, font, "EV" + ev, cx, y, color(sel == CameraSettings.PARAM_EV, isoFree, baseColor)) + 10;
         text(g, font, wbLabel(s), cx, y, color(sel == CameraSettings.PARAM_WB, isoFree, baseColor));
+        if (Viewfinder.chain() != null && Viewfinder.chain().tiltShift().isPresent()) {
+            // tilt-shift movements on their own line above the bar
+            int ty = y - 15;
+            String tilt = String.format(Locale.ROOT, "TILT %+.1f°", Viewfinder.chain().tiltDeg(s));
+            String shift = String.format(Locale.ROOT, "SHIFT %+.1f mm", Viewfinder.chain().shiftMm(s));
+            g.fill(x, ty - 3, x + 18 + font.width(tilt) + font.width(shift) + 10, ty + 10, background);
+            int tx = text(g, font, tilt, x + 6, ty, color(sel == CameraSettings.PARAM_TILT, true, baseColor)) + 10;
+            text(g, font, shift, tx, ty, color(sel == CameraSettings.PARAM_SHIFT, true, baseColor));
+        }
 
         ItemStack cam = Viewfinder.camera();
         BatteryCharge charge = CameraHelper.charge(cam);
@@ -461,6 +470,14 @@ public final class ViewfinderHud {
         String dist = d >= 999 ? "∞" : d >= 10 ? String.format(Locale.ROOT, "%.0f m", d) : String.format(Locale.ROOT, "%.1f m", d);
         String area = mf ? "" : afAreaLabel(s.afArea()) + "  ";
         String left = String.format(Locale.ROOT, "%.0f mm   %s %s  %s%s", Viewfinder.focal(), focus, dist, area, meter);
+        // close-up: reproduction ratio, like the scale on a macro lens
+        double mag = dev.hackdanel.realcamera.optics.Optics.magnification(Viewfinder.focal(), d);
+        if (Viewfinder.chain() != null && Viewfinder.chain().lens().optics().maxMagnification() > 0) {
+            mag = Math.min(mag, Viewfinder.chain().lens().optics().maxMagnification() * Viewfinder.chain().tcFactor());
+        }
+        if (mag >= 0.1) {
+            left += String.format(Locale.ROOT, "   %s", mag >= 0.995 ? "1:1" : String.format(Locale.ROOT, "1:%.1f", 1 / mag));
+        }
         g.drawString(font, left, x + 6, y + 6, WHITE, true);
         StringBuilder r = new StringBuilder();
         r.append(driveLabel(s.drive())).append("  ");

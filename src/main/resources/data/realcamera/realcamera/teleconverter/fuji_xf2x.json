@@ -1,0 +1,10 @@
+{
+  "name": "Fujifilm XF2X TC WR",
+  "exif_name": "XF2X TC WR",
+  "mount": "realcamera:fuji_x",
+  "factor": 2.0,
+  "af_speed": 0.6,
+  "sharpness": 0.9,
+  "length_mm": 15.0,
+  "model": "realcamera:item/teleconverter/fuji_xf2x"
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Nikon Z Teleconverter TC-1.4x",
+  "exif_name": "TC-1.4x",
+  "mount": "realcamera:nikon_z",
+  "factor": 1.4,
+  "af_speed": 0.85,
+  "sharpness": 0.96,
+  "length_mm": 18.5,
+  "model": "realcamera:item/teleconverter/nikon_z_tc14"
+}

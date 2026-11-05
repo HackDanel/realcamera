@@ -43,6 +43,91 @@ def assembly(name, ingredients, result, count=1, time=100, components=None):
     })
 
 
+def stage6_catalog():
+    """Recipes for everything in tools/catalog.py, from tier and kind."""
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import catalog as C
+
+    assembly("stacked_cmos_sensor", [(rc("bsi_cmos_sensor"), 1), (rc("processor"), 1), (mc("diamond"), 1)],
+             rc("stacked_cmos_sensor"), 1, 160)
+    assembly("medium_format_sensor", [(rc("bsi_cmos_sensor"), 2), (mc("netherite_scrap"), 1), (mc("gold_ingot"), 2)],
+             rc("medium_format_sensor"), 1, 200)
+    assembly("titanium_alloy", [(mc("iron_ingot"), 2), (mc("netherite_scrap"), 1)], rc("titanium_alloy"), 4, 120)
+
+    housing = {"entry": (rc("plastic"), 3), "mid": (rc("magnesium_alloy"), 3), "pro": (rc("magnesium_alloy"), 4),
+               "flagship": (rc("titanium_alloy"), 2)}
+    for b in C.BODIES:
+        spec, tier = b["spec"], b["tier"]
+        ing = [housing[tier]]
+        if "film" in spec:
+            ing += [(rc("shutter_unit"), 1), (rc("aperture_blades"), 1), (mc("iron_ingot"), 2)]
+            if not spec["film"]["mechanical"]:
+                ing.append((rc("circuit_board"), 1))
+            if spec["af"]["speed"] > 0:
+                ing.append((rc("af_motor"), 1))
+        else:
+            sensor = ("medium_format_sensor" if spec["sensor"]["width_mm"] > 40 else
+                      "stacked_cmos_sensor" if spec["shutter"]["readout_ms"] <= 10 else
+                      "cmos_sensor" if tier == "entry" else "bsi_cmos_sensor")
+            ing += [(rc(sensor), 1), (rc("processor"), 1 if tier == "entry" else 2), (rc("display_panel"), 1 if spec["viewfinder"] == "none" else 2)]
+            if spec["shutter"]["mech_min"] > 0:
+                ing.append((rc("shutter_unit"), 1))
+            if spec["ibis_stops"] > 0:
+                ing.append((rc("stabilizer"), 1))
+        if "fixed_lens" in spec:
+            ing += [(rc("lens_element"), 4), (rc("aperture_blades"), 1)]
+        if spec["weather_sealing"] >= 2:
+            ing.append((mc("slime_ball"), 2))
+        time = {"entry": 300, "mid": 400, "pro": 500, "flagship": 600}[tier]
+        assembly(f"body_{b['key']}", ing, rc("camera_body"), 1, time, {f"{NS}:body": rc(b["key"])})
+
+    for l in C.LENSES:
+        if l["fixed"]:
+            continue
+        spec, tier = l["spec"], l["tier"]
+        elements = 3 + (2 if l["zoom"] else 0) + (2 if spec["aperture_wide"] <= 1.8 else 0) + (2 if spec["focal_max"] >= 300 else 0)
+        ing = [(rc("lens_element"), elements), (rc("aperture_blades"), 1)]
+        if tier in ("pro", "flagship"):
+            ing.append((rc("ed_lens_element"), 2 if spec["focal_max"] < 300 else 4))
+        if spec["af"]["motor"] != "none":
+            ing.append((rc("af_motor"), 1))
+        if spec["ois_stops"] > 0:
+            ing.append((rc("stabilizer"), 1))
+        ing.append((rc("plastic"), 2) if tier == "entry" else (rc("magnesium_alloy"), 2 if spec["focal_max"] < 300 else 4))
+        if l["kind"] == "vintage":
+            ing.append((mc("iron_ingot"), 1))
+        if "tilt_shift" in spec["optics"]:
+            ing.append((mc("piston"), 2))
+        time = {"entry": 200, "mid": 260, "pro": 340, "flagship": 400}[tier]
+        assembly(f"lens_{l['key']}", ing, rc("lens"), 1, time, {f"{NS}:lens": rc(l["key"])})
+
+    for a in C.ADAPTERS:
+        spec = a["spec"]
+        ing = [(rc("magnesium_alloy"), 1), (rc("circuit_board"), 1)] if spec["electronic"] else [(mc("iron_ingot"), 1), (mc("iron_nugget"), 3)]
+        if spec["af"] != "none":
+            ing.append((rc("processor"), 1))
+        assembly(f"adapter_{a['key']}", ing, rc("mount_adapter"), 1, 120 if spec["electronic"] else 60,
+                 {f"{NS}:adapter": rc(a["key"])})
+    for t in C.TELECONVERTERS:
+        ing = [(rc("lens_element"), 3 if t["spec"]["factor"] < 1.6 else 4), (rc("magnesium_alloy"), 1), (rc("circuit_board"), 1)]
+        assembly(f"tc_{t['key']}", ing, rc("teleconverter"), 1, 160, {f"{NS}:teleconverter": rc(t["key"])})
+    for key, (name, cap, _, _) in C.BATTERIES.items():
+        small = cap >= 1000 and key in ("px28", "px625", "cr2_lithium")
+        ing = [(rc("battery_cell"), 1), (mc("iron_nugget"), 1)] if small else \
+              [(rc("battery_cell"), 2), (rc("plastic"), 1), (rc("circuit_board"), 1)]
+        charge = cap if small else cap // 2
+        assembly(f"battery_{key}", ing, rc("battery"), 1, 80,
+                 {f"{NS}:battery_type": rc(key), f"{NS}:charge": {"charge": charge, "capacity": cap}})
+    card = {"used_bytes": 0, "photo_count": 0}
+    for key, (name, form, gb, speed, icon) in C.CARDS.items():
+        ing = [(rc("flash_memory"), max(2, gb // 64)), (rc("plastic"), 1), (rc("circuit_board"), 1)]
+        if form == "cfexpress_b":
+            ing += [(rc("processor"), 1), (rc("magnesium_alloy"), 1)]
+        assembly(f"card_{key}", ing, rc("memory_card"), 1, 120,
+                 {f"{NS}:card_type": rc(key), f"{NS}:card": card})
+
+
 def main():
     if os.path.isdir(OUT):
         shutil.rmtree(OUT)
@@ -236,6 +321,7 @@ def main():
                            ("cr2", 1500, [(rc("battery_cell"), 2), (rc("plastic"), 1)])):
         assembly(f"battery_{bat}", mats, rc("battery"), 1, 60,
                  {f"{NS}:battery_type": rc(bat), f"{NS}:charge": {"charge": cap, "capacity": cap}})
+    stage6_catalog()
     print(len(os.listdir(OUT)), "recipes written")
 
     # --- block loot tables (each block drops itself; the photo stand only from its lower half)

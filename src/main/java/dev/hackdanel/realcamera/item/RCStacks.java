@@ -101,8 +101,8 @@ public final class RCStacks {
         var lenses = registries.lookupOrThrow(RCRegistries.LENS);
         var batteries = registries.lookupOrThrow(RCRegistries.BATTERY_TYPE);
         var cards = registries.lookupOrThrow(RCRegistries.MEMORY_CARD_TYPE);
-        Optional<Holder.Reference<LensSpec>> lens = lenses.listElements()
-                .filter(l -> l.value().mount().equals(spec.mount())).findFirst();
+        Optional<Holder.Reference<LensSpec>> lens = spec.fixedLens().isPresent() ? lenses.get(spec.fixedLens().get())
+                : lenses.listElements().filter(l -> l.value().mount().equals(spec.mount())).findFirst();
         Optional<Holder.Reference<BatteryTypeSpec>> battery = batteries.get(spec.batteryType());
         Optional<Holder.Reference<MemoryCardTypeSpec>> card = cards.listElements()
                 .filter(c -> spec.cardForms().contains(c.value().form())).findFirst();

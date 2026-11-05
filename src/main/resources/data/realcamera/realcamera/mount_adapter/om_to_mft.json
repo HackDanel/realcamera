@@ -1,0 +1,10 @@
+{
+  "name": "Olympus MF-1 (OM → Micro Four Thirds)",
+  "from": "realcamera:olympus_om",
+  "to": "realcamera:mft",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 26.75,
+  "model": "realcamera:item/adapter/om_to_mft"
+}

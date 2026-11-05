@@ -1,0 +1,31 @@
+{
+  "brand": "Nikon",
+  "exif_lens_model": "NIKKOR Z 14-24mm f/2.8 S",
+  "mount": "realcamera:nikon_z",
+  "image_circle": "ff",
+  "focal_min": 14,
+  "focal_max": 24,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 22,
+  "min_focus_m": 0.28,
+  "af": {
+    "motor": "stepping",
+    "speed": 1.1
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 1.8,
+    "sharpness": 1.1,
+    "distortion_wide": -0.07,
+    "distortion_tele": -0.02,
+    "ca_px": 0.8,
+    "flare": 0.4,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 112,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/nikon_z_14_24_f28s"
+}

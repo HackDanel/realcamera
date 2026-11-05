@@ -1,0 +1,10 @@
+{
+  "name": "Adapter M42 → Nikon Z",
+  "from": "realcamera:m42",
+  "to": "realcamera:nikon_z",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 29.46,
+  "model": "realcamera:item/adapter/m42_to_z"
+}

@@ -1,0 +1,31 @@
+{
+  "brand": "Leica",
+  "exif_lens_model": "SUMMILUX-M 1:1.4/35 ASPH.",
+  "mount": "realcamera:leica_m",
+  "image_circle": "ff",
+  "focal_min": 35,
+  "focal_max": 35,
+  "aperture_wide": 1.4,
+  "aperture_tele": 1.4,
+  "aperture_min": 16,
+  "min_focus_m": 0.7,
+  "af": {
+    "motor": "none",
+    "speed": 0
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 11,
+    "rounded": true,
+    "vignetting_ev": 1.4,
+    "sharpness": 1.1,
+    "distortion_wide": -0.01,
+    "distortion_tele": -0.01,
+    "ca_px": 0.8,
+    "flare": 0.4,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 46,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/leica_summilux_m_35_f14"
+}

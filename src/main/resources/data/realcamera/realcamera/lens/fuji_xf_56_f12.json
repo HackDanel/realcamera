@@ -1,0 +1,31 @@
+{
+  "brand": "Fujifilm",
+  "exif_lens_model": "XF56mmF1.2 R WR",
+  "mount": "realcamera:fuji_x",
+  "image_circle": "apsc",
+  "focal_min": 56,
+  "focal_max": 56,
+  "aperture_wide": 1.2,
+  "aperture_tele": 1.2,
+  "aperture_min": 16,
+  "min_focus_m": 0.5,
+  "af": {
+    "motor": "linear",
+    "speed": 1.0
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 11,
+    "rounded": true,
+    "vignetting_ev": 1.3,
+    "sharpness": 1.1,
+    "distortion_wide": 0.0,
+    "distortion_tele": 0.0,
+    "ca_px": 0.8,
+    "flare": 0.45,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 67,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/fuji_xf_56_f12"
+}

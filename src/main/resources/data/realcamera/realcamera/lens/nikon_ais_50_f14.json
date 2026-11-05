@@ -1,0 +1,31 @@
+{
+  "brand": "Nikon",
+  "exif_lens_model": "NIKKOR 50mm f/1.4 Ai-S",
+  "mount": "realcamera:nikon_f",
+  "image_circle": "ff",
+  "focal_min": 50,
+  "focal_max": 50,
+  "aperture_wide": 1.4,
+  "aperture_tele": 1.4,
+  "aperture_min": 16,
+  "min_focus_m": 0.45,
+  "af": {
+    "motor": "none",
+    "speed": 0
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 7,
+    "rounded": false,
+    "vignetting_ev": 1.6,
+    "sharpness": 0.88,
+    "distortion_wide": -0.01,
+    "distortion_tele": -0.01,
+    "ca_px": 1.8,
+    "flare": 0.8,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 52,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/nikon_ais_50_f14"
+}

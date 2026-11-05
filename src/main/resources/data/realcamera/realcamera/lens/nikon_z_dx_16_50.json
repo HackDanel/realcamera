@@ -1,0 +1,31 @@
+{
+  "brand": "Nikon",
+  "exif_lens_model": "NIKKOR Z DX 16-50mm f/3.5-6.3 VR",
+  "mount": "realcamera:nikon_z",
+  "image_circle": "apsc",
+  "focal_min": 16,
+  "focal_max": 50,
+  "aperture_wide": 3.5,
+  "aperture_tele": 6.3,
+  "aperture_min": 22,
+  "min_focus_m": 0.2,
+  "af": {
+    "motor": "stepping",
+    "speed": 0.85
+  },
+  "ois_stops": 4.5,
+  "optics": {
+    "blades": 7,
+    "rounded": true,
+    "vignetting_ev": 1.6,
+    "sharpness": 0.85,
+    "distortion_wide": -0.08,
+    "distortion_tele": 0.02,
+    "ca_px": 1.6,
+    "flare": 0.6,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 46,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/nikon_z_dx_16_50"
+}

@@ -1,0 +1,54 @@
+{
+  "info": {
+    "brand": "Canon",
+    "exif_make": "Canon",
+    "exif_model": "AE-1 PROGRAM",
+    "tier": "entry",
+    "type": "film_slr"
+  },
+  "mount": "realcamera:canon_fd",
+  "sensor": {
+    "width_mm": 36.0,
+    "height_mm": 24.0,
+    "megapixels": 24.0,
+    "base_iso": 100,
+    "iso_min": 12,
+    "iso_max": 3200,
+    "dynamic_range_ev": 12.0,
+    "noise_luma": 0,
+    "noise_chroma": 0
+  },
+  "viewfinder": "ovf",
+  "shutter": {
+    "mech_min": 0.001,
+    "elec_min": 0.001,
+    "max": 2,
+    "rated_life": 100000,
+    "sound": "dslr",
+    "readout_ms": 0,
+    "burst_mech": 1.5,
+    "burst_elec": 1.5,
+    "buffer_shots": 1,
+    "efcs": false
+  },
+  "af": {
+    "speed": 0,
+    "low_light_ev": 99,
+    "subject_detect": "none"
+  },
+  "ibis_stops": 0,
+  "battery_type": "realcamera:px28",
+  "battery_drain": 0.3,
+  "card_forms": [],
+  "weather_sealing": 0,
+  "color_profiles": [],
+  "model": "realcamera:item/body/canon_ae1p",
+  "flash": {
+    "built_in_gn": 0,
+    "sync": 0.016666666666666666
+  },
+  "film": {
+    "format": "135",
+    "mechanical": false
+  }
+}

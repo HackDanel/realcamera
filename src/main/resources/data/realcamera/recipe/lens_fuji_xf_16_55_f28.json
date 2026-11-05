@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:lens_element",
+      "count": 5
+    },
+    {
+      "item": "realcamera:aperture_blades",
+      "count": 1
+    },
+    {
+      "item": "realcamera:ed_lens_element",
+      "count": 2
+    },
+    {
+      "item": "realcamera:af_motor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:lens",
+    "count": 1,
+    "components": {
+      "realcamera:lens": "realcamera:fuji_xf_16_55_f28"
+    }
+  },
+  "time": 340
+}

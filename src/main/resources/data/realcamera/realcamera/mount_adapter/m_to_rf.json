@@ -1,0 +1,10 @@
+{
+  "name": "Adapter Leica M → Canon RF",
+  "from": "realcamera:leica_m",
+  "to": "realcamera:canon_rf",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 7.8,
+  "model": "realcamera:item/adapter/m_to_rf"
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Adapter M42 → L-Mount",
+  "from": "realcamera:m42",
+  "to": "realcamera:l_mount",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 25.46,
+  "model": "realcamera:item/adapter/m42_to_l"
+}

@@ -1,0 +1,31 @@
+{
+  "brand": "Canon",
+  "exif_lens_model": "EF70-200mm f/2.8L IS III USM",
+  "mount": "realcamera:canon_ef",
+  "image_circle": "ff",
+  "focal_min": 70,
+  "focal_max": 200,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 32,
+  "min_focus_m": 1.2,
+  "af": {
+    "motor": "fast",
+    "speed": 1.1
+  },
+  "ois_stops": 3.5,
+  "optics": {
+    "blades": 8,
+    "rounded": true,
+    "vignetting_ev": 0.9,
+    "sharpness": 1.1,
+    "distortion_wide": 0.01,
+    "distortion_tele": 0.02,
+    "ca_px": 0.6,
+    "flare": 0.35,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 77,
+  "tc_compatible": true,
+  "model": "realcamera:item/lens/canon_ef_70_200_f28l3"
+}

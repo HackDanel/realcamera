@@ -1,0 +1,10 @@
+{
+  "name": "Canon Extender EF 2x III",
+  "exif_name": "EXTENDER EF2x III",
+  "mount": "realcamera:canon_ef",
+  "factor": 2.0,
+  "af_speed": 0.6,
+  "sharpness": 0.9,
+  "length_mm": 52.7,
+  "model": "realcamera:item/teleconverter/canon_ef_ext20_3"
+}

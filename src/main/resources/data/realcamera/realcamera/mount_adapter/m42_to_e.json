@@ -1,0 +1,10 @@
+{
+  "name": "Adapter M42 → Sony E",
+  "from": "realcamera:m42",
+  "to": "realcamera:sony_e",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 27.46,
+  "model": "realcamera:item/adapter/m42_to_e"
+}

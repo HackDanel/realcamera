@@ -1,0 +1,31 @@
+{
+  "brand": "Canon",
+  "exif_lens_model": "RF100-500mm F4.5-7.1 L IS USM",
+  "mount": "realcamera:canon_rf",
+  "image_circle": "ff",
+  "focal_min": 100,
+  "focal_max": 500,
+  "aperture_wide": 4.5,
+  "aperture_tele": 7.1,
+  "aperture_min": 32,
+  "min_focus_m": 0.9,
+  "af": {
+    "motor": "linear",
+    "speed": 1.15
+  },
+  "ois_stops": 5,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 0.9,
+    "sharpness": 1.1,
+    "distortion_wide": 0.01,
+    "distortion_tele": 0.02,
+    "ca_px": 0.6,
+    "flare": 0.35,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 77,
+  "tc_compatible": true,
+  "model": "realcamera:item/lens/canon_rf_100_500l"
+}

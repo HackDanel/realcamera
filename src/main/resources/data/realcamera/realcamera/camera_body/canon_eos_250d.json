@@ -1,0 +1,58 @@
+{
+  "info": {
+    "brand": "Canon",
+    "exif_make": "Canon",
+    "exif_model": "Canon EOS 250D",
+    "tier": "entry",
+    "type": "dslr"
+  },
+  "mount": "realcamera:canon_ef",
+  "sensor": {
+    "width_mm": 22.3,
+    "height_mm": 14.9,
+    "megapixels": 24.1,
+    "base_iso": 100,
+    "iso_min": 100,
+    "iso_max": 25600,
+    "dynamic_range_ev": 12.5,
+    "noise_luma": 1.2,
+    "noise_chroma": 1.15
+  },
+  "viewfinder": "ovf",
+  "shutter": {
+    "mech_min": 0.00025,
+    "elec_min": 0.00025,
+    "max": 30,
+    "rated_life": 100000,
+    "sound": "dslr",
+    "readout_ms": 0,
+    "burst_mech": 5,
+    "burst_elec": 5,
+    "buffer_shots": 40,
+    "efcs": false
+  },
+  "af": {
+    "speed": 0.75,
+    "low_light_ev": -0.5,
+    "subject_detect": "none"
+  },
+  "ibis_stops": 0,
+  "battery_type": "realcamera:lp_e17",
+  "battery_drain": 1.0,
+  "card_forms": [
+    "sd"
+  ],
+  "weather_sealing": 0,
+  "color_profiles": [
+    "realcamera:canon_standard",
+    "realcamera:canon_portrait",
+    "realcamera:canon_landscape",
+    "realcamera:canon_fine_detail",
+    "realcamera:canon_monochrome"
+  ],
+  "model": "realcamera:item/body/canon_eos_250d",
+  "flash": {
+    "built_in_gn": 9.8,
+    "sync": 0.005
+  }
+}

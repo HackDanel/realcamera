@@ -1,0 +1,10 @@
+{
+  "name": "Fujifilm XF1.4X TC WR",
+  "exif_name": "XF1.4X TC WR",
+  "mount": "realcamera:fuji_x",
+  "factor": 1.4,
+  "af_speed": 0.85,
+  "sharpness": 0.96,
+  "length_mm": 15.0,
+  "model": "realcamera:item/teleconverter/fuji_xf14x"
+}

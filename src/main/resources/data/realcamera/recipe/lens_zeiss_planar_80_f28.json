@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:lens_element",
+      "count": 3
+    },
+    {
+      "item": "realcamera:aperture_blades",
+      "count": 1
+    },
+    {
+      "item": "realcamera:ed_lens_element",
+      "count": 2
+    },
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 2
+    },
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:lens",
+    "count": 1,
+    "components": {
+      "realcamera:lens": "realcamera:zeiss_planar_80_f28"
+    }
+  },
+  "time": 400
+}

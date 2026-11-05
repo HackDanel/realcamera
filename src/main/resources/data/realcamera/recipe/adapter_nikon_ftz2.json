@@ -1,0 +1,25 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 1
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    },
+    {
+      "item": "realcamera:processor",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:mount_adapter",
+    "count": 1,
+    "components": {
+      "realcamera:adapter": "realcamera:nikon_ftz2"
+    }
+  },
+  "time": 120
+}

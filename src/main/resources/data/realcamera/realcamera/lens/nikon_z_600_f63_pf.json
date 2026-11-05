@@ -1,0 +1,31 @@
+{
+  "brand": "Nikon",
+  "exif_lens_model": "NIKKOR Z 600mm f/6.3 VR S",
+  "mount": "realcamera:nikon_z",
+  "image_circle": "ff",
+  "focal_min": 600,
+  "focal_max": 600,
+  "aperture_wide": 6.3,
+  "aperture_tele": 6.3,
+  "aperture_min": 32,
+  "min_focus_m": 4.0,
+  "af": {
+    "motor": "stepping",
+    "speed": 1.0
+  },
+  "ois_stops": 5.0,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 0.8,
+    "sharpness": 1.05,
+    "distortion_wide": 0.01,
+    "distortion_tele": 0.01,
+    "ca_px": 0.6,
+    "flare": 0.45,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 95,
+  "tc_compatible": true,
+  "model": "realcamera:item/lens/nikon_z_600_f63_pf"
+}

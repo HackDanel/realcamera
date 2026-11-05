@@ -1,0 +1,10 @@
+{
+  "name": "Canon Mount Adapter EF-EOS R",
+  "from": "realcamera:canon_ef",
+  "to": "realcamera:canon_rf",
+  "af": "full",
+  "af_speed": 1.0,
+  "electronic": true,
+  "length_mm": 24.0,
+  "model": "realcamera:item/adapter/canon_ef_eos_r"
+}

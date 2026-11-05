@@ -1,0 +1,31 @@
+{
+  "brand": "Fujifilm",
+  "exif_lens_model": "XF150-600mmF5.6-8 R LM OIS WR",
+  "mount": "realcamera:fuji_x",
+  "image_circle": "apsc",
+  "focal_min": 150,
+  "focal_max": 600,
+  "aperture_wide": 5.6,
+  "aperture_tele": 8.0,
+  "aperture_min": 22,
+  "min_focus_m": 2.4,
+  "af": {
+    "motor": "linear",
+    "speed": 1.0
+  },
+  "ois_stops": 5,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 0.8,
+    "sharpness": 1.05,
+    "distortion_wide": 0.01,
+    "distortion_tele": 0.01,
+    "ca_px": 0.6,
+    "flare": 0.4,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 82,
+  "tc_compatible": true,
+  "model": "realcamera:item/lens/fuji_xf_150_600"
+}

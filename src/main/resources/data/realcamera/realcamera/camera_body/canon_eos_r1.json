@@ -1,0 +1,58 @@
+{
+  "info": {
+    "brand": "Canon",
+    "exif_make": "Canon",
+    "exif_model": "Canon EOS R1",
+    "tier": "flagship",
+    "type": "mirrorless"
+  },
+  "mount": "realcamera:canon_rf",
+  "sensor": {
+    "width_mm": 36.0,
+    "height_mm": 24.0,
+    "megapixels": 24.2,
+    "base_iso": 100,
+    "iso_min": 100,
+    "iso_max": 102400,
+    "dynamic_range_ev": 15.0,
+    "noise_luma": 0.9,
+    "noise_chroma": 0.9
+  },
+  "viewfinder": "evf",
+  "shutter": {
+    "mech_min": 0.000125,
+    "elec_min": 1.5625e-05,
+    "max": 30,
+    "rated_life": 500000,
+    "sound": "mirrorless",
+    "readout_ms": 5,
+    "burst_mech": 12,
+    "burst_elec": 40,
+    "buffer_shots": 1000,
+    "efcs": true
+  },
+  "af": {
+    "speed": 1.6,
+    "low_light_ev": -7.5,
+    "subject_detect": "eye"
+  },
+  "ibis_stops": 8.5,
+  "battery_type": "realcamera:lp_e19",
+  "battery_drain": 1.0,
+  "card_forms": [
+    "cfexpress_b"
+  ],
+  "weather_sealing": 2,
+  "color_profiles": [
+    "realcamera:canon_standard",
+    "realcamera:canon_portrait",
+    "realcamera:canon_landscape",
+    "realcamera:canon_fine_detail",
+    "realcamera:canon_monochrome"
+  ],
+  "model": "realcamera:item/body/canon_eos_r1",
+  "flash": {
+    "built_in_gn": 0,
+    "sync": 0.004
+  }
+}

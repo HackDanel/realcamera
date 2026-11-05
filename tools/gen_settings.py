@@ -37,6 +37,9 @@ FIELDS = [
     # stage 3
     ("flashMode", "int", "flash_mode", "FLASH_OFF"),
     ("flashComp", "int", "flash_comp", "0"),
+    # stage 6: tilt-shift lens movements
+    ("tilt", "float", "tilt", "0f"),
+    ("shift", "float", "shift", "0f"),
 ]
 
 CONSTANTS = """    public static final int MODE_AUTO = 0, MODE_P = 1, MODE_A = 2, MODE_S = 3, MODE_M = 4, MODE_COUNT = 5;
@@ -46,7 +49,7 @@ CONSTANTS = """    public static final int MODE_AUTO = 0, MODE_P = 1, MODE_A = 2
             WB_FLUORESCENT = 5, WB_FLASH = 6, WB_KELVIN = 7, WB_COUNT = 8;
     public static final int QUALITY_FINE = 0, QUALITY_NORMAL = 1, QUALITY_COUNT = 2;
     public static final int PARAM_SHUTTER = 0, PARAM_APERTURE = 1, PARAM_ISO = 2, PARAM_EV = 3, PARAM_WB = 4,
-            PARAM_COUNT = 5;
+            PARAM_TILT = 5, PARAM_SHIFT = 6, PARAM_COUNT = 7;
     public static final int DISP_FULL = 0, DISP_HISTOGRAM = 1, DISP_BASIC = 2, DISP_CLEAN = 3, DISP_COUNT = 4;
     /** Mechanical, electronic first curtain (quieter, same speeds), fully electronic (silent, rolling shutter). */
     public static final int SHUTTER_MECH = 0, SHUTTER_EFCS = 1, SHUTTER_ELECTRONIC = 2, SHUTTER_TYPE_COUNT = 3;

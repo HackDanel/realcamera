@@ -24,7 +24,9 @@ public final class RCCreativeTab {
                     RCStacks.kit(r, b).ifPresent(out::accept);
                     out.accept(RCStacks.body(b.key()));
                 }));
-                r.lookup(RCRegistries.LENS).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.lens(h.key()))));
+                r.lookup(RCRegistries.LENS).ifPresent(l -> l.listElements()
+                        .filter(h -> !h.value().mount().location().getPath().equals("fixed"))
+                        .forEach(h -> out.accept(RCStacks.lens(h.key()))));
                 r.lookup(RCRegistries.MOUNT_ADAPTER).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.adapter(h.key()))));
                 r.lookup(RCRegistries.TELECONVERTER).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.teleconverter(h.key()))));
                 r.lookup(RCRegistries.FLASH_TYPE).ifPresent(l -> l.listElements()

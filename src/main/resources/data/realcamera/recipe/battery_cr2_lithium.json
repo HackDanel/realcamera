@@ -1,0 +1,25 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:battery_cell",
+      "count": 1
+    },
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:battery",
+    "count": 1,
+    "components": {
+      "realcamera:battery_type": "realcamera:cr2_lithium",
+      "realcamera:charge": {
+        "charge": 1200,
+        "capacity": 1200
+      }
+    }
+  },
+  "time": 80
+}

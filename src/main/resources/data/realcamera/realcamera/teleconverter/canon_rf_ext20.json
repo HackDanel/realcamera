@@ -1,0 +1,10 @@
+{
+  "name": "Canon Extender RF 2x",
+  "exif_name": "EXTENDER RF2x",
+  "mount": "realcamera:canon_rf",
+  "factor": 2.0,
+  "af_speed": 0.6,
+  "sharpness": 0.9,
+  "length_mm": 34.5,
+  "model": "realcamera:item/teleconverter/canon_rf_ext20"
+}

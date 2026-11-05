@@ -1,0 +1,32 @@
+{
+  "brand": "Samyang",
+  "exif_lens_model": "----",
+  "mount": "realcamera:nikon_f",
+  "image_circle": "apsc",
+  "focal_min": 8,
+  "focal_max": 8,
+  "aperture_wide": 3.5,
+  "aperture_tele": 3.5,
+  "aperture_min": 22,
+  "min_focus_m": 0.3,
+  "af": {
+    "motor": "none",
+    "speed": 0
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 6,
+    "rounded": true,
+    "vignetting_ev": 1.0,
+    "sharpness": 0.9,
+    "distortion_wide": 0.0,
+    "distortion_tele": 0.0,
+    "ca_px": 1.6,
+    "flare": 0.8,
+    "bokeh": "smooth",
+    "projection": "stereographic"
+  },
+  "filter_mm": 0,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/samyang_8_fisheye_f"
+}

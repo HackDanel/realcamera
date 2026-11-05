@@ -1,0 +1,10 @@
+{
+  "name": "Fringer EF-FX Pro II (EF → X)",
+  "from": "realcamera:canon_ef",
+  "to": "realcamera:fuji_x",
+  "af": "slow",
+  "af_speed": 0.7,
+  "electronic": true,
+  "length_mm": 26.3,
+  "model": "realcamera:item/adapter/fringer_ef_fx"
+}

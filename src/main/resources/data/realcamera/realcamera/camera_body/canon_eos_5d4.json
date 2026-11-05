@@ -1,0 +1,58 @@
+{
+  "info": {
+    "brand": "Canon",
+    "exif_make": "Canon",
+    "exif_model": "Canon EOS 5D Mark IV",
+    "tier": "pro",
+    "type": "dslr"
+  },
+  "mount": "realcamera:canon_ef",
+  "sensor": {
+    "width_mm": 36.0,
+    "height_mm": 24.0,
+    "megapixels": 30.4,
+    "base_iso": 100,
+    "iso_min": 100,
+    "iso_max": 32000,
+    "dynamic_range_ev": 13.6,
+    "noise_luma": 1.0,
+    "noise_chroma": 1.0
+  },
+  "viewfinder": "ovf",
+  "shutter": {
+    "mech_min": 0.000125,
+    "elec_min": 0.000125,
+    "max": 30,
+    "rated_life": 150000,
+    "sound": "dslr",
+    "readout_ms": 0,
+    "burst_mech": 7,
+    "burst_elec": 7,
+    "buffer_shots": 21,
+    "efcs": false
+  },
+  "af": {
+    "speed": 1.0,
+    "low_light_ev": -3,
+    "subject_detect": "face"
+  },
+  "ibis_stops": 0,
+  "battery_type": "realcamera:lp_e6nh",
+  "battery_drain": 1.0,
+  "card_forms": [
+    "sd"
+  ],
+  "weather_sealing": 2,
+  "color_profiles": [
+    "realcamera:canon_standard",
+    "realcamera:canon_portrait",
+    "realcamera:canon_landscape",
+    "realcamera:canon_fine_detail",
+    "realcamera:canon_monochrome"
+  ],
+  "model": "realcamera:item/body/canon_eos_5d4",
+  "flash": {
+    "built_in_gn": 0,
+    "sync": 0.005
+  }
+}

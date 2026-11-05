@@ -1,0 +1,31 @@
+{
+  "brand": "Hasselblad",
+  "exif_lens_model": "XCD 2,5/55V",
+  "mount": "realcamera:hasselblad_xcd",
+  "image_circle": "mf",
+  "focal_min": 55,
+  "focal_max": 55,
+  "aperture_wide": 2.5,
+  "aperture_tele": 2.5,
+  "aperture_min": 32,
+  "min_focus_m": 0.45,
+  "af": {
+    "motor": "linear",
+    "speed": 0.9
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 1.0,
+    "sharpness": 1.15,
+    "distortion_wide": -0.005,
+    "distortion_tele": -0.005,
+    "ca_px": 0.6,
+    "flare": 0.35,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 72,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/hasselblad_xcd_55_f25"
+}

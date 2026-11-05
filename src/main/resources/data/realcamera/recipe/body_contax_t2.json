@@ -1,0 +1,45 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 4
+    },
+    {
+      "item": "realcamera:shutter_unit",
+      "count": 1
+    },
+    {
+      "item": "realcamera:aperture_blades",
+      "count": 1
+    },
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 2
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    },
+    {
+      "item": "realcamera:af_motor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:lens_element",
+      "count": 4
+    },
+    {
+      "item": "realcamera:aperture_blades",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:camera_body",
+    "count": 1,
+    "components": {
+      "realcamera:body": "realcamera:contax_t2"
+    }
+  },
+  "time": 500
+}

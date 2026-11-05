@@ -1,0 +1,10 @@
+{
+  "name": "Adapter M42 → Micro Four Thirds",
+  "from": "realcamera:m42",
+  "to": "realcamera:mft",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 26.21,
+  "model": "realcamera:item/adapter/m42_to_mft"
+}

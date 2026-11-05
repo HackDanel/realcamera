@@ -1,0 +1,25 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:lens_element",
+      "count": 4
+    },
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 1
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:teleconverter",
+    "count": 1,
+    "components": {
+      "realcamera:teleconverter": "realcamera:nikon_z_tc20"
+    }
+  },
+  "time": 160
+}

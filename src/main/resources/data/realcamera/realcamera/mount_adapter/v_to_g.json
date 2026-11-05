@@ -1,0 +1,10 @@
+{
+  "name": "Adapter Hasselblad V → Fujifilm G",
+  "from": "realcamera:hasselblad_v",
+  "to": "realcamera:fuji_g",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 48.2,
+  "model": "realcamera:item/adapter/v_to_g"
+}

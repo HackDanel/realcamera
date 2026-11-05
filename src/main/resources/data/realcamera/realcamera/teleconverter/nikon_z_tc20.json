@@ -1,0 +1,10 @@
+{
+  "name": "Nikon Z Teleconverter TC-2.0x",
+  "exif_name": "TC-2.0x",
+  "mount": "realcamera:nikon_z",
+  "factor": 2.0,
+  "af_speed": 0.6,
+  "sharpness": 0.9,
+  "length_mm": 31.5,
+  "model": "realcamera:item/teleconverter/nikon_z_tc20"
+}

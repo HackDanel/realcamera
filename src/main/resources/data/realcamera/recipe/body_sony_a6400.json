@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 3
+    },
+    {
+      "item": "realcamera:bsi_cmos_sensor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:processor",
+      "count": 2
+    },
+    {
+      "item": "realcamera:display_panel",
+      "count": 2
+    },
+    {
+      "item": "realcamera:shutter_unit",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:camera_body",
+    "count": 1,
+    "components": {
+      "realcamera:body": "realcamera:sony_a6400"
+    }
+  },
+  "time": 400
+}

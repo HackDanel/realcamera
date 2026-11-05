@@ -1,0 +1,33 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:lens_element",
+      "count": 3
+    },
+    {
+      "item": "realcamera:aperture_blades",
+      "count": 1
+    },
+    {
+      "item": "realcamera:ed_lens_element",
+      "count": 2
+    },
+    {
+      "item": "realcamera:af_motor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:magnesium_alloy",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:lens",
+    "count": 1,
+    "components": {
+      "realcamera:lens": "realcamera:hasselblad_xcd_55_f25"
+    }
+  },
+  "time": 400
+}

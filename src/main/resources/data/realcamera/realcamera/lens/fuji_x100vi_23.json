@@ -1,0 +1,31 @@
+{
+  "brand": "Fujifilm",
+  "exif_lens_model": "23mmF2",
+  "mount": "realcamera:fixed",
+  "image_circle": "apsc",
+  "focal_min": 23,
+  "focal_max": 23,
+  "aperture_wide": 2.0,
+  "aperture_tele": 2.0,
+  "aperture_min": 16,
+  "min_focus_m": 0.1,
+  "af": {
+    "motor": "linear",
+    "speed": 0.9
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 1.0,
+    "sharpness": 1.0,
+    "distortion_wide": -0.01,
+    "distortion_tele": -0.01,
+    "ca_px": 0.9,
+    "flare": 0.45,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 49,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/fuji_x100vi_23"
+}

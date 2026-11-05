@@ -1,0 +1,10 @@
+{
+  "name": "Adapter Canon FD → RF",
+  "from": "realcamera:canon_fd",
+  "to": "realcamera:canon_rf",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 22.0,
+  "model": "realcamera:item/adapter/fd_to_rf"
+}

@@ -1,0 +1,29 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:plastic",
+      "count": 3
+    },
+    {
+      "item": "realcamera:shutter_unit",
+      "count": 1
+    },
+    {
+      "item": "realcamera:aperture_blades",
+      "count": 1
+    },
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:camera_body",
+    "count": 1,
+    "components": {
+      "realcamera:body": "realcamera:zenit_e"
+    }
+  },
+  "time": 300
+}

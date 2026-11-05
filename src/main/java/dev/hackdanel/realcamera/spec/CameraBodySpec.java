@@ -23,8 +23,14 @@ public record CameraBodySpec(
         List<ResourceKey<ColorProfileSpec>> colorProfiles,
         Flash flash,
         ResourceLocation model,
-        java.util.Optional<Film> film
+        java.util.Optional<Film> film,
+        java.util.Optional<ResourceKey<LensSpec>> fixedLens
 ) {
+    /** Compact cameras with a built-in lens (X100VI, Q3, T2): the lens is part of the body and cannot be removed. */
+    public boolean hasFixedLens() {
+        return fixedLens.isPresent();
+    }
+
     /**
      * Film body: format ("135" or "120") and whether the shutter is mechanical (works without a battery;
      * then the battery only powers the light meter).
@@ -109,6 +115,7 @@ public record CameraBodySpec(
             ResourceKey.codec(RCRegistries.COLOR_PROFILE).listOf().fieldOf("color_profiles").forGetter(CameraBodySpec::colorProfiles),
             Flash.CODEC.optionalFieldOf("flash", Flash.DEFAULT).forGetter(CameraBodySpec::flash),
             ResourceLocation.CODEC.fieldOf("model").forGetter(CameraBodySpec::model),
-            Film.CODEC.optionalFieldOf("film").forGetter(CameraBodySpec::film)
+            Film.CODEC.optionalFieldOf("film").forGetter(CameraBodySpec::film),
+            ResourceKey.codec(RCRegistries.LENS).optionalFieldOf("fixed_lens").forGetter(CameraBodySpec::fixedLens)
     ).apply(i, CameraBodySpec::new));
 }

@@ -1,0 +1,31 @@
+{
+  "brand": "Nikon",
+  "exif_lens_model": "NIKKOR Z 400mm f/4.5 VR S",
+  "mount": "realcamera:nikon_z",
+  "image_circle": "ff",
+  "focal_min": 400,
+  "focal_max": 400,
+  "aperture_wide": 4.5,
+  "aperture_tele": 4.5,
+  "aperture_min": 32,
+  "min_focus_m": 2.5,
+  "af": {
+    "motor": "stepping",
+    "speed": 1.1
+  },
+  "ois_stops": 5.5,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 0.8,
+    "sharpness": 1.1,
+    "distortion_wide": 0.01,
+    "distortion_tele": 0.01,
+    "ca_px": 0.5,
+    "flare": 0.3,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 95,
+  "tc_compatible": true,
+  "model": "realcamera:item/lens/nikon_z_400_f45s"
+}

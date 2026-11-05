@@ -1,0 +1,31 @@
+{
+  "brand": "Sony",
+  "exif_lens_model": "FE 16-35mm F2.8 GM II",
+  "mount": "realcamera:sony_e",
+  "image_circle": "ff",
+  "focal_min": 16,
+  "focal_max": 35,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 22,
+  "min_focus_m": 0.22,
+  "af": {
+    "motor": "linear",
+    "speed": 1.2
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 11,
+    "rounded": true,
+    "vignetting_ev": 1.6,
+    "sharpness": 1.1,
+    "distortion_wide": -0.06,
+    "distortion_tele": -0.01,
+    "ca_px": 0.8,
+    "flare": 0.35,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 82,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/sony_fe_16_35_gm2"
+}

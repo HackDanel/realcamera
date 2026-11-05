@@ -38,10 +38,14 @@ public record LensSpec(
      * Optical character. blades/rounded: aperture shape (bokeh highlights); vignettingEv: corner fall-off
      * wide open; sharpness: 1 neutral; distortion: radial k1 at the wide and long end (- barrel, + pincushion);
      * caPx: lateral chromatic aberration at the corner in pixels of a 4K image; flare: ghosting strength;
-     * bokeh: "smooth", "busy" (onion rings) or "swirl" (Helios-style).
+     * bokeh: "smooth", "busy" (onion rings), "swirl" (Helios-style) or "bubble" (Trioplan soap bubbles);
+     * projection: "rectilinear" or a fisheye mapping ("equisolid", "stereographic", "equidistant");
+     * tiltShift: movements of a tilt-shift lens; maxMagnification: reproduction ratio at the closest focus
+     * (1 = 1:1 macro; 0 = derive from focal length and minimum focus distance).
      */
     public record Optics(int blades, boolean rounded, float vignettingEv, float sharpness, float distortionWide,
-                         float distortionTele, float caPx, float flare, String bokeh) {
+                         float distortionTele, float caPx, float flare, String bokeh, String projection,
+                         java.util.Optional<TiltShift> tiltShift, float maxMagnification) {
         public static final Codec<Optics> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.INT.optionalFieldOf("blades", 7).forGetter(Optics::blades),
                 Codec.BOOL.optionalFieldOf("rounded", true).forGetter(Optics::rounded),
@@ -51,9 +55,25 @@ public record LensSpec(
                 Codec.FLOAT.optionalFieldOf("distortion_tele", 0f).forGetter(Optics::distortionTele),
                 Codec.FLOAT.optionalFieldOf("ca_px", 1f).forGetter(Optics::caPx),
                 Codec.FLOAT.optionalFieldOf("flare", 0.5f).forGetter(Optics::flare),
-                Codec.STRING.optionalFieldOf("bokeh", "smooth").forGetter(Optics::bokeh)
+                Codec.STRING.optionalFieldOf("bokeh", "smooth").forGetter(Optics::bokeh),
+                Codec.STRING.optionalFieldOf("projection", "rectilinear").forGetter(Optics::projection),
+                TiltShift.CODEC.optionalFieldOf("tilt_shift").forGetter(Optics::tiltShift),
+                Codec.FLOAT.optionalFieldOf("max_magnification", 0f).forGetter(Optics::maxMagnification)
         ).apply(i, Optics::new));
-        public static final Optics DEFAULT = new Optics(7, true, 1f, 1f, 0f, 0f, 1f, 0.5f, "smooth");
+        public static final Optics DEFAULT = new Optics(7, true, 1f, 1f, 0f, 0f, 1f, 0.5f, "smooth", "rectilinear",
+                java.util.Optional.empty(), 0f);
+
+        public boolean fisheye() {
+            return !"rectilinear".equals(projection);
+        }
+    }
+
+    /** Tilt-shift movements: maximum tilt (degrees, either way) and shift (mm, either way). */
+    public record TiltShift(float tiltDeg, float shiftMm) {
+        public static final Codec<TiltShift> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.FLOAT.fieldOf("tilt_deg").forGetter(TiltShift::tiltDeg),
+                Codec.FLOAT.fieldOf("shift_mm").forGetter(TiltShift::shiftMm)
+        ).apply(i, TiltShift::new));
     }
 
     public static final Codec<LensSpec> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -86,6 +106,12 @@ public record LensSpec(
         }
         float t = (clampFocal(focal) - focalMin) / (focalMax - focalMin);
         return optics.distortionWide() + (optics.distortionTele() - optics.distortionWide()) * t;
+    }
+
+    /** Reproduction ratio at the closest focus distance (thin lens), unless the spec states it. */
+    public float maxMagnification() {
+        if (optics.maxMagnification() > 0) return optics.maxMagnification();
+        return (float) dev.hackdanel.realcamera.optics.Optics.magnification(focalMax, minFocusM);
     }
 
     public boolean isZoom() {

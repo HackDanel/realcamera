@@ -1,0 +1,10 @@
+{
+  "name": "Adapter Olympus OM → Sony E",
+  "from": "realcamera:olympus_om",
+  "to": "realcamera:sony_e",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 28.0,
+  "model": "realcamera:item/adapter/om_to_e"
+}

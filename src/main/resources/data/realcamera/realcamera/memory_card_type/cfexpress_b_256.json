@@ -1,0 +1,7 @@
+{
+  "name": "CFexpress Type B 256 GB",
+  "form": "cfexpress_b",
+  "capacity_gb": 256,
+  "write_mb_s": 1500,
+  "model": "realcamera:item/card/cfexpress_b"
+}

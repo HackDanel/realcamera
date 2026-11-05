@@ -1,0 +1,54 @@
+{
+  "info": {
+    "brand": "Pentax",
+    "exif_make": "ASAHI OPT. CO.",
+    "exif_model": "K1000",
+    "tier": "entry",
+    "type": "film_slr"
+  },
+  "mount": "realcamera:pentax_k",
+  "sensor": {
+    "width_mm": 36.0,
+    "height_mm": 24.0,
+    "megapixels": 24.0,
+    "base_iso": 100,
+    "iso_min": 20,
+    "iso_max": 3200,
+    "dynamic_range_ev": 12.0,
+    "noise_luma": 0,
+    "noise_chroma": 0
+  },
+  "viewfinder": "ovf",
+  "shutter": {
+    "mech_min": 0.001,
+    "elec_min": 0.001,
+    "max": 1,
+    "rated_life": 100000,
+    "sound": "dslr",
+    "readout_ms": 0,
+    "burst_mech": 1.5,
+    "burst_elec": 1.5,
+    "buffer_shots": 1,
+    "efcs": false
+  },
+  "af": {
+    "speed": 0,
+    "low_light_ev": 99,
+    "subject_detect": "none"
+  },
+  "ibis_stops": 0,
+  "battery_type": "realcamera:sr44",
+  "battery_drain": 0.2,
+  "card_forms": [],
+  "weather_sealing": 0,
+  "color_profiles": [],
+  "model": "realcamera:item/body/pentax_k1000",
+  "flash": {
+    "built_in_gn": 0,
+    "sync": 0.016666666666666666
+  },
+  "film": {
+    "format": "135",
+    "mechanical": true
+  }
+}

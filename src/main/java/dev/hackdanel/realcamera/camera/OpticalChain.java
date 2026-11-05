@@ -44,7 +44,9 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
     public static Optional<OpticalChain> resolve(HolderLookup.Provider r, ItemStack camera) {
         Optional<CameraBodySpec> body = Specs.body(r, camera);
         CameraParts parts = CameraHelper.parts(camera);
-        Optional<LensSpec> lens = Specs.lens(r, parts.lens());
+        Optional<LensSpec> lens = body.isPresent() && body.get().hasFixedLens()
+                ? Specs.lookup(r, dev.hackdanel.realcamera.registry.RCRegistries.LENS, body.get().fixedLens().get())
+                : Specs.lens(r, parts.lens());
         if (body.isEmpty() || lens.isEmpty()) {
             return Optional.empty();
         }
@@ -57,6 +59,11 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
         boolean crop = false;
         float circle = 1f;
         boolean apscLensOnFf = "apsc".equals(lens.get().imageCircle()) && sensor.cropFactor() < 1.2f;
+        float lensDiag = circleDiagonalMm(lens.get().imageCircle());
+        if (!apscLensOnFf && lensDiag < sensor.diagonalMm() * 0.97f && !lens.get().optics().fisheye()) {
+            // a small-format lens on a bigger sensor (e.g. a full-frame lens on medium format): dark corners
+            circle = lensDiag / sensor.diagonalMm();
+        }
         if (apscLensOnFf) {
             if (CameraHelper.settings(camera).cropMode() == CameraSettings.CROP_AUTO) {
                 float k = 1.5f;
@@ -69,6 +76,55 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
             }
         }
         return Optional.of(new OpticalChain(body.get(), lens.get(), adapter, tc, sensor, crop, circle));
+    }
+
+    /** Diameter of the image circle a lens of the given class projects (mm). */
+    public static float circleDiagonalMm(String imageCircle) {
+        return switch (imageCircle) {
+            case "mft" -> 21.8f;
+            case "apsc" -> 28.6f;
+            case "mf" -> 56f;
+            case "6x6" -> 80f;
+            default -> 43.5f;
+        };
+    }
+
+    public int projection() {
+        return dev.hackdanel.realcamera.optics.Optics.projection(lens.optics().projection());
+    }
+
+    /** Tilt-shift movements of the lens, if it has any. */
+    public java.util.Optional<LensSpec.TiltShift> tiltShift() {
+        return tc == null ? lens.optics().tiltShift() : java.util.Optional.empty();
+    }
+
+    /** Lens shift actually applied (mm, clamped to the lens's range; 0 for normal lenses). */
+    public float shiftMm(CameraSettings s) {
+        return tiltShift().map(t -> Math.max(-t.shiftMm(), Math.min(t.shiftMm(), s.shift()))).orElse(0f);
+    }
+
+    public float tiltDeg(CameraSettings s) {
+        return tiltShift().map(t -> Math.max(-t.tiltDeg(), Math.min(t.tiltDeg(), s.tilt()))).orElse(0f);
+    }
+
+    /** Extra field the frame is rendered with when the lens is shifted (the corners of the re-projection). */
+    public static final float SHIFT_OVERSCAN = 1.12f;
+
+    /**
+     * Vertical field of view to render the frame with: the sensor's for normal lenses, a capped wide view for
+     * fisheyes (remapped later), a slightly wider one for a shifted lens.
+     */
+    public double renderVfovDeg(float focal, CameraSettings s) {
+        double v = dev.hackdanel.realcamera.optics.Optics.renderVfovDeg(projection(), focal, sensor.widthMm(), sensor.heightMm());
+        if (shiftMm(s) != 0) {
+            v = Math.toDegrees(2 * Math.atan(Math.tan(Math.toRadians(v) / 2) * SHIFT_OVERSCAN));
+        }
+        return v;
+    }
+
+    /** Camera pitch (degrees, + = up) the frame is rendered with for a shifted lens: atan(shift / f). */
+    public double shiftPitchDeg(float focal, CameraSettings s) {
+        return Math.toDegrees(Math.atan(shiftMm(s) / focal));
     }
 
     public float tcFactor() {

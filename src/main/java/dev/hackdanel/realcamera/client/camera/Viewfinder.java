@@ -219,9 +219,23 @@ public final class Viewfinder {
         return p.getItemInHand(ref.hand());
     }
 
-    /** Vertical FOV of the (effective) sensor: what the photo covers. */
+    /**
+     * Vertical FOV the photo is rendered with: the (effective) sensor's, capped and remapped later for
+     * fisheyes, a little wider for a shifted tilt-shift lens.
+     */
     public static double sensorVfov() {
-        return Optics.verticalFovDeg(sensor().heightMm(), focal());
+        return chain.renderVfovDeg(focal(), settings);
+    }
+
+    /** Parameters the dials can select: tilt and shift only on a tilt-shift lens. */
+    private static int nextParam(int from, int dir) {
+        int p = from;
+        for (int i = 0; i < CameraSettings.PARAM_COUNT; i++) {
+            p = Math.floorMod(p + dir, CameraSettings.PARAM_COUNT);
+            boolean movement = p == CameraSettings.PARAM_TILT || p == CameraSettings.PARAM_SHIFT;
+            if (!movement || chain.tiltShift().isPresent()) return p;
+        }
+        return CameraSettings.PARAM_SHUTTER;
     }
 
     /** Rangefinders show more than the frame; the bright frame lines mark the picture. */
@@ -829,10 +843,10 @@ public final class Viewfinder {
 
     private static void handleKeys(Minecraft mc) {
         while (RCKeys.NEXT_PARAM.consumeClick()) {
-            update(settings.withSelectedParam((settings.selectedParam() + 1) % CameraSettings.PARAM_COUNT));
+            update(settings.withSelectedParam(nextParam(settings.selectedParam(), 1)));
         }
         while (RCKeys.PREV_PARAM.consumeClick()) {
-            update(settings.withSelectedParam(Math.floorMod(settings.selectedParam() - 1, CameraSettings.PARAM_COUNT)));
+            update(settings.withSelectedParam(nextParam(settings.selectedParam(), -1)));
         }
         while (RCKeys.MODE.consumeClick()) {
             update(settings.withMode((settings.mode() + 1) % CameraSettings.MODE_COUNT));
@@ -947,6 +961,10 @@ public final class Viewfinder {
                     }
                 }
             }
+            case CameraSettings.PARAM_TILT -> chain.tiltShift().ifPresent(t ->
+                    update(settings.withTilt(Mth.clamp(Math.round((settings.tilt() + steps * 0.5f) * 2) / 2f, -t.tiltDeg(), t.tiltDeg()))));
+            case CameraSettings.PARAM_SHIFT -> chain.tiltShift().ifPresent(t ->
+                    update(settings.withShift(Mth.clamp(Math.round((settings.shift() + steps * 0.5f) * 2) / 2f, -t.shiftMm(), t.shiftMm()))));
             default -> {}
         }
     }
@@ -983,6 +1001,18 @@ public final class Viewfinder {
     }
 
     // ------------------------------------------------------------------ view
+
+    /** A shifted lens frames higher (or lower): the view is rendered pitched by atan(shift / f). */
+    @SubscribeEvent
+    static void onCameraAngles(ViewportEvent.ComputeCameraAngles event) {
+        if (!isActive() || PhotoCapture.capturing() || chain == null) {
+            return;
+        }
+        double pitch = chain.shiftPitchDeg(focal(), settings);
+        if (pitch != 0) {
+            event.setPitch((float) (event.getPitch() - pitch));
+        }
+    }
 
     @SubscribeEvent
     static void onFov(ViewportEvent.ComputeFov event) {

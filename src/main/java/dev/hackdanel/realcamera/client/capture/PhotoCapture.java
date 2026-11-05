@@ -152,7 +152,19 @@ public final class PhotoCapture {
     static void onFov(net.neoforged.neoforge.client.event.ViewportEvent.ComputeFov event) {
         Active a = active;
         if (a != null && event.usedConfiguredFov()) {
-            event.setFOV(Optics.verticalFovDeg(a.shot.chain().sensor().heightMm(), a.shot.focal()));
+            event.setFOV(a.shot.chain().renderVfovDeg(a.shot.focal(), a.shot.settings()));
+        }
+    }
+
+    /** A shifted lens: the frame is rendered pitched up by atan(shift / f) and re-projected when developing. */
+    @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.LOWEST)
+    static void onCameraAngles(net.neoforged.neoforge.client.event.ViewportEvent.ComputeCameraAngles event) {
+        Active a = active;
+        if (a != null) {
+            double pitch = a.shot.chain().shiftPitchDeg(a.shot.focal(), a.shot.settings());
+            if (pitch != 0) {
+                event.setPitch((float) (event.getPitch() - pitch));
+            }
         }
     }
 
@@ -282,7 +294,7 @@ public final class PhotoCapture {
 
     private static float[][] grids(Minecraft mc, Shot s, int gw, int gh) {
         return new CameraRays(mc.level, mc.getCameraEntity(), mc.gameRenderer.getMainCamera(),
-                Optics.verticalFovDeg(s.chain().sensor().heightMm(), s.focal()), s.chain().sensor().aspect(), 512)
+                s.chain().renderVfovDeg(s.focal(), s.settings()), s.chain().sensor().aspect(), 512)
                 .grids(gw, gh, s.extras().flashAt1m() > 0);
     }
 
@@ -442,11 +454,22 @@ public final class PhotoCapture {
                 chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(s.focal())) * (correct ? 0.15 : 1),
                 optics.caPx() * (w / 3840.0) * (correct ? 0.2 : 1), chain.imageCircle(), optics.blades(),
                 optics.rounded(), optics.flare());
+        lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh()));
+        int projection = chain.projection();
+        if (projection != Optics.PROJ_RECTILINEAR) {
+            double halfDiag = Math.hypot(sensor.widthMm(), sensor.heightMm()) / 2;
+            lens = lens.withProjection(projection, Optics.renderCornerAngle(projection, s.focal(), halfDiag));
+        }
+        float shiftMm = chain.shiftMm(s.settings());
+        if (shiftMm != 0) {
+            lens = lens.withShift(shiftMm * w / sensor.widthMm(), 1 / OpticalChain.SHIFT_OVERSCAN);
+        }
         var motion = new ImageParams.Motion(s.motion().blurX() * w, s.motion().blurY() * w, s.motion().rollingSkewPx() * w);
         return new ImageParams(
                 new ImageParams.Sensor(exposureEv(s, seconds), isoGain, sensor.noiseLuma(), sensor.noiseChroma(),
                         (double) w * h / (sensor.megapixels() * 1e6), sensor.dynamicRangeEv()),
-                new ImageParams.Focus(s.focal(), s.exposure().fNumber(), s.focusDistance(), sensor.widthMm()),
+                new ImageParams.Focus(s.focal(), s.exposure().fNumber(), s.focusDistance(), sensor.widthMm(),
+                        chain.tiltDeg(s.settings())),
                 lens, motion, s.sun(),
                 new ImageParams.Colour(wb[0], wb[1], wb[2],
                         profile == null ? 1 : profile.contrast(), profile == null ? 1 : profile.saturation(),

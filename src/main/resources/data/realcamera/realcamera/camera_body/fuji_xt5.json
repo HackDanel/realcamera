@@ -1,0 +1,60 @@
+{
+  "info": {
+    "brand": "Fujifilm",
+    "exif_make": "FUJIFILM",
+    "exif_model": "X-T5",
+    "tier": "mid",
+    "type": "mirrorless"
+  },
+  "mount": "realcamera:fuji_x",
+  "sensor": {
+    "width_mm": 23.5,
+    "height_mm": 15.6,
+    "megapixels": 40.2,
+    "base_iso": 125,
+    "iso_min": 125,
+    "iso_max": 12800,
+    "dynamic_range_ev": 13.5,
+    "noise_luma": 1.1,
+    "noise_chroma": 1.0
+  },
+  "viewfinder": "evf",
+  "shutter": {
+    "mech_min": 0.000125,
+    "elec_min": 5.555555555555556e-06,
+    "max": 900,
+    "rated_life": 500000,
+    "sound": "mirrorless",
+    "readout_ms": 60,
+    "burst_mech": 15,
+    "burst_elec": 20,
+    "buffer_shots": 110,
+    "efcs": true
+  },
+  "af": {
+    "speed": 1.05,
+    "low_light_ev": -7,
+    "subject_detect": "animal"
+  },
+  "ibis_stops": 7.0,
+  "battery_type": "realcamera:np_w235",
+  "battery_drain": 1.0,
+  "card_forms": [
+    "sd"
+  ],
+  "weather_sealing": 1,
+  "color_profiles": [
+    "realcamera:fuji_provia",
+    "realcamera:fuji_velvia",
+    "realcamera:fuji_astia",
+    "realcamera:fuji_classic_chrome",
+    "realcamera:fuji_classic_neg",
+    "realcamera:fuji_eterna",
+    "realcamera:fuji_acros"
+  ],
+  "model": "realcamera:item/body/fuji_xt5",
+  "flash": {
+    "built_in_gn": 0,
+    "sync": 0.004
+  }
+}

@@ -96,7 +96,8 @@ public final class ImagePipeline {
         }
         img = motionBlur(img, w, h, p.motion().blurX(), p.motion().blurY());
         img = rollingShutter(img, w, h, p.motion().rollingSkewPx());
-        img = lensGeometry(img, w, h, p.lens());
+        img = lensShift(img, w, h, p);
+        img = p.lens().projection() != 0 ? fisheye(img, w, h, p) : lensGeometry(img, w, h, p.lens());
         lens(img, w, h, p);
         img = wear(img, w, h, p);
         flare(img, w, h, p);
@@ -257,13 +258,25 @@ public final class ImagePipeline {
 
     // ------------------------------------------------------------------ depth of field
 
-    /** Blur radius in pixels for every pixel, from the thin-lens blur circle. */
+    /**
+     * Blur radius in pixels for every pixel, from the thin-lens blur circle. A tilted lens focuses each row
+     * at a different distance (the plane of focus is no longer parallel to the sensor).
+     */
     static float[] blurRadius(float[] depth, int w, ImageParams.Focus f, float maxRadius) {
         float[] r = new float[depth.length];
+        int h = depth.length / w;
         double pxPerMm = w / f.sensorWidthMm();
-        for (int i = 0; i < depth.length; i++) {
-            double c = Optics.blurCircleMm(f.focalMm(), f.fNumber(), f.focusM(), depth[i]);
-            r[i] = (float) Math.min(maxRadius, c * pxPerMm * 0.5);
+        for (int y = 0; y < h; y++) {
+            double focus = f.focusM();
+            if (Math.abs(f.tiltDeg()) > 1e-3) {
+                double rowMm = (h / 2.0 - y - 0.5) / pxPerMm;
+                focus = Math.min(1e6, Optics.tiltedFocusM(f.focalMm(), f.focusM(), f.tiltDeg(), rowMm));
+            }
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x;
+                double c = Optics.blurCircleMm(f.focalMm(), f.fNumber(), focus, depth[i]);
+                r[i] = (float) Math.min(maxRadius, c * pxPerMm * 0.5);
+            }
         }
         return r;
     }
@@ -283,6 +296,16 @@ public final class ImagePipeline {
             return img;
         }
         List<Highlight> highlights = findHighlights(img, radius, w, h);
+        // small bright sources (lamps, glints) often get no reliable depth of their own: blur their core like
+        // their surroundings, otherwise a sharp dot stays in the middle of the bokeh disc
+        for (Highlight hl : highlights) {
+            int cx = (int) hl.x, cy = (int) hl.y, k = 3;
+            for (int y = Math.max(0, cy - k); y <= Math.min(h - 1, cy + k); y++) {
+                for (int x = Math.max(0, cx - k); x <= Math.min(w - 1, cx + k); x++) {
+                    radius[y * w + x] = Math.max(radius[y * w + x], hl.r);
+                }
+            }
+        }
         int levels = Math.max(1, (int) Math.ceil(Math.log(largest) / Math.log(2)) + 1);
         Level[] pyr = new Level[levels + 1];
         for (int k = 1; k <= levels; k++) {
@@ -313,7 +336,53 @@ public final class ImagePipeline {
                 out[j + 2] = a[2] + (b[2] - a[2]) * t;
             }
         }
+        if (p.lens().bokeh() == ImageParams.BOKEH_SWIRL) {
+            out = swirl(out, radius, w, h);
+        }
         drawBokeh(out, w, h, highlights, p.lens());
+        return out;
+    }
+
+    /**
+     * Helios-style swirl: the out-of-focus background is smeared along circles around the frame centre,
+     * more towards the edges and the more it is blurred.
+     */
+    static float[] swirl(float[] img, float[] radius, int w, int h) {
+        double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, halfDiag = Math.hypot(cx, cy);
+        float[] out = img.clone();
+        int taps = 9;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x;
+                double ox = x - cx, oy = y - cy;
+                double dist = Math.hypot(ox, oy) / halfDiag;
+                double len = radius[i] * 4.0 * Math.pow(dist, 1.5);
+                if (len < 1) continue;
+                double tx = -oy / Math.max(1e-6, Math.hypot(ox, oy)), ty = ox / Math.max(1e-6, Math.hypot(ox, oy));
+                int j = i * 3;
+                out[j] = out[j + 1] = out[j + 2] = 0;
+                float wsum = 0;
+                for (int t = 0; t < taps; t++) {
+                    double f = (double) t / (taps - 1) - 0.5;
+                    float sx = (float) (x + tx * len * f), sy = (float) (y + ty * len * f);
+                    if (sx < 0 || sy < 0 || sx > w - 1.001f || sy > h - 1.001f) continue;
+                    int si = (int) sy * w + (int) sx;
+                    // keep sharp pixels out of the smear (the subject does not swirl)
+                    float wt = Math.min(1f, radius[si] / Math.max(1f, radius[i]));
+                    bilinearAdd(img, w, h, sx, sy, out, j, wt);
+                    wsum += wt;
+                }
+                if (wsum > 0) {
+                    out[j] /= wsum;
+                    out[j + 1] /= wsum;
+                    out[j + 2] /= wsum;
+                } else {
+                    out[j] = img[j];
+                    out[j + 1] = img[j + 1];
+                    out[j + 2] = img[j + 2];
+                }
+            }
+        }
         return out;
     }
 
@@ -422,9 +491,11 @@ public final class ImagePipeline {
                         }
                     }
                 }
-                if (best < 0 || bestL < 0.75f || radius[best] < 3f) continue;
-                // must be a local peak: clearly brighter than pixels 2 blocks away
+                if (best < 0 || bestL < 0.75f) continue;
                 int x = best % w, y = best / w;
+                float r = neighbourhoodRadius(radius, w, h, x, y, 2 * block);
+                if (r < 3f) continue;
+                // must be a local peak: clearly brighter than pixels 2 blocks away
                 float ring = 0;
                 int n = 0;
                 for (int d = -1; d <= 1; d += 2) {
@@ -434,11 +505,26 @@ public final class ImagePipeline {
                 }
                 if (bestL < 1.6f * ring / n) continue;
                 int j = best * 3;
-                found.add(new Highlight(x, y, radius[best], img[j], img[j + 1], img[j + 2]));
+                found.add(new Highlight(x, y, r, img[j], img[j + 1], img[j + 2]));
             }
         }
         found.sort((a, b) -> Float.compare(b.cr + b.cg + b.cb, a.cr + a.cg + a.cb));
         return found.size() > 3000 ? found.subList(0, 3000) : found;
+    }
+
+    /** Largest blur radius around a point: the depth of a tiny light is that of what surrounds it. */
+    private static float neighbourhoodRadius(float[] radius, int w, int h, int x, int y, int k) {
+        float r = radius[y * w + x];
+        for (int dy = -k; dy <= k; dy += 2) {
+            int yy = y + dy;
+            if (yy < 0 || yy >= h) continue;
+            for (int dx = -k; dx <= k; dx += 2) {
+                int xx = x + dx;
+                if (xx < 0 || xx >= w) continue;
+                r = Math.max(r, radius[yy * w + xx]);
+            }
+        }
+        return r;
     }
 
     private static float lum(float[] img, int w, int x, int y) {
@@ -453,6 +539,7 @@ public final class ImagePipeline {
     static void drawBokeh(float[] img, int w, int h, List<Highlight> highlights, ImageParams.Lens lens) {
         double cx = w / 2.0, cy = h / 2.0, halfDiag = Math.hypot(cx, cy);
         int blades = Math.max(5, lens.blades());
+        int style = lens.bokeh();
         for (Highlight hl : highlights) {
             float r = hl.r;
             // energy of the source spread over the disc, with a slightly brighter rim
@@ -462,6 +549,8 @@ public final class ImagePipeline {
             double dist = Math.hypot(ox, oy) / halfDiag;
             double clipShift = r * 1.2 * dist; // second circle shifted towards the centre
             double ux = dist > 1e-6 ? -ox / Math.hypot(ox, oy) : 0, uy = dist > 1e-6 ? -oy / Math.hypot(ox, oy) : 0;
+            // swirl: discs squeezed along the radius into ovals that line up on circles around the centre
+            double squeeze = style == ImageParams.BOKEH_SWIRL ? 1 - 0.7 * Math.min(1, dist * 1.2) : 1;
             int x0 = (int) Math.floor(hl.x - r), x1 = (int) Math.ceil(hl.x + r);
             int y0 = (int) Math.floor(hl.y - r), y1 = (int) Math.ceil(hl.y + r);
             for (int y = Math.max(0, y0); y <= Math.min(h - 1, y1); y++) {
@@ -469,11 +558,25 @@ public final class ImagePipeline {
                     double dx = x - hl.x, dy = y - hl.y;
                     double rr = Math.hypot(dx, dy);
                     double edge = lens.rounded() ? r : polygonRadius(Math.atan2(dy, dx), blades, r);
+                    if (squeeze < 1) {
+                        double rad = -(dx * ux + dy * uy), tan = dx * uy - dy * ux;
+                        double q = Math.hypot(rad / squeeze, tan);
+                        if (q > r) continue;
+                        rr = q;
+                        edge = r;
+                    }
                     if (rr > edge) continue;
                     // cat's eye: also inside a circle of radius r shifted towards the image centre
                     double ex = dx - ux * clipShift, ey = dy - uy * clipShift;
                     if (Math.hypot(ex, ey) > r * 1.05) continue;
-                    float rim = (float) (0.8 + 0.4 * (rr / Math.max(1, edge)));
+                    double e = rr / Math.max(1, edge);
+                    float rim = switch (style) {
+                        // soap bubble: a bright thin outline with a dim centre
+                        case ImageParams.BOKEH_BUBBLE -> (float) (0.3 + 2.6 * Math.pow(e, 7));
+                        // onion rings from aspherical elements
+                        case ImageParams.BOKEH_BUSY -> (float) ((0.8 + 0.4 * e) * (1 + 0.3 * Math.sin(e * 22)));
+                        default -> (float) (0.8 + 0.4 * e);
+                    };
                     int j = (y * w + x) * 3;
                     img[j] += hl.cr * k * rim;
                     img[j + 1] += hl.cg * k * rim;
@@ -576,6 +679,77 @@ public final class ImagePipeline {
                     out[j] *= fall;
                     out[j + 1] *= fall;
                     out[j + 2] *= fall;
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Shift (rise/fall) of a tilt-shift lens. The frame was rendered with the camera pitched up by
+     * beta = atan(shift / f) (and possibly wider); re-projecting it onto the level sensor with the lens axis
+     * moved gives the shifted picture: verticals stay parallel while the frame shows more above.
+     */
+    static float[] lensShift(float[] img, int w, int h, ImageParams p) {
+        ImageParams.Lens l = p.lens();
+        if (Math.abs(l.shiftPx()) < 0.5 && Math.abs(l.renderScale() - 1) < 1e-4) {
+            return img;
+        }
+        double f = p.focus().focalMm() * w / p.focus().sensorWidthMm(); // output focal length, px
+        double fr = f * l.renderScale();
+        double s = l.shiftPx();
+        double beta = Math.atan2(s, f), sb = Math.sin(beta), cb = Math.cos(beta);
+        double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0;
+        float[] out = new float[img.length];
+        for (int y = 0; y < h; y++) {
+            double v = (y - cy) - s;
+            double zr = -v * sb + f * cb, yr = v * cb + f * sb;
+            for (int x = 0; x < w; x++) {
+                double u = x - cx;
+                float sx = (float) (cx + fr * u / zr), sy = (float) (cy + fr * yr / zr);
+                int j = (y * w + x) * 3;
+                for (int c = 0; c < 3; c++) {
+                    out[j + c] = sampleChannel(img, w, h, sx, sy, c);
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Fisheye: every output pixel looks along the off-axis angle the lens's projection assigns to its
+     * distance from the centre, and samples the rectilinear render there. Angles the render does not reach
+     * (it is capped at {@link Optics#MAX_RENDER_HALF_ANGLE}) are compressed into it; pixels outside the
+     * image circle of a circular fisheye stay black. Lateral CA works as for other lenses.
+     */
+    static float[] fisheye(float[] img, int w, int h, ImageParams p) {
+        ImageParams.Lens l = p.lens();
+        double focal = p.focus().focalMm(), pxPerMm = w / p.focus().sensorWidthMm();
+        double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, halfDiag = Math.hypot(cx, cy);
+        double cover = Optics.fisheyeCornerAngle(l.projection(), focal, halfDiag / pxPerMm);
+        double render = l.renderCorner() > 0 ? l.renderCorner() : Math.min(cover, Optics.MAX_RENDER_HALF_ANGLE);
+        double squeeze = cover > render ? render / cover : 1;
+        double tanRender = Math.tan(render);
+        double caScale = l.caPx() / halfDiag;
+        float[] out = new float[img.length];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                double nx = x - cx, ny = y - cy, rPx = Math.hypot(nx, ny);
+                int j = (y * w + x) * 3;
+                double theta = Optics.fisheyeAngle(l.projection(), focal, rPx / pxPerMm);
+                if (Double.isNaN(theta) || theta > Math.PI / 2 + 0.01) {
+                    continue; // outside the image circle
+                }
+                // soft edge of a circular image
+                double edgePx = Optics.fisheyeRadius(l.projection(), focal, Math.PI / 2) * pxPerMm;
+                float fall = (float) clamp01((float) ((edgePx - rPx) / Math.max(1.5, edgePx * 0.012)));
+                double phi = Math.min(theta * squeeze, Math.PI / 2 - 1e-3);
+                double srcR = Math.tan(phi) / tanRender * halfDiag;
+                double k = rPx > 1e-6 ? srcR / rPx : (squeeze * pxPerMm * focal > 0 ? halfDiag / (tanRender * focal * pxPerMm) * squeeze : 1);
+                double[] scale = {k * (1 + caScale), k, k * (1 - caScale)};
+                for (int c = 0; c < 3; c++) {
+                    float sx = (float) (cx + nx * scale[c]), sy = (float) (cy + ny * scale[c]);
+                    out[j + c] = sampleChannel(img, w, h, sx, sy, c) * fall;
                 }
             }
         }

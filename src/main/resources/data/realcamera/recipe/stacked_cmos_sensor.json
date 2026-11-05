@@ -1,0 +1,22 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:bsi_cmos_sensor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:processor",
+      "count": 1
+    },
+    {
+      "item": "minecraft:diamond",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:stacked_cmos_sensor",
+    "count": 1
+  },
+  "time": 160
+}

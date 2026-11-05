@@ -1,0 +1,10 @@
+{
+  "name": "Adapter M42 → Fujifilm X",
+  "from": "realcamera:m42",
+  "to": "realcamera:fuji_x",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 27.76,
+  "model": "realcamera:item/adapter/m42_to_x"
+}

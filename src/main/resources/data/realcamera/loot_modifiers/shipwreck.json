@@ -1,0 +1,87 @@
+{
+  "type": "realcamera:add_items",
+  "conditions": [
+    {
+      "condition": "minecraft:any_of",
+      "terms": [
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/shipwreck_supply"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/shipwreck_treasure"
+        },
+        {
+          "condition": "neoforge:loot_table_id",
+          "loot_table_id": "minecraft:chests/shipwreck_map"
+        }
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "item": {
+        "id": "realcamera:camera_body",
+        "count": 1,
+        "components": {
+          "realcamera:body": "realcamera:nikon_d3500",
+          "realcamera:wear": {
+            "shutter_jammed": true,
+            "moisture": 100.0,
+            "dead": true
+          }
+        }
+      },
+      "chance": 0.12
+    },
+    {
+      "item": {
+        "id": "realcamera:camera_body",
+        "count": 1,
+        "components": {
+          "realcamera:body": "realcamera:canon_eos_250d",
+          "realcamera:wear": {
+            "shutter_jammed": true,
+            "moisture": 100.0,
+            "dead": true
+          }
+        }
+      },
+      "chance": 0.12
+    },
+    {
+      "item": {
+        "id": "realcamera:camera_body",
+        "count": 1,
+        "components": {
+          "realcamera:body": "realcamera:sony_a6400",
+          "realcamera:wear": {
+            "shutter_jammed": true,
+            "moisture": 100.0,
+            "dead": true
+          }
+        }
+      },
+      "chance": 0.08
+    },
+    {
+      "item": {
+        "id": "realcamera:filter",
+        "count": 1,
+        "components": {
+          "realcamera:filter_type": "realcamera:uv_82"
+        }
+      },
+      "chance": 0.25
+    },
+    {
+      "item": {
+        "id": "realcamera:cleaning_kit",
+        "count": 1
+      },
+      "chance": 0.15
+    }
+  ],
+  "max_items": 2
+}

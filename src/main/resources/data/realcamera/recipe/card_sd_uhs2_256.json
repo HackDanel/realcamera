@@ -1,0 +1,29 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:flash_memory",
+      "count": 4
+    },
+    {
+      "item": "realcamera:plastic",
+      "count": 1
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:memory_card",
+    "count": 1,
+    "components": {
+      "realcamera:card_type": "realcamera:sd_uhs2_256",
+      "realcamera:card": {
+        "used_bytes": 0,
+        "photo_count": 0
+      }
+    }
+  },
+  "time": 120
+}

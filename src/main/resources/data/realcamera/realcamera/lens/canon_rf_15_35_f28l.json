@@ -1,0 +1,31 @@
+{
+  "brand": "Canon",
+  "exif_lens_model": "RF15-35mm F2.8 L IS USM",
+  "mount": "realcamera:canon_rf",
+  "image_circle": "ff",
+  "focal_min": 15,
+  "focal_max": 35,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 22,
+  "min_focus_m": 0.28,
+  "af": {
+    "motor": "linear",
+    "speed": 1.15
+  },
+  "ois_stops": 5,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 1.7,
+    "sharpness": 1.1,
+    "distortion_wide": -0.07,
+    "distortion_tele": -0.01,
+    "ca_px": 0.8,
+    "flare": 0.4,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 82,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/canon_rf_15_35_f28l"
+}

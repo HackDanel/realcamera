@@ -1,0 +1,31 @@
+{
+  "brand": "KMZ",
+  "exif_lens_model": "----",
+  "mount": "realcamera:m42",
+  "image_circle": "ff",
+  "focal_min": 85,
+  "focal_max": 85,
+  "aperture_wide": 2.0,
+  "aperture_tele": 2.0,
+  "aperture_min": 22,
+  "min_focus_m": 0.8,
+  "af": {
+    "motor": "none",
+    "speed": 0
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 15,
+    "rounded": true,
+    "vignetting_ev": 1.3,
+    "sharpness": 0.88,
+    "distortion_wide": 0.0,
+    "distortion_tele": 0.0,
+    "ca_px": 1.8,
+    "flare": 0.85,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 49,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/jupiter_9"
+}

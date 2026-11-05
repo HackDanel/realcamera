@@ -347,27 +347,59 @@ def all_faces(region, overrides=None, tex="#t"):
 
 
 def cylinder(cx, cy, z0, z1, r, side_region, cap_front=None, cap_back=None, tex="#t"):
-    """Octagonal prism along z: an axis-aligned box plus the same box rotated 45° around z."""
-    s = r * 0.8284  # half-width of the square so that the union is a regular octagon of radius r
-    faces = {}
-    for f in ("east", "west", "up", "down"):
-        faces[f] = {"uv": face_uv(side_region), "texture": tex}
-    if cap_front:
-        faces["north"] = {"uv": face_uv(cap_front), "texture": tex}
-    if cap_back:
-        faces["south"] = {"uv": face_uv(cap_back), "texture": tex}
-    a = element([cx - s, cy - r, z0], [cx + s, cy + r, z1], dict(faces))
-    b = element([cx - r, cy - s, z0], [cx + r, cy + s, z1], dict(faces))
-    faces_rot = dict(faces)
-    c = element([cx - s, cy - r, z0], [cx + s, cy + r, z1], faces_rot,
-                rotation={"angle": 45, "axis": "z", "origin": [cx, cy, (z0 + z1) / 2]})
-    return [a, b, c]
+    """Regular 16-sided prism along z (apothem r).
+
+    Built from 8 thin "spokes" through the axis, one per pair of opposite sides, at 22.5° steps. Minecraft only
+    rotates elements by -45..45° in 22.5° steps, so the spokes at 67.5°..157.5° are the 0°..-45° ones with
+    width and height swapped. A spoke of half-width r·tan(11.25°) exactly fills its wedge of the polygon, so
+    the union is the polygon without gaps. Each outer face gets its own 1/16 slice of the side texture (the
+    texture wraps around the barrel); the caps of the spokes are staggered by a hair to avoid z-fighting.
+    """
+    t = r * math.tan(math.radians(11.25))
+    x0, y0, x1, y1 = side_region
+    slice_w = (x1 - x0) / 16.0
+
+    def side_uv(k):
+        u0 = x0 + slice_w * (k % 16)
+        return [u0 * 0.25, y0 * 0.25, (u0 + slice_w) * 0.25, y1 * 0.25]
+
+    def cap_uv(region, half_w, half_h):
+        if region is None:
+            return None
+        rx0, ry0, rx1, ry1 = region
+        mx, my = (rx0 + rx1) / 2, (ry0 + ry1) / 2
+        hw, hh = (rx1 - rx0) / 2 * half_w / r, (ry1 - ry0) / 2 * half_h / r
+        return [(mx - hw) * 0.25, (my - hh) * 0.25, (mx + hw) * 0.25, (my + hh) * 0.25]
+
+    els = []
+    # (rotation angle, vertical spoke?) -> direction of the spoke's long axis = 90° + angle or 0° + angle
+    spokes = [(0, True), (22.5, True), (45, True), (-22.5, True), (-45, True), (0, False), (22.5, False), (-22.5, False)]
+    for i, (ang, vertical) in enumerate(spokes):
+        hw, hh = (t, r) if vertical else (r, t)
+        stagger = i * 0.004
+        faces = {}
+        if vertical:
+            # long axis along y: the up/down faces are outer sides; u runs across the face (around the barrel)
+            k_up = round((90 + ang) / 22.5)
+            faces["up"] = {"uv": side_uv(k_up), "texture": tex}
+            faces["down"] = {"uv": side_uv(k_up + 8), "texture": tex}
+        else:
+            k_e = round(ang / 22.5)
+            faces["east"] = {"uv": side_uv(k_e), "texture": tex, "rotation": 90}
+            faces["west"] = {"uv": side_uv(k_e + 8), "texture": tex, "rotation": 90}
+        if cap_front:
+            faces["north"] = {"uv": cap_uv(cap_front, hw, hh), "texture": tex}
+        if cap_back:
+            faces["south"] = {"uv": cap_uv(cap_back, hw, hh), "texture": tex}
+        rot = {"angle": ang, "axis": "z", "origin": [cx, cy, (z0 + z1) / 2]} if ang else None
+        els.append(element([cx - hw, cy - hh, z0 + stagger], [cx + hw, cy + hh, z1 - stagger], faces, rotation=rot))
+    return els
 
 
 ITEM_DISPLAY_3D = {
     "gui": {"rotation": [20, 150, 0], "translation": [0, -0.5, 0], "scale": [0.78, 0.78, 0.78]},
     "ground": {"rotation": [0, 0, 0], "translation": [0, 2, 0], "scale": [0.5, 0.5, 0.5]},
-    "fixed": {"rotation": [0, 180, 0], "translation": [0, 0, 0], "scale": [0.7, 0.7, 0.7]},
+    "fixed": {"rotation": [0, 25, 0], "translation": [0, 0, 0], "scale": [0.7, 0.7, 0.7]},
     "thirdperson_righthand": {"rotation": [75, 0, 0], "translation": [0, 2.5, 1], "scale": [0.45, 0.45, 0.45]},
     "thirdperson_lefthand": {"rotation": [75, 0, 0], "translation": [0, 2.5, 1], "scale": [0.45, 0.45, 0.45]},
     "firstperson_righthand": {"rotation": [0, -10, 0], "translation": [2, 1, 0], "scale": [0.55, 0.55, 0.55]},
@@ -433,6 +465,8 @@ def camera_body_model(texture, style="mirrorless"):
         return dslr_model(texture, R)
     if style == "rangefinder":
         return rangefinder_model(texture, R)
+    if style in BODY_STYLES:
+        return model(f"{NS}:item/body/{texture}", BODY_STYLES[style](R))
     els = []
     # main body
     els.append(element([1.5, 3, 9], [14.5, 11.5, 13.5], all_faces(R["body"], {
@@ -475,6 +509,97 @@ def rangefinder_model(texture, R):
            element([3, 11.6, 10.4], [5, 12.2, 12], all_faces(R["dial"]))]
     els += cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.3, MOUNT_Z + 0.6, 2.7, R["metal"], cap_front=R["sensor"])
     return model(f"{NS}:item/body/{texture}", els)
+
+
+def _faces(R, base, **over):
+    return all_faces(R[base], {k: R[v] for k, v in over.items()})
+
+
+def flat_body(R):
+    """Rangefinder-style mirrorless (α6400, ZV-E10): flat top, EVF in the rear corner."""
+    els = [element([1.5, 3.5, 9], [14.5, 10.5, 13.2], _faces(R, "body", north="front", south="rear", up="top")),
+           element([11, 3.5, 7], [14.5, 10, 9], _faces(R, "grip")),
+           element([1.8, 8.6, 13.2], [5.4, 10.3, 14.3], _faces(R, "evf")),
+           element([12.2, 10.5, 7.6], [13.6, 11.1, 8.8], _faces(R, "dial", up="accent")),
+           element([10, 10.5, 10], [12.6, 11.2, 12.6], _faces(R, "dial"))]
+    return els + cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.4, MOUNT_Z, 2.9, R["metal"], cap_front=R["sensor"])
+
+
+def retro_body(R):
+    """Mirrorless with a centre hump, a light top plate and dials (Zf, X-T5, X-T30)."""
+    els = [element([1.5, 3, 9], [14.5, 9.6, 13.2], _faces(R, "body", north="front", south="rear")),
+           element([1.5, 9.6, 9], [14.5, 11, 13.2], _faces(R, "top")),
+           element([11.8, 3, 8], [14.5, 9.4, 9], _faces(R, "grip")),
+           element([4.2, 11, 9.4], [8.8, 13.6, 13], _faces(R, "top")),
+           element([5, 11.4, 13], [8, 13.2, 14.2], _faces(R, "evf")),
+           element([10, 11, 10], [12.4, 12.4, 12.4], _faces(R, "dial")),
+           element([2, 11, 10], [4.2, 12.4, 12.2], _faces(R, "dial")),
+           element([12.6, 11, 8.6], [13.6, 12.6, 9.6], _faces(R, "dial", up="accent"))]
+    return els + cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.4, MOUNT_Z, 2.9, R["metal"], cap_front=R["sensor"])
+
+
+def retro_slr_body(R):
+    """Classic film SLR: thin leatherette body, chrome top plate, pentaprism, knobs and an advance lever."""
+    els = [element([1, 4, 9.4], [15, 9.8, 12.6], _faces(R, "body", north="front", south="rear")),
+           element([1, 9.8, 9.4], [15, 11, 12.6], _faces(R, "top")),
+           element([4.3, 11, 9.6], [8.7, 13.2, 12.4], _faces(R, "top")),
+           element([4.8, 13.2, 9.9], [8.2, 13.8, 12.1], _faces(R, "top")),
+           element([5.2, 10.8, 12.6], [7.8, 12.6, 13.4], _faces(R, "evf")),
+           element([1.8, 11, 10.2], [3.6, 12.2, 12], _faces(R, "dial")),
+           element([10.4, 11, 10.2], [12.6, 11.8, 12.2], _faces(R, "dial")),
+           element([12.6, 11, 10.6], [14.6, 11.4, 11.8], _faces(R, "top")),
+           element([11.2, 11.8, 10.8], [11.8, 12.2, 11.4], _faces(R, "accent"))]
+    return els + cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.3, MOUNT_Z + 0.4, 2.6, R["metal"], cap_front=R["sensor"])
+
+
+def compact_body(R):
+    """Compact with a built-in lens (X100VI, Q3, T2): slim box, top plate, finder window."""
+    els = [element([1.5, 4, 9], [14.5, 10.4, 12.6], _faces(R, "body", north="front", south="rear")),
+           element([1.5, 10.4, 9], [14.5, 11.2, 12.6], _faces(R, "top")),
+           element([10.8, 9, 8.9], [13.6, 10.2, 9], _faces(R, "window")),
+           element([10.6, 11.2, 10], [12.6, 12, 12], _faces(R, "dial")),
+           element([2.4, 11.2, 10], [4.2, 12, 11.8], _faces(R, "dial")),
+           element([12.8, 11.2, 9.6], [13.8, 11.8, 10.6], _faces(R, "accent")),
+           element([12.2, 4.5, 8.4], [14.2, 9.8, 9], _faces(R, "grip"))]
+    return els + cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.3, MOUNT_Z, 2.7, R["metal"], cap_front=R["sensor"])
+
+
+def pro_body(R):
+    """Flagship with an integrated vertical grip (Z9, R1)."""
+    els = [element([1, 0.6, 9], [15, 11.5, 14], _faces(R, "body", north="front", south="rear", up="top")),
+           element([11, 3, 6.3], [15, 11, 9], _faces(R, "grip")),
+           element([10.6, 0.6, 6.6], [15, 3, 9], _faces(R, "grip")),
+           element([3.6, 11.5, 9.4], [9.4, 14.4, 13.4], _faces(R, "body", up="top")),
+           element([4.6, 11.8, 13.4], [8.4, 13.6, 14.8], _faces(R, "evf")),
+           element([10.2, 11.5, 10], [13.6, 12.1, 13], _faces(R, "top")),
+           element([12, 11, 6.8], [13.6, 11.7, 8.4], _faces(R, "dial", up="accent")),
+           element([1.6, 11.5, 10], [3.4, 12.4, 12.4], _faces(R, "dial"))]
+    return els + cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.5, MOUNT_Z, 3.0, R["metal"], cap_front=R["sensor"])
+
+
+def big_body(R):
+    """Medium-format mirrorless (GFX100 II, X2D): a larger body around a wide mount."""
+    els = [element([0.5, 2, 9], [15.5, 12, 14.2], _faces(R, "body", north="front", south="rear", up="top")),
+           element([11, 2, 5.8], [15.5, 11.5, 9], _faces(R, "grip")),
+           element([3.8, 12, 9.6], [9.2, 14.8, 13.6], _faces(R, "body", up="top")),
+           element([4.8, 12.3, 13.6], [8.2, 14.4, 15], _faces(R, "evf")),
+           element([11, 12, 10], [13.8, 12.8, 12.8], _faces(R, "dial")),
+           element([12.4, 11.5, 6.4], [14, 12.2, 8], _faces(R, "dial", up="accent"))]
+    return els + cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.5, MOUNT_Z, 3.4, R["metal"], cap_front=R["sensor"])
+
+
+def medium_box_body(R):
+    """Hasselblad V: a cube with a film magazine at the back and a waist-level finder on top."""
+    els = [element([0.6, 1, 9], [12.4, 13, 15.8], _faces(R, "body", north="front", up="top")),
+           element([0.4, 0.6, 15.8], [12.6, 13.4, 17.6], _faces(R, "evf", east="body", west="body")),
+           element([1.2, 13, 9.4], [11.8, 15.2, 15.4], _faces(R, "top")),
+           element([12.4, 5.6, 11], [13.8, 8.4, 13.8], _faces(R, "dial")),
+           element([9.8, 2, 8.6], [11, 3.2, 9], _faces(R, "accent"))]
+    return els + cylinder(MOUNT_X, MOUNT_Y, MOUNT_Z - 0.4, MOUNT_Z, 3.3, R["metal"], cap_front=R["sensor"])
+
+
+BODY_STYLES = {"flat": flat_body, "retro": retro_body, "retro_slr": retro_slr_body, "compact": compact_body,
+               "pro": pro_body, "big": big_body, "medium_box": medium_box_body}
 
 
 def ring_part(name, folder, length_units, radius, colour):
@@ -533,86 +658,173 @@ def grip_part(name, colour):
     save_json(model(tex, build(3.0)), "models/item/grip", name + "_mounted.json")
 
 
-def lens_texture(label, ring_color=None, gm=False):
+# Lens finishes: barrel colour, ring rubber (light/dark rib shades), accent ring colour (None = none) and
+# where it sits, aperture ring next to the mount (manual and Fujifilm primes), focus ring metal.
+LENS_LOOKS = {
+    "black": dict(barrel=(26, 26, 27), ribs=(44, 18), accent=None),
+    "sony_gm": dict(barrel=(26, 26, 27), ribs=(44, 18), accent=(232, 118, 30), accent_at="mid"),
+    "sony_gm_white": dict(barrel=(222, 222, 218), ribs=(44, 18), accent=(232, 118, 30), accent_at="mid"),
+    "nikon_s": dict(barrel=(28, 28, 29), ribs=(46, 20), accent=(176, 178, 182), accent_at="front"),
+    "nikon_gold": dict(barrel=(26, 26, 27), ribs=(44, 18), accent=(205, 170, 70), accent_at="front"),
+    "canon_l": dict(barrel=(26, 26, 27), ribs=(44, 18), accent=(200, 30, 30), accent_at="front"),
+    "canon_l_white": dict(barrel=(232, 232, 228), ribs=(44, 18), accent=(200, 30, 30), accent_at="front"),
+    "vintage": dict(barrel=(22, 22, 22), ribs=(150, 40), accent=(196, 198, 202), accent_at="front", aperture=True),
+    "fuji": dict(barrel=(28, 28, 29), ribs=(46, 20), accent=None, aperture=True),
+    "silver": dict(barrel=(190, 190, 194), ribs=(44, 18), accent=None),
+    "chrome": dict(barrel=(196, 198, 202), ribs=(176, 112), accent=(30, 30, 30), accent_at="front", aperture=True),
+    "chrome_black": dict(barrel=(24, 24, 24), ribs=(190, 120), accent=(196, 198, 202), accent_at="front", aperture=True),
+    "hasselblad": dict(barrel=(70, 70, 72), ribs=(44, 18), accent=(150, 150, 154), accent_at="front"),
+    "silver_ring": dict(barrel=(26, 26, 27), ribs=(44, 18), accent=(182, 182, 186), accent_at="mount"),
+    "sigma": dict(barrel=(24, 24, 25), ribs=(44, 18), accent=(182, 182, 186), accent_at="mid"),
+    "titanium": dict(barrel=(170, 160, 140), ribs=(150, 120), accent=None),
+}
+
+LENS_R = {"barrel": (0, 0, 32, 16), "label": (32, 0, 64, 16), "zoom": (0, 16, 32, 32), "focus": (32, 16, 64, 32),
+          "glass": (0, 32, 32, 64), "metal": (32, 32, 64, 48), "rear": (32, 48, 48, 64),
+          "accent": (48, 48, 56, 56), "aperture": (56, 48, 64, 56), "dark": (48, 56, 56, 64), "print": (56, 56, 64, 64)}
+
+
+def lens_texture(label, look="black"):
+    L = LENS_LOOKS[look]
+    barrel = L["barrel"]
+    light = sum(barrel) > 300
     t = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    noise_fill(t, (0, 0, 32, 16), (26, 26, 27), 5, seed=11)        # barrel
-    noise_fill(t, (32, 0, 64, 16), (26, 26, 27), 5, seed=12)       # barrel with label
-    # brand/focal printing as plain stripes: pixel text would appear mirrored on some faces
-    ImageDraw.Draw(t).line([(34, 6), (34 + 3 * len(label), 6)], fill=(200, 200, 200, 255))
-    if gm:
-        ImageDraw.Draw(t).rectangle([33, 11, 41, 13], fill=(232, 118, 30, 255))
-    if ring_color:
-        ImageDraw.Draw(t).line([(32, 15), (63, 15)], fill=ring_color)
-    # zoom ring: coarse ribs
+    d = ImageDraw.Draw(t)
+    noise_fill(t, (0, 0, 32, 16), barrel, 4, seed=11)        # barrel
+    noise_fill(t, (32, 0, 64, 16), barrel, 4, seed=12)       # barrel with printing
+    # printing as short dashes in a few slices only (the side texture wraps around the barrel in 16 slices)
+    ink = (40, 40, 40, 255) if light else (210, 210, 210, 255)
+    for i, ch in enumerate(label[:4]):
+        d.point((38 + (i % 2), 5 + 2 * (i // 2)), fill=ink)
+        d.point((40 + (i % 2), 6 + 2 * (i // 2)), fill=ink)
+    # zoom ring: coarse rubber ribs (one light and one dark band per 2-pixel slice)
+    hi, lo = L["ribs"]
     for x in range(0, 32):
-        c = 44 if x % 4 < 2 else 18
-        ImageDraw.Draw(t).line([(x, 16), (x, 31)], fill=(c, c, c + 1, 255))
-    # focus ring: fine ribs
+        c = hi if x % 2 == 0 else lo
+        tint = 0 if hi < 100 else 2
+        d.line([(x, 16), (x, 31)], fill=(c, c, c + tint, 255))
     for x in range(32, 64):
-        c = 40 if x % 2 == 0 else 22
-        ImageDraw.Draw(t).line([(x, 16), (x, 31)], fill=(c, c, c, 255))
-    # front glass: dark coated glass with reflections
+        c = int(hi * 0.9) if x % 2 == 0 else int(lo * 1.1)
+        d.line([(x, 16), (x, 31)], fill=(c, c, c, 255))
+    # front: black name ring around coated glass (radially symmetric: the cap is drawn by rotated elements)
     for y in range(32, 64):
         for x in range(0, 32):
             dx, dy = (x - 15.5) / 16, (y - 47.5) / 16
             r = math.hypot(dx, dy)
-            base = np.array([18, 22, 48]) * (1.2 - r * 0.6)
-            if 0.55 < r < 0.62:
-                base = np.array([110, 70, 150])
-            if (dx + 0.25) ** 2 + (dy + 0.3) ** 2 < 0.02:
-                base = np.array([230, 235, 255])
+            if r > 0.84:
+                base = np.array([20, 20, 21])
+                if 0.9 < r < 0.95:
+                    base = np.array([70, 70, 72])
+            else:
+                base = np.array([16, 20, 44]) * (1.25 - r * 0.7)
+                if 0.5 < r < 0.58:
+                    base = np.array([96, 62, 140])
+                if 0.25 < r < 0.3:
+                    base = np.array([50, 110, 90])
+                if r < 0.1:
+                    base = np.array([200, 210, 240])
             t.putpixel((x, y), tuple(int(max(0, min(255, v))) for v in base) + (255,))
-    # mount (metal) and rear cap black
-    noise_fill(t, (32, 32, 64, 48), (178, 180, 184), 14, seed=13)
-    noise_fill(t, (32, 48, 64, 64), (14, 14, 15), 4, seed=14)
+    noise_fill(t, (32, 32, 64, 48), (178, 180, 184), 14, seed=13)   # mount metal
+    noise_fill(t, (32, 48, 48, 64), (14, 14, 15), 4, seed=14)        # rear cap
+    noise_fill(t, (48, 48, 56, 56), L["accent"] or barrel, 3, seed=15)
+    # aperture ring: barrel colour with a white index dash every other slice
+    noise_fill(t, (56, 48, 64, 56), shade_rgb(barrel, 0.85), 3, seed=16)
+    for x in range(56, 64, 2):
+        d.line([(x, 50), (x, 53)], fill=(40, 40, 40, 255) if light else (225, 225, 225, 255))
+    noise_fill(t, (48, 56, 56, 64), (16, 16, 17), 3, seed=17)        # dark ring / hood
+    noise_fill(t, (56, 56, 64, 64), (225, 225, 225), 3, seed=18)
     return t
 
 
-def lens_elements(cx, cy, z_back, length, radius, R, zoom=True):
+def shade_rgb(c, f):
+    return tuple(int(max(0, min(255, v * f))) for v in c)
+
+
+def lens_elements(cx, cy, z_back, length, radius, R, zoom=True, look="black", kind="prime"):
     """Lens built from the mount (z_back) forward (towards -z)."""
+    L = LENS_LOOKS[look]
     els = []
-    z_front = z_back - length
     # mount flange
     els += cylinder(cx, cy, z_back - 0.6, z_back, radius * 0.72, R["metal"], cap_back=R["rear"])
-    # rear barrel
-    seg = length - 0.6
+    z = z_back - 0.6
+    if L.get("accent_at") == "mount":
+        els += cylinder(cx, cy, z - 0.3, z, radius * 0.93, R["accent"])
+        z -= 0.3
+    seg = z - (z_back - length)
+    aperture = L.get("aperture") and not zoom
+    ap_len = min(seg * 0.18, 1.2) if aperture else 0
+    if aperture:
+        els += cylinder(cx, cy, z - ap_len, z, radius * 0.94, R["aperture"])
+        z -= ap_len
+        seg -= ap_len
     zoom_len = seg * 0.32 if zoom else 0
     focus_len = seg * (0.22 if zoom else 0.42)
     barrel_len = seg - zoom_len - focus_len
-    z = z_back - 0.6
     els += cylinder(cx, cy, z - barrel_len * 0.55, z, radius * 0.92, R["label"])
     z -= barrel_len * 0.55
     if zoom:
         els += cylinder(cx, cy, z - zoom_len, z, radius, R["zoom"])
         z -= zoom_len
-    els += cylinder(cx, cy, z - barrel_len * 0.45, z, radius * 0.95, R["barrel"])
-    z -= barrel_len * 0.45
-    els += cylinder(cx, cy, z - focus_len, z, radius, R["focus"], cap_front=R["glass"])
+    if L.get("accent_at") == "mid":
+        els += cylinder(cx, cy, z - 0.25, z, radius * 0.96, R["accent"])
+        z -= 0.25
+        barrel_len -= 0.25 / 0.45
+    rest = barrel_len * 0.45
+    els += cylinder(cx, cy, z - rest, z, radius * 0.95, R["barrel"])
+    z -= rest
+    front_ring = L.get("accent_at") == "front"
+    f_len = focus_len - (0.3 if front_ring else 0)
+    if kind == "fisheye":
+        # short focus ring, then the bulging front element inside a petal hood
+        els += cylinder(cx, cy, z - f_len, z, radius, R["focus"], cap_front=R["dark"])
+        z -= f_len
+        els += cylinder(cx, cy, z - 0.9, z, radius * 0.62, R["glass"], cap_front=R["glass"])
+        for i in range(4):
+            ang = i * math.pi / 2 + math.pi / 4
+            px, py = cx + math.cos(ang) * radius * 0.8, cy + math.sin(ang) * radius * 0.8
+            els.append(element([px - radius * 0.28, py - radius * 0.28, z - 0.7], [px + radius * 0.28, py + radius * 0.28, z],
+                               all_faces(R["dark"])))
+        return els
+    els += cylinder(cx, cy, z - f_len, z, radius, R["focus"], cap_front=None if front_ring else R["glass"])
+    z -= f_len
+    if front_ring:
+        els += cylinder(cx, cy, z - 0.3, z, radius * 1.01, R["accent"], cap_front=R["glass"])
     return els
 
-
-LENS_R = {"barrel": (0, 0, 32, 16), "label": (32, 0, 64, 16), "zoom": (0, 16, 32, 32), "focus": (32, 16, 64, 32),
-          "glass": (0, 32, 32, 64), "metal": (32, 32, 64, 48), "rear": (32, 48, 64, 64)}
 
 LENS_DISPLAY = {
     "gui": {"rotation": [25, -40, 0], "translation": [0, 0, 0], "scale": [0.75, 0.75, 0.75]},
     "ground": {"rotation": [0, 0, 0], "translation": [0, 2, 0], "scale": [0.5, 0.5, 0.5]},
-    "fixed": {"rotation": [0, 180, 0], "translation": [0, 0, 0], "scale": [0.75, 0.75, 0.75]},
+    "fixed": {"rotation": [0, 125, 0], "translation": [0, 0, 0], "scale": [0.75, 0.75, 0.75]},
     "thirdperson_righthand": {"rotation": [75, 0, 0], "translation": [0, 2.5, 0], "scale": [0.45, 0.45, 0.45]},
     "thirdperson_lefthand": {"rotation": [75, 0, 0], "translation": [0, 2.5, 0], "scale": [0.45, 0.45, 0.45]},
     "firstperson_righthand": {"rotation": [0, -30, 0], "translation": [1, 2, 0], "scale": [0.55, 0.55, 0.55]},
     "firstperson_lefthand": {"rotation": [0, 30, 0], "translation": [1, 2, 0], "scale": [0.55, 0.55, 0.55]},
 }
 
+MAX_LENS_UNITS = 24.5  # model elements must stay inside -16..32; the longest teles are shortened a little
 
-def make_lens(name, label, length, radius, zoom, gm=False, ring=None):
-    save_png(lens_texture(label, ring, gm), "textures/item/lens", name + ".png")
+
+def lens_display(length, radius):
+    """Long lenses are drawn smaller in the inventory and in hand so they fit the slot."""
+    k = min(1.0, 13.0 / max(length, 2 * radius, 1))
+    out = json.loads(json.dumps(LENS_DISPLAY))
+    for key, v in out.items():
+        if key != "ground":
+            v["scale"] = [round(x * k, 3) for x in v["scale"]]
+    return out
+
+
+def make_lens(name, label, length, radius, zoom, gm=False, ring=None, look=None, kind="prime"):
+    look = look or ("sony_gm" if gm else "black")
+    length = min(length, MAX_LENS_UNITS)
+    save_png(lens_texture(label, look), "textures/item/lens", name + ".png")
     tex = f"{NS}:item/lens/{name}"
     # standalone: centred in the item box
-    standalone = lens_elements(8, 8, 8 + length / 2, length, radius, LENS_R, zoom)
-    save_json(model(tex, standalone, LENS_DISPLAY), "models/item/lens", name + ".json")
+    standalone = lens_elements(8, 8, 8 + length / 2, length, radius, LENS_R, zoom, look, kind)
+    save_json(model(tex, standalone, lens_display(length, radius)), "models/item/lens", name + ".json")
     # mounted: rear flange on the body's mount face; the body's display transforms apply
-    mounted = lens_elements(MOUNT_X, MOUNT_Y, MOUNT_Z, length, radius, LENS_R, zoom)
+    mounted = lens_elements(MOUNT_X, MOUNT_Y, MOUNT_Z, length, radius, LENS_R, zoom, look, kind)
     save_json(model(tex, mounted), "models/item/lens", name + "_mounted.json")
 
 
@@ -889,7 +1101,7 @@ def stage5_assets():
     # film bodies: chrome tops for the classic mechanical cameras
     save_png(camera_body_texture("NIKON", (200, 40, 30), "FM2", top_color=(186, 188, 192), body_color=(30, 30, 32)),
              "textures/item/body", "nikon_fm2.png")
-    save_json(camera_body_model("nikon_fm2", "dslr"), "models/item/body", "nikon_fm2.json")
+    save_json(camera_body_model("nikon_fm2", "retro_slr"), "models/item/body", "nikon_fm2.json")
     save_png(camera_body_texture("LEICA", (210, 30, 30), "M6", top_color=(192, 194, 198), body_color=(26, 26, 27)),
              "textures/item/body", "leica_m6.png")
     save_json(camera_body_model("leica_m6", "rangefinder"), "models/item/body", "leica_m6.json")
@@ -1018,6 +1230,35 @@ def stage5_assets():
 
 # ----------------------------------------------------------------------------- sounds
 
+def stage6_assets():
+    """Models and textures for the full catalog (tools/catalog.py)."""
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import catalog as C
+    for b in C.BODIES:
+        lk = b["look"]
+        save_png(camera_body_texture(lk["brand"], lk["accent"], lk["text"] or "", top_color=lk["top"], body_color=lk["body"]),
+                 "textures/item/body", b["key"] + ".png")
+        save_json(camera_body_model(b["key"], lk["style"]), "models/item/body", b["key"] + ".json")
+    for l in C.LENSES:
+        make_lens(l["key"], l["label"], l["length"] / 9.0, l["diameter"] / 18.0, l["zoom"], look=l["look"], kind=l["kind"])
+    for a in C.ADAPTERS:
+        ring_part(a["key"], "adapter", a["spec"]["length_mm"] / 9.0, 3.4 if "hasselblad" not in a["spec"]["from"] else 3.7,
+                  a["colour"])
+    for t in C.TELECONVERTERS:
+        ring_part(t["key"], "teleconverter", t["length_mm"] / 9.0, 3.6, t["colour"])
+
+    def flat(folder, name, fn):
+        img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+        fn(img, ImageDraw.Draw(img))
+        save_png(img, f"textures/item/{folder}", name + ".png")
+        save_json({"parent": "minecraft:item/generated", "textures": {"layer0": f"{NS}:item/{folder}/{name}"}},
+                  f"models/item/{folder}", name + ".json")
+    for key, (_, _, body_c, stripe) in C.BATTERIES.items():
+        flat("battery", key, battery_icon(rgba(body_c), rgba(stripe)))
+    flat("card", "cfexpress_b", card_icon(rgba("#2a2a2e"), rgba("#30a050")))
+
+
 def write_ogg(samples, rate, name):
     samples = np.clip(samples, -1, 1)
     pcm = (samples * 32000).astype(np.int16)
@@ -1135,6 +1376,9 @@ def main():
         "silicon_wafer": draw_wafer,
         "cmos_sensor": sensor(rgba("#2d3a66")),
         "bsi_cmos_sensor": sensor(rgba("#5b2d7a")),
+        "stacked_cmos_sensor": sensor(rgba("#1f6b5a")),
+        "medium_format_sensor": sensor(rgba("#7a5a1f")),
+        "titanium_alloy": draw_ingot(rgba("#b4aa94")),
         "processor": draw_processor,
         "circuit_board": draw_board,
         "display_panel": draw_display,
@@ -1228,6 +1472,7 @@ def main():
     block_models()
     stage4_assets()
     stage5_assets()
+    stage6_assets()
     print_model()
     sounds()
     print("assets written to", os.path.relpath(ASSETS, ROOT))

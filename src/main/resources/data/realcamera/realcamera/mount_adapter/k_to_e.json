@@ -1,0 +1,10 @@
+{
+  "name": "Adapter Pentax K → Sony E",
+  "from": "realcamera:pentax_k",
+  "to": "realcamera:sony_e",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 27.46,
+  "model": "realcamera:item/adapter/k_to_e"
+}

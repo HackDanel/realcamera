@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "entries": [
+    "realcamera:village_cartographer",
+    "realcamera:village_houses",
+    "realcamera:shipwreck",
+    "realcamera:vintage_treasure",
+    "realcamera:rare_parts"
+  ]
+}

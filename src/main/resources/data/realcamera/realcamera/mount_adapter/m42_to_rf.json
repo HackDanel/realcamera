@@ -1,0 +1,10 @@
+{
+  "name": "Adapter M42 → Canon RF",
+  "from": "realcamera:m42",
+  "to": "realcamera:canon_rf",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 25.46,
+  "model": "realcamera:item/adapter/m42_to_rf"
+}

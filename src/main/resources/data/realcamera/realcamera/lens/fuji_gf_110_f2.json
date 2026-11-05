@@ -1,0 +1,31 @@
+{
+  "brand": "Fujifilm",
+  "exif_lens_model": "GF110mmF2 R LM WR",
+  "mount": "realcamera:fuji_g",
+  "image_circle": "mf",
+  "focal_min": 110,
+  "focal_max": 110,
+  "aperture_wide": 2.0,
+  "aperture_tele": 2.0,
+  "aperture_min": 22,
+  "min_focus_m": 0.9,
+  "af": {
+    "motor": "linear",
+    "speed": 0.9
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 1.1,
+    "sharpness": 1.15,
+    "distortion_wide": 0.0,
+    "distortion_tele": 0.0,
+    "ca_px": 0.5,
+    "flare": 0.35,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 77,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/fuji_gf_110_f2"
+}

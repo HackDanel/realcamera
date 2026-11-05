@@ -31,17 +31,64 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
     public record Sensor(double exposureEv, double isoGain, double noiseLuma, double noiseChroma, double resolutionScale,
                          double dynamicRangeEv) {}
 
-    /** Thin-lens focus geometry; sensorWidthMm converts the blur circle to pixels. */
-    public record Focus(double focalMm, double fNumber, double focusM, double sensorWidthMm) {}
+    /**
+     * Thin-lens focus geometry; sensorWidthMm converts the blur circle to pixels. tiltDeg: lens tilt of a
+     * tilt-shift lens (+ = plane of focus turned towards the ground).
+     */
+    public record Focus(double focalMm, double fNumber, double focusM, double sensorWidthMm, double tiltDeg) {
+        public Focus(double focalMm, double fNumber, double focusM, double sensorWidthMm) {
+            this(focalMm, fNumber, focusM, sensorWidthMm, 0);
+        }
+    }
 
     /**
      * @param distortion  radial k1 still visible after in-camera correction (- barrel, + pincushion)
      * @param caPx        lateral chromatic aberration at the corner, pixels of this image
      * @param imageCircle fraction of the half-diagonal the lens illuminates (1 = whole frame)
      * @param flare       ghosting / veiling glare strength
+     * @param bokeh       BOKEH_* character of out-of-focus areas
+     * @param projection  optics.Optics.PROJ_* (fisheye mappings remap the rendered rectilinear frame)
+     * @param renderCorner half-angle (radians) at the corner of the rendered frame (fisheye only)
+     * @param shiftPx     lens shift (rise) in output pixels, + = the picture moves up; the frame was rendered
+     *                    with the camera pitched up by atan(shift / focal)
+     * @param renderScale rendered focal length / output focal length (< 1: the frame was rendered wider)
      */
     public record Lens(double vignettingEv, double maxAperture, double sharpness, double distortion, double caPx,
-                       double imageCircle, int blades, boolean rounded, double flare) {}
+                       double imageCircle, int blades, boolean rounded, double flare, int bokeh, int projection,
+                       double renderCorner, double shiftPx, double renderScale) {
+        public Lens(double vignettingEv, double maxAperture, double sharpness, double distortion, double caPx,
+                    double imageCircle, int blades, boolean rounded, double flare) {
+            this(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
+                    BOKEH_SMOOTH, 0, 0, 0, 1);
+        }
+
+        public Lens withBokeh(int b) {
+            return new Lens(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
+                    b, projection, renderCorner, shiftPx, renderScale);
+        }
+
+        public Lens withProjection(int proj, double corner) {
+            return new Lens(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
+                    bokeh, proj, corner, shiftPx, renderScale);
+        }
+
+        public Lens withShift(double px, double scale) {
+            return new Lens(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
+                    bokeh, projection, renderCorner, px, scale);
+        }
+    }
+
+    /** Smooth discs, "onion ring" discs, Helios-style swirl, Trioplan-style soap bubbles. */
+    public static final int BOKEH_SMOOTH = 0, BOKEH_BUSY = 1, BOKEH_SWIRL = 2, BOKEH_BUBBLE = 3;
+
+    public static int bokeh(String name) {
+        return switch (name) {
+            case "busy" -> BOKEH_BUSY;
+            case "swirl" -> BOKEH_SWIRL;
+            case "bubble" -> BOKEH_BUBBLE;
+            default -> BOKEH_SMOOTH;
+        };
+    }
 
     /**
      * Linear smear in pixels during the exposure (hand shake not removed by stabilisation, plus panning);
@@ -71,13 +118,18 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
     }
 
     public ImageParams withFocus(double focal, double f, double focusM) {
-        return new ImageParams(sensor, new Focus(focal, f, focusM, focus.sensorWidthMm), lens, motion, sun, colour, extras, seed);
+        return new ImageParams(sensor, new Focus(focal, f, focusM, focus.sensorWidthMm, focus.tiltDeg), lens, motion, sun, colour, extras, seed);
     }
 
     public ImageParams withNoise(double iso, double luma, double chroma) {
         Sensor s = sensor;
         return new ImageParams(new Sensor(s.exposureEv, iso, luma, chroma, s.resolutionScale, s.dynamicRangeEv),
                 focus, lens, motion, sun, colour, extras, seed);
+    }
+
+    public ImageParams withTilt(double tiltDeg) {
+        return new ImageParams(sensor, new Focus(focus.focalMm, focus.fNumber, focus.focusM, focus.sensorWidthMm, tiltDeg),
+                lens, motion, sun, colour, extras, seed);
     }
 
     public ImageParams withLens(Lens l) {

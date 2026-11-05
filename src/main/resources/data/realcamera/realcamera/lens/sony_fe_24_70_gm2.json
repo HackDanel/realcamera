@@ -1,0 +1,31 @@
+{
+  "brand": "Sony",
+  "exif_lens_model": "FE 24-70mm F2.8 GM II",
+  "mount": "realcamera:sony_e",
+  "image_circle": "ff",
+  "focal_min": 24,
+  "focal_max": 70,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 22,
+  "min_focus_m": 0.21,
+  "af": {
+    "motor": "linear",
+    "speed": 1.25
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 11,
+    "rounded": true,
+    "vignetting_ev": 1.2,
+    "sharpness": 1.15,
+    "distortion_wide": -0.03,
+    "distortion_tele": 0.015,
+    "ca_px": 0.6,
+    "flare": 0.3,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 82,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/sony_fe_24_70_gm2"
+}

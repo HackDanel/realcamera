@@ -1,0 +1,10 @@
+{
+  "name": "Adapter Canon FD → Sony E",
+  "from": "realcamera:canon_fd",
+  "to": "realcamera:sony_e",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 24.0,
+  "model": "realcamera:item/adapter/fd_to_e"
+}

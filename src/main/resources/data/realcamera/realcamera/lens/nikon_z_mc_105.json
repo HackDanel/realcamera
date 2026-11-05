@@ -1,0 +1,32 @@
+{
+  "brand": "Nikon",
+  "exif_lens_model": "NIKKOR Z MC 105mm f/2.8 VR S",
+  "mount": "realcamera:nikon_z",
+  "image_circle": "ff",
+  "focal_min": 105,
+  "focal_max": 105,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 32,
+  "min_focus_m": 0.29,
+  "af": {
+    "motor": "stepping",
+    "speed": 0.9
+  },
+  "ois_stops": 4.5,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 0.8,
+    "sharpness": 1.15,
+    "distortion_wide": 0.005,
+    "distortion_tele": 0.005,
+    "ca_px": 0.5,
+    "flare": 0.35,
+    "bokeh": "smooth",
+    "max_magnification": 1.0
+  },
+  "filter_mm": 62,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/nikon_z_mc_105"
+}

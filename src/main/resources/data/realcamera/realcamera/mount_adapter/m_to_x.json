@@ -1,0 +1,10 @@
+{
+  "name": "Adapter Leica M → Fujifilm X",
+  "from": "realcamera:leica_m",
+  "to": "realcamera:fuji_x",
+  "af": "none",
+  "af_speed": 0.0,
+  "electronic": false,
+  "length_mm": 10.1,
+  "model": "realcamera:item/adapter/m_to_x"
+}

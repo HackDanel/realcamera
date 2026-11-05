@@ -1,0 +1,21 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 1
+    },
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 3
+    }
+  ],
+  "result": {
+    "id": "realcamera:mount_adapter",
+    "count": 1,
+    "components": {
+      "realcamera:adapter": "realcamera:v_to_g"
+    }
+  },
+  "time": 60
+}

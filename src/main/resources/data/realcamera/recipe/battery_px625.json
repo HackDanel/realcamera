@@ -1,0 +1,25 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:battery_cell",
+      "count": 1
+    },
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:battery",
+    "count": 1,
+    "components": {
+      "realcamera:battery_type": "realcamera:px625",
+      "realcamera:charge": {
+        "charge": 4000,
+        "capacity": 4000
+      }
+    }
+  },
+  "time": 80
+}

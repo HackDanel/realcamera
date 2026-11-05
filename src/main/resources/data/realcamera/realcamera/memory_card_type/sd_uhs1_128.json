@@ -1,0 +1,7 @@
+{
+  "name": "SD UHS-I 128 GB",
+  "form": "sd",
+  "capacity_gb": 128,
+  "write_mb_s": 90,
+  "model": "realcamera:item/card/sd_uhs1"
+}

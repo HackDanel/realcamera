@@ -65,6 +65,12 @@ public class CameraPartsMenu extends AbstractContainerMenu {
                 }
 
                 @Override
+                public boolean mayPickup(Player p) {
+                    // a built-in lens stays where it is
+                    return !(part == CameraParts.SLOT_LENS && body().map(b -> b.hasFixedLens()).orElse(false));
+                }
+
+                @Override
                 public void onTake(Player p, ItemStack stack) {
                     if (part == CameraParts.SLOT_CARD) {
                         openBack(p, stack);
@@ -106,7 +112,7 @@ public class CameraPartsMenu extends AbstractContainerMenu {
         var adapter = Specs.adapter(r, parts.getItem(CameraParts.SLOT_ADAPTER)).orElse(null);
         var tc = Specs.teleconverter(r, parts.getItem(CameraParts.SLOT_TC)).orElse(null);
         return switch (part) {
-            case CameraParts.SLOT_LENS -> stack.getItem() instanceof LensItem && Specs.lens(r, stack)
+            case CameraParts.SLOT_LENS -> !body.get().hasFixedLens() && stack.getItem() instanceof LensItem && Specs.lens(r, stack)
                     .map(l -> OpticalChain.incompatibility(body.get(), l, adapter, tc) == null).orElse(false);
             case CameraParts.SLOT_ADAPTER -> stack.is(RCItems.MOUNT_ADAPTER.get()) && Specs.adapter(r, stack)
                     .map(a -> OpticalChain.incompatibility(body.get(), lens, a, tc) == null).orElse(false);

@@ -1,0 +1,31 @@
+{
+  "brand": "Canon",
+  "exif_lens_model": "RF50mm F1.8 STM",
+  "mount": "realcamera:canon_rf",
+  "image_circle": "ff",
+  "focal_min": 50,
+  "focal_max": 50,
+  "aperture_wide": 1.8,
+  "aperture_tele": 1.8,
+  "aperture_min": 22,
+  "min_focus_m": 0.3,
+  "af": {
+    "motor": "stepping",
+    "speed": 0.7
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 7,
+    "rounded": true,
+    "vignetting_ev": 1.4,
+    "sharpness": 0.92,
+    "distortion_wide": -0.01,
+    "distortion_tele": -0.01,
+    "ca_px": 1.4,
+    "flare": 0.6,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 43,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/canon_rf_50_f18"
+}

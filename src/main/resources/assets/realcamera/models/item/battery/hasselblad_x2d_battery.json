@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "realcamera:item/battery/hasselblad_x2d_battery"
+  }
+}

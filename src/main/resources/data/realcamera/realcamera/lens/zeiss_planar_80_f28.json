@@ -1,0 +1,31 @@
+{
+  "brand": "Zeiss",
+  "exif_lens_model": "Planar 2.8/80 CF T*",
+  "mount": "realcamera:hasselblad_v",
+  "image_circle": "6x6",
+  "focal_min": 80,
+  "focal_max": 80,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 22,
+  "min_focus_m": 0.9,
+  "af": {
+    "motor": "none",
+    "speed": 0
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 5,
+    "rounded": false,
+    "vignetting_ev": 1.0,
+    "sharpness": 1.0,
+    "distortion_wide": 0.0,
+    "distortion_tele": 0.0,
+    "ca_px": 0.8,
+    "flare": 0.5,
+    "bokeh": "smooth"
+  },
+  "filter_mm": 60,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/zeiss_planar_80_f28"
+}

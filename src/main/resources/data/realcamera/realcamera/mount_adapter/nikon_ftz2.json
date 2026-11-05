@@ -1,0 +1,10 @@
+{
+  "name": "Nikon FTZ II (F → Z)",
+  "from": "realcamera:nikon_f",
+  "to": "realcamera:nikon_z",
+  "af": "slow",
+  "af_speed": 0.9,
+  "electronic": true,
+  "length_mm": 30.5,
+  "model": "realcamera:item/adapter/nikon_ftz2"
+}
