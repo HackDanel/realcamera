@@ -1,0 +1,34 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:plastic",
+      "count": 4
+    },
+    {
+      "item": "realcamera:display_panel",
+      "count": 1
+    },
+    {
+      "item": "realcamera:processor",
+      "count": 1
+    },
+    {
+      "item": "realcamera:circuit_board",
+      "count": 2
+    },
+    {
+      "item": "realcamera:flash_memory",
+      "count": 1
+    },
+    {
+      "item": "minecraft:redstone",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:computer",
+    "count": 1
+  },
+  "time": 240
+}

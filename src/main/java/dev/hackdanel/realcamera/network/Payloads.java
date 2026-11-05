@@ -8,6 +8,7 @@ import io.netty.buffer.ByteBuf;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -138,6 +139,66 @@ public final class Payloads {
         }
     }
 
+    /** Saving an edited picture from the computer: a new photo on the card in the given slot. */
+    public record EditUploadBegin(int requestId, BlockPos pos, int slot, UUID source, int totalBytes)
+            implements CustomPacketPayload {
+        public static final Type<EditUploadBegin> TYPE = Payloads.newType("edit_upload_begin");
+        public static final StreamCodec<ByteBuf, EditUploadBegin> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, EditUploadBegin::requestId,
+                BlockPos.STREAM_CODEC, EditUploadBegin::pos,
+                ByteBufCodecs.VAR_INT, EditUploadBegin::slot,
+                UUIDUtil.STREAM_CODEC, EditUploadBegin::source,
+                ByteBufCodecs.VAR_INT, EditUploadBegin::totalBytes,
+                EditUploadBegin::new);
+
+        @Override
+        public Type<EditUploadBegin> type() {
+            return TYPE;
+        }
+    }
+
+    public static final int PC_DELETE = 0, PC_RATE = 1, PC_COPY = 2, PC_MOVE = 3, PC_FORMAT = 4;
+
+    /** Catalogue operations on the computer: delete, rate, copy/move to the other card, format. */
+    public record ComputerAction(BlockPos pos, int action, int slot, UUID photo, int value) implements CustomPacketPayload {
+        public static final Type<ComputerAction> TYPE = Payloads.newType("computer_action");
+        public static final StreamCodec<ByteBuf, ComputerAction> CODEC = StreamCodec.composite(
+                BlockPos.STREAM_CODEC, ComputerAction::pos,
+                ByteBufCodecs.VAR_INT, ComputerAction::action,
+                ByteBufCodecs.VAR_INT, ComputerAction::slot,
+                UUIDUtil.STREAM_CODEC, ComputerAction::photo,
+                ByteBufCodecs.VAR_INT, ComputerAction::value,
+                ComputerAction::new);
+
+        @Override
+        public Type<ComputerAction> type() {
+            return TYPE;
+        }
+    }
+
+    public static final int ALBUM_INSERT = 0, ALBUM_TAKE = 1, ALBUM_CAPTION = 2, ALBUM_TAKE_FROM_LECTERN = 3;
+
+    /**
+     * Album page edits. hand >= 0: the album in that hand; otherwise the album on the lectern at pos.
+     * INSERT puts the print from the other hand (or the first print in the inventory) at index; TAKE
+     * removes the print at index into the inventory; CAPTION sets the print's caption.
+     */
+    public record AlbumAction(int hand, BlockPos pos, int action, int index, String text) implements CustomPacketPayload {
+        public static final Type<AlbumAction> TYPE = Payloads.newType("album_action");
+        public static final StreamCodec<ByteBuf, AlbumAction> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, AlbumAction::hand,
+                BlockPos.STREAM_CODEC, AlbumAction::pos,
+                ByteBufCodecs.VAR_INT, AlbumAction::action,
+                ByteBufCodecs.VAR_INT, AlbumAction::index,
+                ByteBufCodecs.stringUtf8(64), AlbumAction::text,
+                AlbumAction::new);
+
+        @Override
+        public Type<AlbumAction> type() {
+            return TYPE;
+        }
+    }
+
     // ---------- server -> client ----------
 
     public static final int UPLOAD_ACCEPTED = 0, UPLOAD_STORED = 1, UPLOAD_REJECTED = 2;
@@ -195,15 +256,33 @@ public final class Payloads {
         }
     }
 
-    public record CardContents(UUID cardId, List<PhotoMeta> photos) implements CustomPacketPayload {
+    /** ratings: 0..5 stars per photo, same order as photos. */
+    public record CardContents(UUID cardId, List<PhotoMeta> photos, List<Integer> ratings) implements CustomPacketPayload {
         public static final Type<CardContents> TYPE = Payloads.newType("card_contents");
         public static final StreamCodec<ByteBuf, CardContents> CODEC = StreamCodec.composite(
                 UUIDUtil.STREAM_CODEC, CardContents::cardId,
                 PhotoMeta.STREAM_CODEC.apply(ByteBufCodecs.list(100_000)), CardContents::photos,
+                ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list(100_000)), CardContents::ratings,
                 CardContents::new);
 
         @Override
         public Type<CardContents> type() {
+            return TYPE;
+        }
+    }
+
+    /** Open the album screen for an album lying on a lectern (read-only for everyone, take button). */
+    public record OpenLecternAlbum(BlockPos pos, List<dev.hackdanel.realcamera.component.PrintData> prints)
+            implements CustomPacketPayload {
+        public static final Type<OpenLecternAlbum> TYPE = Payloads.newType("open_lectern_album");
+        public static final StreamCodec<ByteBuf, OpenLecternAlbum> CODEC = StreamCodec.composite(
+                BlockPos.STREAM_CODEC, OpenLecternAlbum::pos,
+                dev.hackdanel.realcamera.component.PrintData.STREAM_CODEC.apply(ByteBufCodecs.list(256)),
+                OpenLecternAlbum::prints,
+                OpenLecternAlbum::new);
+
+        @Override
+        public Type<OpenLecternAlbum> type() {
             return TYPE;
         }
     }

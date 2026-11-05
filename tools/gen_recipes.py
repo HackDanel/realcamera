@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Generates RealCamera recipes into src/main/resources/data/realcamera/recipe/.
+Generates RealCamera recipes into src/main/resources/data/realcamera/recipe/ and block loot tables into
+src/main/resources/data/realcamera/loot_table/blocks/.
 Run from the project root: python3 tools/gen_recipes.py   (old generated files are removed first)
 
 Assembly recipes ("realcamera:assembly") run in the Photo Workshop: shapeless, with counts,
@@ -12,6 +13,7 @@ import shutil
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 OUT = os.path.join(ROOT, "src/main/resources/data/realcamera/recipe")
+LOOT = os.path.join(ROOT, "src/main/resources/data/realcamera/loot_table/blocks")
 NS = "realcamera"
 
 
@@ -182,7 +184,38 @@ def main():
                 ing.append((mc("black_dye"), 1))
             assembly(f"photo_frame_{mat}_{w}x{h}", ing, rc("photo_frame"), 1, 40 + 10 * (w + h),
                      {f"{NS}:frame": {"width": w, "height": h, "material": mat}})
+    # --- stage 4: computer, album, displays
+    assembly("computer", [(rc("plastic"), 4), (rc("display_panel"), 1), (rc("processor"), 1), (rc("circuit_board"), 2),
+                          (rc("flash_memory"), 1), (mc("redstone"), 2)], rc("computer"), 1, 240)
+    assembly("cfexpress_reader", [(rc("plastic"), 1), (rc("circuit_board"), 1), (mc("gold_ingot"), 1)],
+             rc("cfexpress_reader"), 1, 80)
+    save("photo_album", {"type": "minecraft:crafting_shapeless", "category": "misc",
+                         "ingredients": [{"item": mc("book")}, {"item": mc("leather")}, {"item": mc("paper")},
+                                         {"item": mc("paper")}, {"item": mc("paper")}],
+                         "result": {"id": rc("photo_album"), "count": 1}})
+    save("table_frame", {"type": "minecraft:crafting_shaped", "category": "misc",
+                         "pattern": ["SPS", "S S", "SSS"],
+                         "key": {"S": {"item": mc("stick")}, "P": {"item": mc("glass_pane")}},
+                         "result": {"id": rc("table_frame"), "count": 2}})
+    save("photo_stand", {"type": "minecraft:crafting_shaped", "category": "misc",
+                         "pattern": [" S ", "SPS", "S S"],
+                         "key": {"S": {"item": mc("stick")}, "P": {"tag": mc("planks")}},
+                         "result": {"id": rc("photo_stand"), "count": 1}})
     print(len(os.listdir(OUT)), "recipes written")
+
+    # --- block loot tables (each block drops itself; the photo stand only from its lower half)
+    shutil.rmtree(LOOT, ignore_errors=True)
+    os.makedirs(LOOT)
+    for block in ("assembly_station", "battery_charger", "photo_printer", "computer", "table_frame", "photo_stand"):
+        entry = {"type": "minecraft:item", "name": rc(block)}
+        pool = {"rolls": 1, "entries": [entry], "conditions": [{"condition": "minecraft:survives_explosion"}]}
+        if block == "photo_stand":
+            pool["conditions"].append({"condition": "minecraft:block_state_property", "block": rc(block),
+                                       "properties": {"half": "lower"}})
+        with open(os.path.join(LOOT, block + ".json"), "w") as f:
+            json.dump({"type": "minecraft:block", "pools": [pool]}, f, indent=2)
+            f.write("\n")
+    print(len(os.listdir(LOOT)), "loot tables written")
 
 
 if __name__ == "__main__":

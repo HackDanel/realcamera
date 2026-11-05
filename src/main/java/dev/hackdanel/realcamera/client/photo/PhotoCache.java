@@ -61,6 +61,45 @@ public final class PhotoCache {
 
     private record Download(byte[][] parts, int[] received) {}
 
+    /** Callers waiting for the JPEG bytes of a photo (the editor). */
+    private static final Map<UUID, java.util.List<java.util.concurrent.CompletableFuture<byte[]>>> byteWaiters = new HashMap<>();
+
+    /**
+     * The in-game JPEG of a photo: from the disk cache, or downloaded from the server. Completes on the
+     * client thread with null if the photo is gone.
+     */
+    public static java.util.concurrent.CompletableFuture<byte[]> loadBytes(UUID id) {
+        java.util.concurrent.CompletableFuture<byte[]> f = new java.util.concurrent.CompletableFuture<>();
+        Path file = diskFile(id);
+        Util.ioPool().execute(() -> {
+            byte[] data = null;
+            if (file != null && Files.isRegularFile(file)) {
+                try {
+                    data = Files.readAllBytes(file);
+                } catch (IOException ignored) {
+                }
+            }
+            byte[] found = data;
+            Minecraft.getInstance().execute(() -> {
+                if (found != null) {
+                    f.complete(found);
+                    return;
+                }
+                boolean first = !byteWaiters.containsKey(id);
+                byteWaiters.computeIfAbsent(id, k -> new java.util.ArrayList<>()).add(f);
+                if (first && Minecraft.getInstance().getConnection() != null) {
+                    PacketDistributor.sendToServer(new Payloads.RequestPhoto(id));
+                }
+            });
+        });
+        return f;
+    }
+
+    private static void completeWaiters(UUID id, byte[] data) {
+        var list = byteWaiters.remove(id);
+        if (list != null) list.forEach(f -> f.complete(data));
+    }
+
     private PhotoCache() {}
 
     /** Returns the cache entry, starting a load if needed. Never null. */
@@ -122,12 +161,14 @@ public final class PhotoCache {
             }
             byte[] jpeg = out.toByteArray();
             writeDisk(msg.id(), jpeg);
+            completeWaiters(msg.id(), jpeg);
             Util.ioPool().execute(() -> decodeAndUpload(msg.id(), jpeg));
         }
     }
 
     public static void onGone(UUID id) {
         downloads.remove(id);
+        completeWaiters(id, null);
         Entry e = entries.computeIfAbsent(id, k -> new Entry());
         releaseTexture(e);
         e.state = State.GONE;
@@ -208,6 +249,7 @@ public final class PhotoCache {
         entries.values().forEach(PhotoCache::releaseTexture);
         entries.clear();
         downloads.clear();
+        byteWaiters.clear();
         vramBytes = 0;
     }
 

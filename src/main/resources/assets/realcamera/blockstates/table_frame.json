@@ -1,0 +1,34 @@
+{
+  "variants": {
+    "facing=north,portrait=false": {
+      "model": "realcamera:block/table_frame"
+    },
+    "facing=east,portrait=false": {
+      "model": "realcamera:block/table_frame",
+      "y": 90
+    },
+    "facing=south,portrait=false": {
+      "model": "realcamera:block/table_frame",
+      "y": 180
+    },
+    "facing=west,portrait=false": {
+      "model": "realcamera:block/table_frame",
+      "y": 270
+    },
+    "facing=north,portrait=true": {
+      "model": "realcamera:block/table_frame_portrait"
+    },
+    "facing=east,portrait=true": {
+      "model": "realcamera:block/table_frame_portrait",
+      "y": 90
+    },
+    "facing=south,portrait=true": {
+      "model": "realcamera:block/table_frame_portrait",
+      "y": 180
+    },
+    "facing=west,portrait=true": {
+      "model": "realcamera:block/table_frame_portrait",
+      "y": 270
+    }
+  }
+}

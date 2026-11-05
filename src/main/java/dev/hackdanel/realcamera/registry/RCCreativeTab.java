@@ -45,6 +45,11 @@ public final class RCCreativeTab {
                 out.accept(RCItems.ASSEMBLY_STATION.get());
                 out.accept(RCItems.BATTERY_CHARGER.get());
                 out.accept(RCItems.PHOTO_PRINTER.get());
+                out.accept(RCItems.COMPUTER.get());
+                out.accept(RCItems.CFEXPRESS_READER.get());
+                out.accept(RCItems.PHOTO_ALBUM.get());
+                out.accept(RCItems.TABLE_FRAME.get());
+                out.accept(RCItems.PHOTO_STAND.get());
                 out.accept(RCItems.INK_CYAN.get());
                 out.accept(RCItems.INK_MAGENTA.get());
                 out.accept(RCItems.INK_YELLOW.get());

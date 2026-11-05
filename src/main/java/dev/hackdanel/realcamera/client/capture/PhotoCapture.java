@@ -1,6 +1,5 @@
 package dev.hackdanel.realcamera.client.capture;
 
-import com.google.gson.GsonBuilder;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.Window;
@@ -20,19 +19,18 @@ import dev.hackdanel.realcamera.optics.Optics;
 import dev.hackdanel.realcamera.photo.PhotoMeta;
 import dev.hackdanel.realcamera.processing.DepthUpsampler;
 import dev.hackdanel.realcamera.processing.ExifWriter;
+import dev.hackdanel.realcamera.processing.RawFile;
+import dev.hackdanel.realcamera.client.photo.LocalOriginals;
 import dev.hackdanel.realcamera.processing.ImageParams;
 import dev.hackdanel.realcamera.processing.ImagePipeline;
 import dev.hackdanel.realcamera.processing.JpegCodec;
 import dev.hackdanel.realcamera.spec.ColorProfileSpec;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -341,20 +339,25 @@ public final class PhotoCapture {
                 debugDump(guide, depth, w, h);
             }
             float[] img = linear != null ? linear : ImagePipeline.toLinear(rgb);
-            int[] developed = ImagePipeline.toSrgb(ImagePipeline.developLinear(img, depth, light, w, h, params));
-
+            float[] sensor = ImagePipeline.developSensor(img, depth, light, w, h, params);
             int format = s.settings().fileFormat();
+            float[] rawData = format != CameraSettings.FORMAT_JPEG && ClientConfig.AUTO_EXPORT.get() ? sensor.clone() : null;
+            int[] developed = ImagePipeline.toSrgb(ImagePipeline.finish(sensor, params));
+
             float quality = s.settings().quality() == CameraSettings.QUALITY_NORMAL ? 0.8f : 0.93f;
             LocalDateTime now = LocalDateTime.now();
+            Path localJpeg = null, localRaw = null;
             if (ClientConfig.AUTO_EXPORT.get()) {
                 Path base = exportBase(s, now);
                 if (format != CameraSettings.FORMAT_RAW) {
                     byte[] full = ExifWriter.insert(JpegCodec.encode(developed, w, h, quality),
                             exif(s, artist, now, w, h, seconds));
-                    Files.write(base.resolveSibling(base.getFileName() + ".JPG"), full);
+                    localJpeg = base.resolveSibling(base.getFileName() + ".JPG");
+                    Files.write(localJpeg, full);
                 }
-                if (format != CameraSettings.FORMAT_JPEG) {
-                    writeRaw(base, guide, w, h, s, params, seconds);
+                if (rawData != null) {
+                    localRaw = base.resolveSibling(base.getFileName() + ".PNG");
+                    writeRaw(localRaw, rawData, w, h, s, params, seconds);
                 }
             }
             int[] size = new int[2];
@@ -363,9 +366,11 @@ public final class PhotoCapture {
             PhotoMeta meta = meta(s, size[0], size[1], seconds);
             RealCamera.LOGGER.debug("Developed {}x{} in {} ms (upload {} KB)", w, h,
                     (System.nanoTime() - t0) / 1_000_000, upload.length / 1024);
+            Path jpegFile = localJpeg, rawFile = localRaw;
             Minecraft.getInstance().execute(() -> {
                 developing--;
-                PhotoUploader.upload(s.ref(), meta, upload, s.settings().quality(), format);
+                PhotoUploader.upload(s.ref(), meta, upload, s.settings().quality(), format,
+                        id -> LocalOriginals.put(id, jpegFile, rawFile));
             });
         } catch (IOException | RuntimeException e) {
             RealCamera.LOGGER.error("Developing photo failed", e);
@@ -474,28 +479,33 @@ public final class PhotoCapture {
     }
 
     /**
-     * "RAW": the frame exactly as the sensor saw it (before exposure correction, white balance and
-     * profile) as a lossless PNG, plus a JSON sidecar with the development settings for the editor.
+     * "RAW": the sensor data (after optics and noise, before white balance, tone curve and profile) as a
+     * 16-bit linear PNG, plus a JSON sidecar with what the computer's editor needs to develop it.
      */
-    private static void writeRaw(Path base, int[] rgb, int w, int h, Shot s, ImageParams p, double seconds) throws IOException {
-        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
-        img.setRGB(0, 0, w, h, rgb, 0, w);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        javax.imageio.ImageIO.write(img, "png", out);
-        Files.write(base.resolveSibling(base.getFileName() + ".PNG"), out.toByteArray());
-        Map<String, Object> side = new LinkedHashMap<>();
-        side.put("camera", s.chain().body().info().exifMake() + " " + s.chain().body().info().exifModel());
-        side.put("lens", s.chain().exifLensModel());
-        side.put("exposure_ev", p.sensor().exposureEv());
-        side.put("iso", nominalIso(s));
-        side.put("shutter_s", nominalSeconds(s, seconds));
-        side.put("f_number", ExposureScales.nominalAperture(s.exposure().apertureIdx()));
-        side.put("focal_mm", s.focal());
-        side.put("dynamic_range_ev", p.sensor().dynamicRangeEv());
-        side.put("white_balance", new double[]{p.colour().wbR(), p.colour().wbG(), p.colour().wbB()});
-        side.put("profile", s.settings().profile());
-        Files.writeString(base.resolveSibling(base.getFileName() + ".json"),
-                new GsonBuilder().setPrettyPrinting().create().toJson(side));
+    private static void writeRaw(Path png, float[] sensor, int w, int h, Shot s, ImageParams p, double seconds)
+            throws IOException {
+        RawFile.Info info = new RawFile.Info();
+        info.camera = s.chain().body().info().exifMake() + " " + s.chain().body().info().exifModel();
+        info.lens = s.chain().exifLensModel();
+        info.exposure_ev = p.sensor().exposureEv();
+        info.iso = nominalIso(s);
+        info.shutter_s = nominalSeconds(s, seconds);
+        info.f_number = ExposureScales.nominalAperture(s.exposure().apertureIdx());
+        info.focal_mm = s.focal();
+        info.dynamic_range_ev = p.sensor().dynamicRangeEv();
+        info.white = ImagePipeline.rawSaturation(p.sensor().dynamicRangeEv());
+        ImageParams.Colour c = p.colour();
+        info.white_balance = new double[]{c.wbR(), c.wbG(), c.wbB()};
+        var profiles = s.chain().body().colorProfiles();
+        info.profiles = profiles.stream().map(k -> k.location().toString()).toArray(String[]::new);
+        info.profile = profiles.isEmpty() ? "" : info.profiles[Math.floorMod(s.settings().profile(), profiles.size())];
+        info.profile_params = new double[]{c.contrast(), c.saturation(), c.monochrome() ? 1 : 0, c.tintR(), c.tintG(),
+                c.tintB(), c.shadowLift()};
+        double stopsDown = Math.max(0, Math.log(p.focus().fNumber() / p.lens().maxAperture()) / Math.log(2));
+        info.vignetting_ev = p.lens().vignettingEv() * Math.max(0, 1 - stopsDown * 0.45);
+        info.distortion = p.lens().distortion();
+        info.ca_frac = p.lens().caPx() / Math.hypot((w - 1) / 2.0, (h - 1) / 2.0);
+        RawFile.write(png, sensor, w, h, info);
     }
 
     /** Dev aid: raw frame and depth map (log scale) next to the exported photos. */

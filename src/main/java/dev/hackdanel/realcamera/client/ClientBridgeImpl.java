@@ -35,6 +35,11 @@ final class ClientBridgeImpl implements ClientBridge {
     }
 
     @Override
+    public void openAlbum(net.minecraft.world.InteractionHand hand) {
+        Minecraft.getInstance().setScreen(dev.hackdanel.realcamera.client.screen.AlbumScreen.inHand(hand));
+    }
+
+    @Override
     public void handlePayload(CustomPacketPayload payload) {
         switch (payload) {
             case Payloads.UploadStatus s -> PhotoUploader.onStatus(s);
@@ -43,6 +48,8 @@ final class ClientBridgeImpl implements ClientBridge {
             case Payloads.CardContents c -> CardListings.onContents(c);
             case Payloads.ViewPhoto v -> Minecraft.getInstance().setScreen(
                     new PrintViewerScreen(new PrintData(v.meta(), "10x15", "glossy", 0, "")));
+            case Payloads.OpenLecternAlbum a -> Minecraft.getInstance().setScreen(
+                    dev.hackdanel.realcamera.client.screen.AlbumScreen.onLectern(a.pos(), a.prints()));
             default -> {}
         }
     }

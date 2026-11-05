@@ -23,5 +23,12 @@ public final class RCBlockEntities {
             "photo_printer", () -> BlockEntityType.Builder.of(PrinterBlockEntity::new,
                     RCBlocks.PHOTO_PRINTER.get()).build(null));
 
+    public static final Supplier<BlockEntityType<dev.hackdanel.realcamera.blockentity.ComputerBlockEntity>> COMPUTER = REGISTER.register(
+            "computer", () -> BlockEntityType.Builder.of(dev.hackdanel.realcamera.blockentity.ComputerBlockEntity::new,
+                    RCBlocks.COMPUTER.get()).build(null));
+    public static final Supplier<BlockEntityType<dev.hackdanel.realcamera.blockentity.DisplayBlockEntity>> DISPLAY = REGISTER.register(
+            "photo_display", () -> BlockEntityType.Builder.of(dev.hackdanel.realcamera.blockentity.DisplayBlockEntity::new,
+                    RCBlocks.TABLE_FRAME.get(), RCBlocks.PHOTO_STAND.get()).build(null));
+
     private RCBlockEntities() {}
 }

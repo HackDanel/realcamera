@@ -72,6 +72,15 @@ public final class ImagePipeline {
      *              surface colour for the flash
      */
     public static float[] developLinear(float[] img, float[] depth, float[] light, int w, int h, ImageParams p) {
+        return finish(developSensor(img, depth, light, w, h, p), p);
+    }
+
+    /**
+     * Everything that happens before the image processor: light through filters and lens, exposure,
+     * motion, optics, wear, flare and sensor noise. The result is what a RAW file holds (linear, may
+     * exceed 1 up to {@link #rawSaturation}).
+     */
+    public static float[] developSensor(float[] img, float[] depth, float[] light, int w, int h, ImageParams p) {
         ImageParams.Extras x = p.extras();
         filterTransmission(img, x);
         float[] beforeExposure = x.flashAt1m() > 0 && depth != null ? img.clone() : null;
@@ -92,9 +101,26 @@ public final class ImagePipeline {
         img = wear(img, w, h, p);
         flare(img, w, h, p);
         noise(img, w, h, p);
+        float sat = (float) rawSaturation(p.sensor().dynamicRangeEv());
+        for (int i = 0; i < img.length; i++) {
+            if (img[i] > sat) img[i] = sat;
+        }
+        return img;
+    }
+
+    /** The in-camera image processor: highlight roll-off, white balance, colour profile. */
+    public static float[] finish(float[] img, ImageParams p) {
         rollOff(img, p.sensor().dynamicRangeEv());
         colour(img, p.colour());
         return img;
+    }
+
+    /**
+     * Sensor saturation relative to JPEG white: the RAW highlight headroom (about 1 EV for a small
+     * sensor, 3 EV for a modern full frame with 14+ stops).
+     */
+    public static double rawSaturation(double dynamicRangeEv) {
+        return Math.max(2, Math.min(8, Math.pow(2, (dynamicRangeEv - 10) * 0.75)));
     }
 
     // ------------------------------------------------------------------ accessories
@@ -736,7 +762,7 @@ public final class ImagePipeline {
     // ------------------------------------------------------------------ tone & colour
 
     /** Highlights compress smoothly towards white instead of clipping hard; more DR = longer shoulder. */
-    static void rollOff(float[] img, double dynamicRangeEv) {
+    public static void rollOff(float[] img, double dynamicRangeEv) {
         float knee = (float) Math.max(0.6, Math.min(0.9, 1.25 - dynamicRangeEv * 0.035));
         float span = 1 - knee;
         for (int i = 0; i < img.length; i++) {
@@ -747,7 +773,7 @@ public final class ImagePipeline {
         }
     }
 
-    static void colour(float[] img, ImageParams.Colour c) {
+    public static void colour(float[] img, ImageParams.Colour c) {
         float wr = (float) (c.wbR() * c.tintR()), wg = (float) (c.wbG() * c.tintG()), wb = (float) (c.wbB() * c.tintB());
         float sat = (float) c.saturation();
         float lift = (float) c.shadowLift();

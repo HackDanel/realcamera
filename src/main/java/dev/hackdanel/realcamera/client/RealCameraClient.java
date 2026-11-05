@@ -47,11 +47,14 @@ public final class RealCameraClient {
         event.register(RCMenus.CHARGER.get(), ChargerScreen::new);
         event.register(RCMenus.PRINTER.get(), PrinterScreen::new);
         event.register(RCMenus.CAMERA_BAG.get(), dev.hackdanel.realcamera.client.screen.CameraBagScreen::new);
+        event.register(RCMenus.COMPUTER.get(), dev.hackdanel.realcamera.client.screen.ComputerScreen::new);
     }
 
     private static void renderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(RCEntities.PHOTO_FRAME.get(), PhotoFrameRenderer::new);
         event.registerEntityRenderer(RCEntities.TRIPOD.get(), dev.hackdanel.realcamera.client.render.TripodRenderer::new);
+        event.registerBlockEntityRenderer(dev.hackdanel.realcamera.registry.RCBlockEntities.DISPLAY.get(),
+                dev.hackdanel.realcamera.client.render.DisplayRenderer::new);
     }
 
     private static void extensions(RegisterClientExtensionsEvent event) {

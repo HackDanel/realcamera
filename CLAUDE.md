@@ -18,12 +18,12 @@ The system Java may be newer than 21; Gradle downloads JDK 21 itself (foojay too
 - `./gradlew test` — JUnit tests (pure-Java optics and image pipeline)
 - single test: `./gradlew test --tests 'dev.hackdanel.realcamera.processing.ImagePipelineTest'` (append `.methodName` for one method)
 - `./gradlew runClient` / `runClient2` (second client, nick Player2) / `runServer` (the owner must set `eula=true` in `run/eula.txt` themselves — do not do it for them)
-- `./gradlew runClientAutotest -Pautotest=stage1|stage2|stage3` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
+- `./gradlew runClientAutotest -Pautotest=stage1|stage2|stage3|stage4` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
 - `-PcaptureWarmup=N` changes warm-up frames for capture in the autotest run; `-PnoShaders` skips copying Sodium/Iris into run dirs. Iris shaders on/off for the autotest: `run-autotest/config/iris.properties`.
 
 Generators (run from the repo root; their output is overwritten every run, so edit the generator, not the output):
 - `python3 tools/gen_assets.py` — all textures, item/block models, blockstates, sounds (`.ogg` via ffmpeg)
-- `python3 tools/gen_recipes.py` — everything in `src/main/resources/data/realcamera/recipe/`
+- `python3 tools/gen_recipes.py` — everything in `src/main/resources/data/realcamera/recipe/` and block loot tables
 - `python3 tools/gen_settings.py` — `component/CameraSettings.java` (record, codecs, `withX` methods)
 
 ## Architecture
@@ -55,12 +55,18 @@ dispatched via `ClientBridge.handlePayload`.
 3. `processing/ImagePipeline` + `ImageParams` — pure Java (no Minecraft classes, unit-tested): exposure,
    DoF/bokeh, flash, motion blur, rolling shutter, distortion/CA, vignetting, wear, flare, noise, colour.
    `optics/` is pure Java too. Keep both packages free of game classes.
-4. Export: full-size JPEG with EXIF (`processing/ExifWriter`) and optional RAW (PNG + JSON) to
-   `screenshots/realcamera/`; a downscaled JPEG goes through `client/photo/PhotoUploader` (sequential queue).
+4. Export: full-size JPEG with EXIF (`processing/ExifWriter`) and optional RAW to `screenshots/realcamera/`.
+   RAW = output of `ImagePipeline.developSensor` (before `finish`: roll-off, WB, profile) as a 16-bit linear PNG +
+   JSON sidecar (`processing/RawFile`); `client/photo/LocalOriginals` remembers which local files belong to which
+   photo id. A downscaled JPEG goes through `client/photo/PhotoUploader` (sequential queue; camera shots and editor
+   saves share it).
 5. Server: `network/ServerPhotoService` validates (quota, rate, JPEG header), stores files under
    `<world>/realcamera/photos/`, indexes them in SavedData (`photo/PhotoIndex`, `photo/CardStorage` — card
    contents live on the server, the card item only mirrors usage), streams downloads with a bandwidth budget.
-6. Clients show photos via `client/photo/PhotoCache` (LRU GL textures + per-server disk cache): prints
+6. The computer's editor (`processing/PhotoEditor`, pure Java; `client/editor/EditSession` loads the local
+   original or the in-game copy and renders previews on a worker) saves results as new photos
+   (`PhotoMeta.editedFrom`). Files are removed only when no card references them and they were never printed.
+7. Clients show photos via `client/photo/PhotoCache` (LRU GL textures + per-server disk cache): prints
    (`PrintItemRenderer` BEWLR), wall frames (`PhotoFrameRenderer`), playback/printer screens.
 
 Network messages identify a camera with `camera/CameraRef` (a hand or a tripod entity id); the server

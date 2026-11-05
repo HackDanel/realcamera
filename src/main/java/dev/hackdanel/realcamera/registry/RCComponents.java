@@ -81,5 +81,9 @@ public final class RCComponents {
     public static final Supplier<DataComponentType<FrameData>> FRAME = REGISTER.registerComponentType(
             "frame", b -> b.persistent(FrameData.CODEC).networkSynchronized(FrameData.STREAM_CODEC));
 
+    public static final Supplier<DataComponentType<dev.hackdanel.realcamera.component.AlbumData>> ALBUM = REGISTER.registerComponentType(
+            "album", b -> b.persistent(dev.hackdanel.realcamera.component.AlbumData.CODEC)
+                    .networkSynchronized(dev.hackdanel.realcamera.component.AlbumData.STREAM_CODEC).cacheEncoding());
+
     private RCComponents() {}
 }

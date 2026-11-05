@@ -82,6 +82,14 @@ public final class RCItems {
     public static final DeferredItem<BlockItem> ASSEMBLY_STATION = REGISTER.registerSimpleBlockItem(RCBlocks.ASSEMBLY_STATION);
     public static final DeferredItem<BlockItem> BATTERY_CHARGER = REGISTER.registerSimpleBlockItem(RCBlocks.BATTERY_CHARGER);
     public static final DeferredItem<BlockItem> PHOTO_PRINTER = REGISTER.registerSimpleBlockItem(RCBlocks.PHOTO_PRINTER);
+    public static final DeferredItem<BlockItem> COMPUTER = REGISTER.registerSimpleBlockItem(RCBlocks.COMPUTER);
+    public static final DeferredItem<BlockItem> TABLE_FRAME = REGISTER.registerSimpleBlockItem(RCBlocks.TABLE_FRAME);
+    public static final DeferredItem<BlockItem> PHOTO_STAND = REGISTER.register("photo_stand",
+            () -> new net.minecraft.world.item.DoubleHighBlockItem(RCBlocks.PHOTO_STAND.get(), new Item.Properties()));
+    public static final DeferredItem<Item> CFEXPRESS_READER = REGISTER.registerSimpleItem("cfexpress_reader",
+            new Item.Properties().stacksTo(1));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.PhotoAlbumItem> PHOTO_ALBUM = REGISTER.register("photo_album",
+            () -> new dev.hackdanel.realcamera.item.PhotoAlbumItem(new Item.Properties()));
 
     private static DeferredItem<Item> material(String name) {
         DeferredItem<Item> item = REGISTER.registerSimpleItem(name);

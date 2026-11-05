@@ -75,4 +75,16 @@ public class CardStorage extends SavedData {
             if (list.remove(photo)) setDirty();
         }
     }
+
+    /** Whether any card still holds the photo. */
+    public boolean isReferenced(UUID photo) {
+        for (List<UUID> list : cards.values()) {
+            if (list.contains(photo)) return true;
+        }
+        return false;
+    }
+
+    public boolean contains(UUID card, UUID photo) {
+        return photos(card).contains(photo);
+    }
 }

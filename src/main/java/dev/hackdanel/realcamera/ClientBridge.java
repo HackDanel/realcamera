@@ -16,6 +16,8 @@ public interface ClientBridge {
 
     default void openPlayback() {}
 
+    default void openAlbum(net.minecraft.world.InteractionHand hand) {}
+
     /** Server -> client payloads are dispatched here so common code never references client classes. */
     default void handlePayload(CustomPacketPayload payload) {}
 

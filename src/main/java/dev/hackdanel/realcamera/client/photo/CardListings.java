@@ -12,6 +12,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public final class CardListings {
     private static final Map<UUID, List<PhotoMeta>> listings = new HashMap<>();
     private static final Map<UUID, Long> requested = new HashMap<>();
+    private static final Map<UUID, Integer> ratings = new HashMap<>();
 
     private CardListings() {}
 
@@ -26,16 +27,29 @@ public final class CardListings {
         return listings.get(card);
     }
 
+    public static int rating(UUID photo) {
+        return ratings.getOrDefault(photo, 0);
+    }
+
+    /** Optimistic local update while the server confirms. */
+    public static void setRating(UUID photo, int stars) {
+        ratings.put(photo, stars);
+    }
+
     public static void refresh(UUID card) {
         requested.remove(card);
     }
 
     public static void onContents(Payloads.CardContents msg) {
         listings.put(msg.cardId(), List.copyOf(msg.photos()));
+        for (int i = 0; i < msg.photos().size() && i < msg.ratings().size(); i++) {
+            ratings.put(msg.photos().get(i).id(), msg.ratings().get(i));
+        }
     }
 
     public static void clear() {
         listings.clear();
         requested.clear();
+        ratings.clear();
     }
 }

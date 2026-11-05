@@ -7,7 +7,7 @@ import java.util.Deque;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionHand;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
@@ -15,7 +15,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * burst simply queues up behind the shot being written, like a camera's card buffer.
  */
 public final class PhotoUploader {
-    private record Job(int id, dev.hackdanel.realcamera.camera.CameraRef hand, PhotoMeta meta, byte[] jpeg, int quality, int format) {}
+    private record Job(int id, java.util.function.IntFunction<CustomPacketPayload> begin, byte[] jpeg,
+                       java.util.function.Consumer<UUID> onStored, java.util.function.Consumer<String> onRejected) {}
 
     private static final Deque<Job> queue = new ArrayDeque<>();
     private static Job current;
@@ -23,8 +24,18 @@ public final class PhotoUploader {
 
     private PhotoUploader() {}
 
-    public static void upload(dev.hackdanel.realcamera.camera.CameraRef hand, PhotoMeta meta, byte[] jpeg, int quality, int format) {
-        queue.addLast(new Job(nextId++, hand, meta, jpeg, quality, format));
+    public static void upload(dev.hackdanel.realcamera.camera.CameraRef hand, PhotoMeta meta, byte[] jpeg, int quality,
+                              int format, java.util.function.Consumer<UUID> onStored) {
+        queue.addLast(new Job(nextId++, id -> new Payloads.UploadBegin(id, hand, meta, jpeg.length, quality, format),
+                jpeg, onStored, key -> {}));
+        pump();
+    }
+
+    /** An edited picture saved from the computer as a new photo on the card in it. */
+    public static void uploadEdit(net.minecraft.core.BlockPos computer, UUID source, int slot, byte[] jpeg,
+                                  java.util.function.Consumer<UUID> onStored, java.util.function.Consumer<String> onRejected) {
+        queue.addLast(new Job(nextId++, id -> new Payloads.EditUploadBegin(id, computer, slot, source, jpeg.length),
+                jpeg, onStored, onRejected));
         pump();
     }
 
@@ -33,8 +44,7 @@ public final class PhotoUploader {
             return;
         }
         current = queue.pollFirst();
-        PacketDistributor.sendToServer(new Payloads.UploadBegin(current.id, current.hand, current.meta,
-                current.jpeg.length, current.quality, current.format));
+        PacketDistributor.sendToServer(current.begin.apply(current.id));
     }
 
     public static void onStatus(Payloads.UploadStatus msg) {
@@ -53,7 +63,10 @@ public final class PhotoUploader {
             }
             case Payloads.UPLOAD_STORED -> {
                 current = null;
-                msg.photoId().ifPresent(id -> PhotoCache.putLocal(id, job.jpeg));
+                msg.photoId().ifPresent(id -> {
+                    PhotoCache.putLocal(id, job.jpeg);
+                    job.onStored.accept(id);
+                });
                 if (mc.player != null && queue.isEmpty()) {
                     mc.player.displayClientMessage(Component.translatable("message.realcamera.saved"), true);
                 }
@@ -61,6 +74,7 @@ public final class PhotoUploader {
             }
             default -> {
                 current = null;
+                job.onRejected.accept(msg.message());
                 if (mc.player != null) {
                     mc.player.displayClientMessage(Component.translatable(msg.message()), true);
                 }

@@ -10,7 +10,12 @@ import net.minecraft.network.codec.StreamCodec;
 
 /** Everything known about one stored photo. Shared by the server index, card listings and prints. */
 public record PhotoMeta(UUID id, UUID authorId, String authorName, long createdMillis, int width, int height,
-                        Exif exif, Place place) {
+                        Exif exif, Place place, java.util.Optional<UUID> editedFrom) {
+
+    public PhotoMeta(UUID id, UUID authorId, String authorName, long createdMillis, int width, int height, Exif exif,
+                     Place place) {
+        this(id, authorId, authorName, createdMillis, width, height, exif, place, java.util.Optional.empty());
+    }
 
     public record Exif(String camera, String lens, float fNumber, double shutter, int iso, float focal,
                        int focal35, int mode, int evComp, int whiteBalance) {
@@ -55,20 +60,26 @@ public record PhotoMeta(UUID id, UUID authorId, String authorName, long createdM
             Codec.INT.fieldOf("width").forGetter(PhotoMeta::width),
             Codec.INT.fieldOf("height").forGetter(PhotoMeta::height),
             Exif.CODEC.fieldOf("exif").forGetter(PhotoMeta::exif),
-            Place.CODEC.fieldOf("place").forGetter(PhotoMeta::place)
+            Place.CODEC.fieldOf("place").forGetter(PhotoMeta::place),
+            UUIDUtil.CODEC.optionalFieldOf("edited_from").forGetter(PhotoMeta::editedFrom)
     ).apply(i, PhotoMeta::new));
 
     public static final StreamCodec<ByteBuf, PhotoMeta> STREAM_CODEC = ByteBufCodecs.fromCodec(CODEC);
 
     public PhotoMeta withId(UUID newId) {
-        return new PhotoMeta(newId, authorId, authorName, createdMillis, width, height, exif, place);
+        return new PhotoMeta(newId, authorId, authorName, createdMillis, width, height, exif, place, editedFrom);
     }
 
     public PhotoMeta withSize(int w, int h) {
-        return new PhotoMeta(id, authorId, authorName, createdMillis, w, h, exif, place);
+        return new PhotoMeta(id, authorId, authorName, createdMillis, w, h, exif, place, editedFrom);
     }
 
     public PhotoMeta withPlace(Place p) {
-        return new PhotoMeta(id, authorId, authorName, createdMillis, width, height, exif, p);
+        return new PhotoMeta(id, authorId, authorName, createdMillis, width, height, exif, p, editedFrom);
+    }
+
+    /** A new photo made from this one in the editor. */
+    public PhotoMeta editedCopy(UUID newId, int w, int h) {
+        return new PhotoMeta(newId, authorId, authorName, createdMillis, w, h, exif, place, java.util.Optional.of(id));
     }
 }

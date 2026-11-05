@@ -733,6 +733,155 @@ def block_models():
         save_json({"parent": f"{NS}:block/{name}"}, "models/item", name + ".json")
 
 
+# ----------------------------------------------------------------------------- stage 4: computer, displays, album
+
+def stage4_assets():
+    b = f"{NS}:block/"
+    # computer: dark case, monitor showing a photo catalogue, keyboard
+    case = Image.new("RGBA", (16, 16))
+    noise_fill(case, (0, 0, 16, 16), (52, 54, 58), 4, seed=41)
+    save_png(case, "textures/block", "computer_case.png")
+    screen = Image.new("RGBA", (16, 16))
+    d = ImageDraw.Draw(screen)
+    d.rectangle([0, 0, 15, 15], fill=(26, 26, 28, 255))
+    d.rectangle([1, 1, 14, 10], fill=(28, 34, 51, 255))
+    thumbs = [(120, 170, 220), (90, 140, 70), (220, 160, 80), (200, 90, 80), (150, 120, 190), (230, 210, 120)]
+    for i, c in enumerate(thumbs):
+        x0, y0 = 2 + (i % 3) * 4, 2 + (i // 3) * 4
+        d.rectangle([x0, y0, x0 + 2, y0 + 2], fill=c + (255,))
+    d.rectangle([2, 11, 13, 12], fill=(60, 60, 64, 255))
+    text(screen, 1, 13, "RC", (120, 120, 120, 255))
+    save_png(screen, "textures/block", "computer_screen.png")
+    kb = Image.new("RGBA", (16, 16))
+    noise_fill(kb, (0, 0, 16, 16), (40, 40, 44), 3, seed=42)
+    kd = ImageDraw.Draw(kb)
+    for y in range(1, 15, 3):
+        for x in range(1, 15, 2):
+            kd.point((x, y), fill=(150, 150, 156, 255))
+    save_png(kb, "textures/block", "computer_keyboard.png")
+
+    def box(frm, to, tex, front=None):
+        faces = {}
+        for f in ("north", "south", "east", "west", "up", "down"):
+            faces[f] = {"texture": front if (f == "north" and front) else tex}
+        return {"from": frm, "to": to, "faces": faces}
+
+    save_json({"parent": "minecraft:block/block", "textures": {
+        "particle": b + "computer_case", "case": b + "computer_case", "screen": b + "computer_screen",
+        "keys": b + "computer_keyboard"},
+        "elements": [
+            {"from": [2, 0, 1], "to": [14, 1, 5], "faces": {
+                "up": {"uv": [2, 1, 14, 5], "texture": "#keys"},
+                "north": {"uv": [2, 15, 14, 16], "texture": "#case"}, "south": {"uv": [2, 15, 14, 16], "texture": "#case"},
+                "east": {"uv": [1, 15, 5, 16], "texture": "#case"}, "west": {"uv": [1, 15, 5, 16], "texture": "#case"},
+                "down": {"uv": [2, 1, 14, 5], "texture": "#case", "cullface": "down"}}},
+            box([6, 0, 8], [10, 1, 12], "#case"),
+            box([7.5, 1, 9.5], [8.5, 5, 10.5], "#case"),
+            {"from": [1, 4, 8], "to": [15, 14, 10], "faces": {
+                "north": {"uv": [1, 1, 15, 11], "texture": "#screen"},
+                "south": {"uv": [1, 2, 15, 12], "texture": "#case"},
+                "east": {"uv": [6, 2, 8, 12], "texture": "#case"}, "west": {"uv": [6, 2, 8, 12], "texture": "#case"},
+                "up": {"uv": [1, 6, 15, 8], "texture": "#case"}, "down": {"uv": [1, 6, 15, 8], "texture": "#case"}}},
+        ]}, "models/block", "computer.json")
+
+    # table frame: dark walnut moulding, cream backing, a strut behind
+    wood = Image.new("RGBA", (16, 16))
+    noise_fill(wood, (0, 0, 16, 16), (92, 62, 40), 8, seed=43)
+    for y in range(0, 16, 3):
+        ImageDraw.Draw(wood).line([(0, y), (15, y)], fill=(80, 52, 32, 255))
+    save_png(wood, "textures/block", "table_frame.png")
+    back = Image.new("RGBA", (16, 16))
+    noise_fill(back, (0, 0, 16, 16), (236, 230, 216), 3, seed=44)
+    save_png(back, "textures/block", "table_frame_back.png")
+
+    def frame_model(x0, x1, top):
+        els = [
+            box([x0, 0, 7], [x1, 1, 8], "#wood"),
+            box([x0, top - 1, 7], [x1, top, 8], "#wood"),
+            box([x0, 1, 7], [x0 + 1, top - 1, 8], "#wood"),
+            box([x1 - 1, 1, 7], [x1, top - 1, 8], "#wood"),
+            box([x0 + 1, 1, 7.5], [x1 - 1, top - 1, 8], "#wood", "#back"),
+            {"from": [7.5, 0, 8], "to": [8.5, top - 2, 9], "rotation": {"angle": -22.5, "axis": "x",
+                                                                         "origin": [8, top - 2, 8]},
+             "faces": {f: {"texture": "#wood"} for f in ("north", "south", "east", "west", "up", "down")}},
+        ]
+        return {"parent": "minecraft:block/block", "textures": {"particle": b + "table_frame", "wood": b + "table_frame",
+                                                               "back": b + "table_frame_back"},
+                "elements": els,
+                "display": {"gui": {"rotation": [20, 200, 0], "translation": [0, 2, 0], "scale": [0.9, 0.9, 0.9]},
+                            "fixed": {"rotation": [0, 180, 0], "scale": [0.8, 0.8, 0.8]},
+                            "ground": {"translation": [0, 3, 0], "scale": [0.5, 0.5, 0.5]},
+                            "thirdperson_righthand": {"rotation": [75, 45, 0], "translation": [0, 2.5, 0], "scale": [0.375, 0.375, 0.375]},
+                            "firstperson_righthand": {"rotation": [0, 225, 0], "translation": [0, 2, 0], "scale": [0.5, 0.5, 0.5]},
+                            "firstperson_lefthand": {"rotation": [0, 225, 0], "translation": [0, 2, 0], "scale": [0.5, 0.5, 0.5]}}}
+    save_json(frame_model(3, 13, 8), "models/block", "table_frame.json")
+    save_json(frame_model(4.5, 11.5, 11), "models/block", "table_frame_portrait.json")
+
+    # photo stand (easel), light wood
+    ew = Image.new("RGBA", (16, 16))
+    noise_fill(ew, (0, 0, 16, 16), (190, 150, 100), 8, seed=45)
+    for x in range(0, 16, 4):
+        ImageDraw.Draw(ew).line([(x, 0), (x, 15)], fill=(172, 132, 86, 255))
+    save_png(ew, "textures/block", "photo_stand.png")
+    lower = [box([2, 0, 6], [3, 16, 7], "#t"), box([13, 0, 6], [14, 16, 7], "#t"),
+             box([7.5, 0, 10], [8.5, 16, 11], "#t"), box([1, 9, 3.5], [15, 10, 7], "#t"),
+             box([3, 4, 6], [13, 5, 7], "#t"), box([7.5, 4, 7], [8.5, 5, 10], "#t")]
+    upper = [box([2, 0, 6], [3, 14, 7], "#t"), box([13, 0, 6], [14, 14, 7], "#t"),
+             box([2, 12, 6], [14, 14, 7], "#t"), box([7.5, 0, 10], [8.5, 10, 11], "#t"),
+             box([7.5, 9, 7], [8.5, 10, 10], "#t")]
+    for name, els in (("photo_stand_lower", lower), ("photo_stand_upper", upper)):
+        save_json({"parent": "minecraft:block/block", "textures": {"particle": b + "photo_stand", "t": b + "photo_stand"},
+                   "elements": els}, "models/block", name + ".json")
+
+    def facing(extra_key, extra_val, model_name, out):
+        for f, y in (("north", 0), ("east", 90), ("south", 180), ("west", 270)):
+            v = {"model": f"{NS}:block/{model_name}"}
+            if y:
+                v["y"] = y
+            out[f"facing={f},{extra_key}={extra_val}"] = v
+
+    v = {}
+    for f, y in (("north", 0), ("east", 90), ("south", 180), ("west", 270)):
+        v[f"facing={f}"] = {"model": f"{NS}:block/computer", **({"y": y} if y else {})}
+    save_json({"variants": v}, "blockstates", "computer.json")
+    v = {}
+    facing("portrait", "false", "table_frame", v)
+    facing("portrait", "true", "table_frame_portrait", v)
+    save_json({"variants": v}, "blockstates", "table_frame.json")
+    v = {}
+    facing("half", "lower", "photo_stand_lower", v)
+    facing("half", "upper", "photo_stand_upper", v)
+    save_json({"variants": v}, "blockstates", "photo_stand.json")
+    save_json({"parent": f"{NS}:block/computer"}, "models/item", "computer.json")
+    save_json({"parent": f"{NS}:block/table_frame"}, "models/item", "table_frame.json")
+
+    def stand_icon(img, d):
+        d.line([(4, 15), (7, 1)], fill=rgba("#a8784a"), width=1)
+        d.line([(11, 15), (8, 1)], fill=rgba("#a8784a"), width=1)
+        d.rectangle([3, 3, 12, 10], fill=rgba("#f4f2ec"), outline=rgba("#c8c0b0"))
+        d.rectangle([4, 4, 11, 9], fill=rgba("#87b5e0"))
+        d.polygon([(4, 9), (7, 6), (9, 8), (11, 5), (11, 9)], fill=rgba("#4f7f3f"))
+        d.line([(2, 11), (13, 11)], fill=rgba("#8a5f38"))
+    icon(stand_icon, "photo_stand")
+
+    def album_icon(img, d):
+        d.rectangle([2, 1, 13, 14], fill=rgba("#6b3a22"), outline=rgba("#3e1f10"))
+        d.line([(4, 1), (4, 14)], fill=rgba("#4a2614"))
+        d.rectangle([6, 4, 11, 9], fill=rgba("#f2f0ea"))
+        d.rectangle([7, 5, 10, 8], fill=rgba("#87b5e0"))
+        d.point((8, 7), fill=rgba("#4f7f3f"))
+        d.line([(6, 11), (11, 11)], fill=rgba("#d8b060"))
+    icon(album_icon, "photo_album")
+
+    def reader_icon(img, d):
+        d.rectangle([2, 5, 13, 11], fill=rgba("#2a2a2e"), outline=rgba("#101012"))
+        d.rectangle([4, 6, 11, 7], fill=rgba("#0a0a0a"))
+        d.rectangle([5, 8, 10, 9], fill=rgba("#2a6fd6"))
+        d.point((12, 10), fill=rgba("#40e060"))
+        d.line([(13, 8), (15, 8)], fill=rgba("#909090"))
+    icon(reader_icon, "cfexpress_reader")
+
+
 # ----------------------------------------------------------------------------- sounds
 
 def write_ogg(samples, rate, name):
@@ -943,6 +1092,7 @@ def main():
 
     block_textures()
     block_models()
+    stage4_assets()
     print_model()
     sounds()
     print("assets written to", os.path.relpath(ASSETS, ROOT))

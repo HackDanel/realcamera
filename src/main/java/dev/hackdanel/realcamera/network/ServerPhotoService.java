@@ -49,8 +49,14 @@ public final class ServerPhotoService {
     /** Bytes per player per tick sent to clients (about 2.5 MB/s). */
     private static final int DOWNLOAD_BUDGET_PER_TICK = 128 * 1024;
 
+    /** Updates the usage counters mirrored on the card item once a photo is stored or removed. */
+    @FunctionalInterface
+    public interface CardMirror {
+        void adjust(long bytes, int count);
+    }
+
     private record Session(UUID photoId, int requestId, UUID cardId, PhotoMeta meta, int totalBytes, long cardBytes,
-                           ByteArrayOutputStream data, long started, dev.hackdanel.realcamera.camera.CameraRef ref) {}
+                           ByteArrayOutputStream data, long started, CardMirror mirror, Optional<UUID> uploader) {}
 
     /** A camera the player may operate: in a hand, or mounted on a tripod within reach. */
     public record Handle(ItemStack stack, Runnable commit) {}
@@ -192,7 +198,80 @@ public final class ServerPhotoService {
         PhotoMeta meta = new PhotoMeta(photoId, author, player.getGameProfile().getName(), System.currentTimeMillis(),
                 msg.meta().width(), msg.meta().height(), msg.meta().exif(), place);
         uploads.put(author, new Session(photoId, msg.requestId(), cardId, meta, msg.totalBytes(), cardBytes,
-                new ByteArrayOutputStream(msg.totalBytes()), now, msg.ref()));
+                new ByteArrayOutputStream(msg.totalBytes()), now,
+                (bytes, count) -> adjustCardMirror(player, cardId, bytes, count, msg.ref()), Optional.empty()));
+        PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(msg.requestId(), Payloads.UPLOAD_ACCEPTED,
+                Optional.of(photoId), ""));
+    }
+
+    /** Checks shared by camera and editor uploads; returns the rejection key or null. */
+    private static String quotaProblem(ServerPlayer player, int totalBytes) {
+        if (totalBytes <= 0 || totalBytes > ServerConfig.MAX_FILE_KB.get() * 1024) {
+            return "message.realcamera.upload.too_big";
+        }
+        PhotoIndex index = PhotoStorage.index(player.server);
+        UUID who = player.getUUID();
+        int maxPhotos = index.quota(who).orElse(ServerConfig.MAX_PHOTOS_PER_PLAYER.get());
+        if (index.countFor(who) >= maxPhotos
+                || index.bytesFor(who) + totalBytes > ServerConfig.MAX_STORAGE_MB_PER_PLAYER.get() * 1_000_000L) {
+            return "message.realcamera.upload.quota";
+        }
+        long now = Util.getMillis();
+        Deque<Long> times = uploadTimes.computeIfAbsent(who, k -> new ArrayDeque<>());
+        while (!times.isEmpty() && now - times.peekFirst() > 60_000) {
+            times.pollFirst();
+        }
+        if (times.size() >= ServerConfig.UPLOADS_PER_MINUTE.get()) {
+            return "message.realcamera.upload.rate";
+        }
+        if (uploads.containsKey(who)) {
+            return "message.realcamera.upload.busy";
+        }
+        times.addLast(now);
+        return null;
+    }
+
+    /** An edited picture from the computer's editor, stored as a new photo next to its source. */
+    public static void editUploadBegin(ServerPlayer player, Payloads.EditUploadBegin msg) {
+        Consumer<String> reject = key -> PacketDistributor.sendToPlayer(player,
+                new Payloads.UploadStatus(msg.requestId(), Payloads.UPLOAD_REJECTED, Optional.empty(), key));
+        if (!(player.containerMenu instanceof dev.hackdanel.realcamera.menu.ComputerMenu menu)
+                || !menu.pos().equals(msg.pos()) || menu.blockEntity() == null || msg.slot() < 0 || msg.slot() > 1) {
+            reject.accept("message.realcamera.computer.closed");
+            return;
+        }
+        var computer = menu.blockEntity();
+        UUID cardId = computer.ensureCardId(msg.slot());
+        if (cardId == null || !computer.readable(msg.slot())) {
+            reject.accept("message.realcamera.no_card");
+            return;
+        }
+        MinecraftServer server = player.server;
+        PhotoIndex.Entry source = PhotoStorage.index(server).get(msg.source());
+        boolean onCards = PhotoStorage.cards(server).contains(cardId, msg.source())
+                || (computer.cardIdOrNull(1 - msg.slot()) != null
+                && PhotoStorage.cards(server).contains(computer.cardIdOrNull(1 - msg.slot()), msg.source()));
+        if (source == null || source.revoked() || !onCards) {
+            reject.accept("message.realcamera.upload.invalid");
+            return;
+        }
+        long cardBytes = source.cardBytes();
+        if (computer.freeBytes(msg.slot()) < cardBytes) {
+            reject.accept("message.realcamera.card_full");
+            return;
+        }
+        String problem = quotaProblem(player, msg.totalBytes());
+        if (problem != null) {
+            reject.accept(problem);
+            return;
+        }
+        UUID photoId = UUID.randomUUID();
+        PhotoMeta meta = source.meta().editedCopy(photoId, source.meta().width(), source.meta().height());
+        int slot = msg.slot();
+        uploads.put(player.getUUID(), new Session(photoId, msg.requestId(), cardId, meta, msg.totalBytes(), cardBytes,
+                new ByteArrayOutputStream(msg.totalBytes()), Util.getMillis(),
+                (bytes, count) -> computer.adjustCard(slot, bytes, count),
+                player.getUUID().equals(meta.authorId()) ? Optional.empty() : Optional.of(player.getUUID())));
         PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(msg.requestId(), Payloads.UPLOAD_ACCEPTED,
                 Optional.of(photoId), ""));
     }
@@ -236,9 +315,10 @@ public final class ServerPhotoService {
                 return;
             }
             server.execute(() -> {
-                PhotoStorage.index(server).put(new PhotoIndex.Entry(meta, bytes.length, s.cardBytes(), 0, false));
+                PhotoStorage.index(server).put(new PhotoIndex.Entry(meta, bytes.length, s.cardBytes(), 0, false, 0,
+                        s.uploader()));
                 PhotoStorage.cards(server).add(s.cardId(), s.photoId());
-                adjustCardMirror(player, s.cardId(), s.cardBytes(), 1, s.ref());
+                s.mirror().adjust(s.cardBytes(), 1);
                 PacketDistributor.sendToPlayer(player, new Payloads.UploadStatus(s.requestId(), Payloads.UPLOAD_STORED,
                         Optional.of(s.photoId()), ""));
                 RealCamera.LOGGER.debug("Stored photo {} ({} bytes) for {}", s.photoId(), bytes.length,
@@ -279,7 +359,7 @@ public final class ServerPhotoService {
         return true;
     }
 
-    private static boolean adjustCard(ItemStack card, UUID cardId, long bytes, int count) {
+    public static boolean adjustCard(ItemStack card, UUID cardId, long bytes, int count) {
         CardData d = card.get(RCComponents.CARD.get());
         if (d == null || d.id().isEmpty() || !d.id().get().equals(cardId)) return false;
         card.set(RCComponents.CARD.get(), new CardData(d.id(), Math.max(0, d.usedBytes() + bytes),
@@ -299,6 +379,10 @@ public final class ServerPhotoService {
         }
         if (player.containerMenu instanceof dev.hackdanel.realcamera.menu.PrinterMenu printer
                 && cardId.equals(printer.cardId())) {
+            return true;
+        }
+        if (player.containerMenu instanceof dev.hackdanel.realcamera.menu.ComputerMenu computer
+                && (cardId.equals(computer.cardId(0)) || cardId.equals(computer.cardId(1)))) {
             return true;
         }
         for (var tripod : player.level().getEntitiesOfClass(dev.hackdanel.realcamera.entity.TripodEntity.class,
@@ -321,17 +405,38 @@ public final class ServerPhotoService {
         PacketDistributor.sendToPlayer(player, cardContents(player, msg.cardId()));
     }
 
-    private static Payloads.CardContents cardContents(ServerPlayer player, UUID cardId) {
+    public static Payloads.CardContents cardContents(ServerPlayer player, UUID cardId) {
         MinecraftServer server = player.server;
         PhotoIndex index = PhotoStorage.index(server);
         List<PhotoMeta> list = new ArrayList<>();
+        List<Integer> ratings = new ArrayList<>();
         for (UUID id : PhotoStorage.cards(server).photos(cardId)) {
             PhotoIndex.Entry e = index.get(id);
             if (e != null && !e.revoked()) {
                 list.add(visibleMeta(player, e.meta()));
+                ratings.add(e.rating());
             }
         }
-        return new Payloads.CardContents(cardId, list);
+        return new Payloads.CardContents(cardId, list, ratings);
+    }
+
+    /**
+     * Removes a photo from a card. The file itself goes only when nothing uses it any more (no other
+     * card, no prints). Returns the card space it occupied, or -1 if it was not on the card.
+     */
+    public static long removeFromCard(MinecraftServer server, UUID cardId, UUID photoId) {
+        CardStorage cards = PhotoStorage.cards(server);
+        if (!cards.remove(cardId, photoId)) {
+            return -1;
+        }
+        PhotoIndex index = PhotoStorage.index(server);
+        PhotoIndex.Entry e = index.get(photoId);
+        long cardBytes = e == null ? 0 : e.cardBytes();
+        if (e != null && e.prints() == 0 && !cards.isReferenced(photoId)) {
+            index.remove(photoId);
+            Util.ioPool().execute(() -> PhotoStorage.delete(server, photoId));
+        }
+        return cardBytes;
     }
 
     /** Coordinates are private unless the server allows sharing them. */
@@ -352,18 +457,9 @@ public final class ServerPhotoService {
         if (d == null || d.id().isEmpty()) {
             return;
         }
-        MinecraftServer server = player.server;
-        CardStorage cards = PhotoStorage.cards(server);
-        if (!cards.remove(d.id().get(), msg.photoId())) {
+        long cardBytes = removeFromCard(player.server, d.id().get(), msg.photoId());
+        if (cardBytes < 0) {
             return;
-        }
-        PhotoIndex index = PhotoStorage.index(server);
-        PhotoIndex.Entry e = index.get(msg.photoId());
-        long cardBytes = e == null ? 0 : e.cardBytes();
-        if (e != null && e.prints() == 0) {
-            index.remove(msg.photoId());
-            UUID id = msg.photoId();
-            Util.ioPool().execute(() -> PhotoStorage.delete(server, id));
         }
         adjustCardMirror(player, d.id().get(), -cardBytes, -1, msg.ref());
         PacketDistributor.sendToPlayer(player, cardContents(player, d.id().get()));

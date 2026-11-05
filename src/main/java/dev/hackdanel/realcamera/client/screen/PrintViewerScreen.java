@@ -15,10 +15,26 @@ import net.minecraft.network.chat.Component;
 public class PrintViewerScreen extends Screen {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
     private final PrintData print;
+    @javax.annotation.Nullable
+    private final net.minecraft.client.gui.screens.Screen parent;
 
     public PrintViewerScreen(PrintData print) {
+        this(print, null);
+    }
+
+    public PrintViewerScreen(PrintData print, @javax.annotation.Nullable net.minecraft.client.gui.screens.Screen parent) {
         super(Component.translatable("gui.realcamera.print_viewer"));
         this.print = print;
+        this.parent = parent;
+    }
+
+    @Override
+    public void onClose() {
+        if (minecraft != null && parent != null) {
+            minecraft.setScreen(parent);
+        } else {
+            super.onClose();
+        }
     }
 
     @Override
@@ -30,7 +46,10 @@ public class PrintViewerScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
         int border = print.finish().equals("matte") ? 0xFFF4F1EA : 0xFFFFFFFF;
-        int top = 16, bottom = height - 44;
+        int top = 16, bottom = height - (print.caption().isEmpty() ? 44 : 56);
+        if (!print.caption().isEmpty()) {
+            g.drawCenteredString(font, "«" + print.caption() + "»", width / 2, height - 48, 0xFFFFE9A8);
+        }
         PhotoMeta p = print.photo();
         double aspect = p.height() == 0 ? 1.5 : (double) p.width() / p.height();
         int maxW = width - 40, maxH = bottom - top;

@@ -24,5 +24,15 @@ public final class RCBlocks {
             () -> new PrinterBlock(BlockBehaviour.Properties.of().mapColor(MapColor.QUARTZ)
                     .strength(2f).sound(SoundType.METAL).noOcclusion()));
 
+    public static final DeferredBlock<dev.hackdanel.realcamera.block.ComputerBlock> COMPUTER = REGISTER.register("computer",
+            () -> new dev.hackdanel.realcamera.block.ComputerBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_GRAY)
+                    .strength(2f).sound(SoundType.METAL).noOcclusion().lightLevel(s -> 4)));
+    public static final DeferredBlock<dev.hackdanel.realcamera.block.TableFrameBlock> TABLE_FRAME = REGISTER.register("table_frame",
+            () -> new dev.hackdanel.realcamera.block.TableFrameBlock(BlockBehaviour.Properties.of().mapColor(MapColor.WOOD)
+                    .strength(0.5f).sound(SoundType.WOOD).noOcclusion()));
+    public static final DeferredBlock<dev.hackdanel.realcamera.block.PhotoStandBlock> PHOTO_STAND = REGISTER.register("photo_stand",
+            () -> new dev.hackdanel.realcamera.block.PhotoStandBlock(BlockBehaviour.Properties.of().mapColor(MapColor.WOOD)
+                    .strength(1f).sound(SoundType.WOOD).noOcclusion()));
+
     private RCBlocks() {}
 }

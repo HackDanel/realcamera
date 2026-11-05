@@ -21,21 +21,37 @@ public class PhotoIndex extends SavedData {
      * @param fileBytes size of the stored in-game copy
      * @param cardBytes space the shot occupies on the memory card (realistic camera file size)
      */
-    public record Entry(PhotoMeta meta, long fileBytes, long cardBytes, int prints, boolean revoked) {
+    public record Entry(PhotoMeta meta, long fileBytes, long cardBytes, int prints, boolean revoked, int rating,
+                        java.util.Optional<UUID> uploader) {
         public static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
                 PhotoMeta.CODEC.fieldOf("meta").forGetter(Entry::meta),
                 Codec.LONG.fieldOf("bytes").forGetter(Entry::fileBytes),
                 Codec.LONG.optionalFieldOf("card_bytes", 0L).forGetter(Entry::cardBytes),
                 Codec.INT.optionalFieldOf("prints", 0).forGetter(Entry::prints),
-                Codec.BOOL.optionalFieldOf("revoked", false).forGetter(Entry::revoked)
+                Codec.BOOL.optionalFieldOf("revoked", false).forGetter(Entry::revoked),
+                Codec.INT.optionalFieldOf("rating", 0).forGetter(Entry::rating),
+                net.minecraft.core.UUIDUtil.CODEC.optionalFieldOf("uploader").forGetter(Entry::uploader)
         ).apply(i, Entry::new));
 
+        public Entry(PhotoMeta meta, long fileBytes, long cardBytes, int prints, boolean revoked) {
+            this(meta, fileBytes, cardBytes, prints, revoked, 0, java.util.Optional.empty());
+        }
+
         public Entry withPrints(int p) {
-            return new Entry(meta, fileBytes, cardBytes, p, revoked);
+            return new Entry(meta, fileBytes, cardBytes, p, revoked, rating, uploader);
+        }
+
+        public Entry withRating(int r) {
+            return new Entry(meta, fileBytes, cardBytes, prints, revoked, r, uploader);
         }
 
         public Entry revoke() {
-            return new Entry(meta, 0, cardBytes, prints, true);
+            return new Entry(meta, 0, cardBytes, prints, true, rating, uploader);
+        }
+
+        /** Who pays for the file in their quota: the uploader (an editor of someone else's photo) or the author. */
+        public UUID owner() {
+            return uploader.orElse(meta.authorId());
         }
     }
 
@@ -101,7 +117,7 @@ public class PhotoIndex extends SavedData {
     public int countFor(UUID author) {
         int n = 0;
         for (Entry e : entries.values()) {
-            if (!e.revoked() && e.meta().authorId().equals(author)) n++;
+            if (!e.revoked() && e.owner().equals(author)) n++;
         }
         return n;
     }
@@ -109,7 +125,7 @@ public class PhotoIndex extends SavedData {
     public long bytesFor(UUID author) {
         long n = 0;
         for (Entry e : entries.values()) {
-            if (!e.revoked() && e.meta().authorId().equals(author)) n += e.fileBytes();
+            if (!e.revoked() && e.owner().equals(author)) n += e.fileBytes();
         }
         return n;
     }

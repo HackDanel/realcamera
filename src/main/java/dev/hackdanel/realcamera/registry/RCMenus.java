@@ -25,5 +25,8 @@ public final class RCMenus {
     public static final Supplier<MenuType<PrinterMenu>> PRINTER = REGISTER.register("photo_printer",
             () -> IMenuTypeExtension.create(PrinterMenu::new));
 
+    public static final Supplier<MenuType<dev.hackdanel.realcamera.menu.ComputerMenu>> COMPUTER = REGISTER.register("computer",
+            () -> IMenuTypeExtension.create(dev.hackdanel.realcamera.menu.ComputerMenu::new));
+
     private RCMenus() {}
 }
