@@ -1,0 +1,12 @@
+{
+    "vertex": "blit_screen",
+    "fragment": "realcamera:realcamera_dof_composite",
+    "samplers": [
+        { "name": "DiffuseSampler" },
+        { "name": "CocSampler" },
+        { "name": "BlurSampler" }
+    ],
+    "uniforms": [
+        { "name": "BlurMaxRadius", "type": "float", "count": 1, "values": [ 16.0 ] }
+    ]
+}

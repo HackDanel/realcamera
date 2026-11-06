@@ -7,6 +7,7 @@ import dev.hackdanel.realcamera.camera.CameraRef;
 import dev.hackdanel.realcamera.camera.OpticalChain;
 import dev.hackdanel.realcamera.client.RCKeys;
 import dev.hackdanel.realcamera.client.capture.PhotoCapture;
+import dev.hackdanel.realcamera.client.hud.FrameSampler;
 import dev.hackdanel.realcamera.component.CameraSettings;
 import dev.hackdanel.realcamera.network.Payloads;
 import dev.hackdanel.realcamera.optics.Exposure;
@@ -70,6 +71,15 @@ public final class Viewfinder {
     private static int afState = AF_IDLE;
     private static long afStartMs, afDurationMs;
     private static boolean shootWhenFocused;
+    /** Low contrast where the AF measures: the lens sweeps its whole range looking for detail, then gives up. */
+    private static boolean hunting;
+    /** Focus was set with the AF-ON button: the shutter button fires at that distance without refocusing. */
+    private static boolean buttonLock;
+    /** Where the AF measured last (frame coordinates) and how large the patch was (frame half-heights). */
+    private static double afU, afV, afPatch = 0.06;
+    private static final RandomSource AF_ERROR = RandomSource.create();
+    /** Below this local contrast phase detection finds nothing to lock on; below GOOD it is slow and less precise. */
+    private static final double AF_CONTRAST_MIN = 0.007, AF_CONTRAST_GOOD = 0.013;
     @Nullable
     private static SubjectDetector.Subject subject;
     private static boolean attackWasDown;
@@ -171,6 +181,23 @@ public final class Viewfinder {
 
     public static float focusDistance() {
         return focusDistance;
+    }
+
+    /**
+     * Focus distance right now, for the live depth-of-field preview: follows the AF motor between ticks and the
+     * focus ring without waiting for the next tick.
+     */
+    public static float liveFocusDistance() {
+        if (chain == null) return focusDistance;
+        if (settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable()) {
+            return settings.focusDistance();
+        }
+        return afState == AF_SEARCHING ? focusAt(System.currentTimeMillis()) : focusDistance;
+    }
+
+    /** Focus locked with AF-ON (the shutter button will not refocus). */
+    public static boolean afButtonLock() {
+        return buttonLock && afState == AF_LOCKED;
     }
 
     public static int afState() {
@@ -340,6 +367,8 @@ public final class Viewfinder {
         settings = CameraHelper.settings(camera());
         focusDistance = settings.focusDistance();
         afState = AF_IDLE;
+        hunting = false;
+        buttonLock = false;
         subject = null;
         magnified = false;
         bulbStartMs = -1;
@@ -352,6 +381,7 @@ public final class Viewfinder {
         active = false;
         shootWhenFocused = false;
         afState = AF_IDLE;
+        hunting = false;
         magnified = false;
         if (bulbStartMs >= 0) {
             PhotoCapture.stopBulb();
@@ -605,7 +635,7 @@ public final class Viewfinder {
 
     private static CameraRays rays(Minecraft mc, double maxDist) {
         return new CameraRays(mc.level, mc.getCameraEntity(), mc.gameRenderer.getMainCamera(), sensorVfov(),
-                sensor().aspect(), maxDist);
+                sensor().aspect(), maxDist).outline();
     }
 
     /** Distance the AF system would choose now, and the subject it locked onto (if any). */
@@ -615,6 +645,9 @@ public final class Viewfinder {
         double cu = area == CameraSettings.AF_POINT ? settings.afX() : 0;
         double cv = area == CameraSettings.AF_POINT ? settings.afY() : 0;
         subject = null;
+        afU = cu;
+        afV = cv;
+        afPatch = area == CameraSettings.AF_POINT ? 0.06 : 0.12;
         if (settings.subjectDetect()) {
             double extent = switch (area) {
                 case CameraSettings.AF_POINT -> 0.25;
@@ -625,6 +658,8 @@ public final class Viewfinder {
                     sensor().aspect(), body().af().subjectDetect(), extent, cu, cv);
             if (s != null && (area != CameraSettings.AF_POINT || Math.hypot(s.cx() - cu, s.cy() - cv) < 0.35)) {
                 subject = s;
+                afU = s.cx();
+                afV = s.cy();
                 return Math.max(chain.lens().minFocusM(), s.distance());
             }
         }
@@ -636,15 +671,20 @@ public final class Viewfinder {
         }
         // wide/zone without a subject: closest-subject priority over a grid, weighted to the centre
         double span = area == CameraSettings.AF_ZONE ? 0.35 : 0.7;
-        double best = 1000;
+        double best = 1000, bestScore = Double.MAX_VALUE;
         for (int y = -2; y <= 2; y++) {
             for (int x = -3; x <= 3; x++) {
                 double u = x / 3.0 * span, v = y / 2.0 * span;
                 Vec3 dir = rays.direction(u, v);
                 double d = rays.planeDistance(rays.cast(dir), dir);
                 if (!Double.isInfinite(d)) {
-                    d *= 1 + 0.6 * (u * u + v * v); // prefer the middle a little
-                    best = Math.min(best, d);
+                    double score = d * (1 + 0.6 * (u * u + v * v)); // prefer the middle a little
+                    if (score < bestScore) {
+                        bestScore = score;
+                        best = d;
+                        afU = u;
+                        afV = v;
+                    }
                 }
             }
         }
@@ -652,9 +692,11 @@ public final class Viewfinder {
     }
 
     private static void startAf(Minecraft mc) {
+        hunting = false;
         double target = Math.max(chain.lens().minFocusM(), afTargetDistance(mc));
         // too dark for the AF sensor: digital bodies light close subjects with their AF-assist lamp (slower, up to about 5 m)
-        boolean dark = meteredEv < chain.afLowLightEv(focal());
+        double marginEv = meteredEv - chain.afLowLightEv(focal());
+        boolean dark = marginEv < 0;
         boolean assist = dark && !body().isFilm() && target <= 5.0;
         if (dark && !assist) {
             afState = AF_FAILED;
@@ -663,11 +705,58 @@ public final class Viewfinder {
             return;
         }
         focusStart = focusDistance;
-        focusTarget = (float) target;
-        double travel = Math.abs(Math.log(focusTarget / Math.max(0.1f, focusStart)));
-        afDurationMs = (long) ((60 + 90 * Math.min(3, travel)) / Math.max(0.15, chain.afSpeed()) * (assist ? 2.5 : 1));
         afStartMs = System.currentTimeMillis();
         afState = AF_SEARCHING;
+        // a recognised subject always has detail; otherwise the AF needs some contrast where it measures
+        double contrast = subject != null || assist ? -1 : FrameSampler.contrastAt(afU, afV, afPatch);
+        if (contrast >= 0 && contrast < AF_CONTRAST_MIN) {
+            // nothing to lock on (clear sky, a blank wall): the lens runs through its whole range and gives up
+            hunting = true;
+            focusTarget = focusStart;
+            afDurationMs = (long) Math.min(3500, 1300 / Math.max(0.15, chain.afSpeed()));
+            return;
+        }
+        boolean weak = contrast >= 0 && contrast < AF_CONTRAST_GOOD;
+        focusTarget = (float) withAfError(target, weak, marginEv, assist);
+        double travel = Math.abs(Math.log(focusTarget / Math.max(0.1f, focusStart)));
+        afDurationMs = (long) ((60 + 90 * Math.min(3, travel)) / Math.max(0.15, chain.afSpeed())
+                * (assist ? 2.5 : 1) * (weak ? 1.8 : 1));
+    }
+
+    /**
+     * Phase-detect AF does not land exactly on the subject: the error is a fraction of the depth of focus at full
+     * aperture (so it rarely shows, except wide open), larger near the low-light limit, with the assist lamp and on
+     * weak detail. Worked out in dioptres, where the depth of field is symmetric (1/near - 1/far = 2/H).
+     */
+    private static double withAfError(double target, boolean weak, double marginEv, boolean assist) {
+        double f = focal();
+        double coc = Optics.FF_COC_MM / sensor().cropFactor();
+        double invHyperfocal = chain.maxApertureAt(focal()) * coc / (f * f) * 1000; // 1/m
+        double sigma = 0.2;
+        if (marginEv < 2) sigma *= 1 + (2 - Math.max(0, marginEv)) * 0.5;
+        if (assist) sigma *= 1.5;
+        if (weak) sigma *= 1.6;
+        double inv = 1 / target + AF_ERROR.nextGaussian() * sigma * invHyperfocal;
+        return Math.max(chain.lens().minFocusM(), inv <= 0.001 ? 1000 : 1 / inv);
+    }
+
+    /** Where the focus is at {@code now} while the AF motor runs (a hunt goes to the near end, out to infinity and back). */
+    private static float focusAt(long now) {
+        float t = Mth.clamp((float) (now - afStartMs) / Math.max(1, afDurationMs), 0f, 1f);
+        double from = Math.log(Math.max(0.05, focusStart));
+        if (!hunting) {
+            return (float) Math.exp(Mth.lerp(t, from, Math.log(focusTarget)));
+        }
+        double near = Math.log(chain.lens().minFocusM()), far = Math.log(300);
+        double x;
+        if (t < 0.3f) {
+            x = Mth.lerp(t / 0.3, from, near);
+        } else if (t < 0.8f) {
+            x = Mth.lerp((t - 0.3) / 0.5, near, far);
+        } else {
+            x = Mth.lerp((t - 0.8) / 0.2, far, from);
+        }
+        return (float) Math.exp(x);
     }
 
     private static void updateFocus(Minecraft mc) {
@@ -675,6 +764,7 @@ public final class Viewfinder {
         boolean mf = settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable();
         if (mf) {
             afState = AF_IDLE;
+            hunting = false;
             focusDistance = settings.focusDistance();
             if (tick % 4 == 0 && settings.subjectDetect()) {
                 subject = SubjectDetector.detect(mc.level, mc.getCameraEntity(), mc.gameRenderer.getMainCamera(),
@@ -687,17 +777,26 @@ public final class Viewfinder {
             return;
         }
         if (afState == AF_SEARCHING) {
-            float t = Math.min(1f, (float) (now - afStartMs) / Math.max(1, afDurationMs));
-            focusDistance = (float) Math.exp(Mth.lerp(t, Math.log(Math.max(0.05, focusStart)), Math.log(focusTarget)));
-            if (t >= 1) {
-                afState = AF_LOCKED;
-                mc.getSoundManager().play(SimpleSoundInstance.forUI(RCSounds.AF_CONFIRM.get(), 1f, 0.6f));
+            focusDistance = focusAt(now);
+            if (now - afStartMs >= afDurationMs) {
+                if (hunting) {
+                    hunting = false;
+                    focusDistance = focusStart;
+                    afState = AF_FAILED;
+                    afStartMs = now;
+                    afDurationMs = 600;
+                } else {
+                    focusDistance = focusTarget;
+                    afState = AF_LOCKED;
+                    mc.getSoundManager().play(SimpleSoundInstance.forUI(RCSounds.AF_CONFIRM.get(), 1f, 0.6f));
+                }
             }
         } else if (afState == AF_FAILED && now - afStartMs > afDurationMs) {
             afState = AF_IDLE;
             shootWhenFocused = false;
-        } else if (settings.focusMode() == CameraSettings.FOCUS_AFC && afState == AF_LOCKED && tick % 2 == 0) {
-            // continuous AF follows the tracked subject, or whatever the AF area sees
+        } else if (settings.focusMode() == CameraSettings.FOCUS_AFC && afState == AF_LOCKED && tick % 2 == 0
+                && (!buttonLock || RCKeys.AF_ON.isDown())) {
+            // continuous AF follows the tracked subject, or whatever the AF area sees (with AF-ON: while it is held)
             double target;
             if (subject != null && (settings.afArea() == CameraSettings.AF_TRACKING || settings.subjectDetect())) {
                 SubjectDetector.Subject s = SubjectDetector.track(mc.level, mc.getCameraEntity(),
@@ -707,8 +806,17 @@ public final class Viewfinder {
             } else {
                 target = afTargetDistance(mc);
             }
+            if (subject == null) {
+                double c = FrameSampler.contrastAt(afU, afV, afPatch);
+                if (c >= 0 && c < AF_CONTRAST_MIN) {
+                    target = focusDistance; // nothing to follow: hold the last distance, as real AF-C does
+                }
+            }
             target = Math.max(chain.lens().minFocusM(), target);
-            focusDistance = (float) Math.exp(Mth.lerp(0.5, Math.log(focusDistance), Math.log(target)));
+            // the focus motor has a top speed: AF-S takes ~90 ms per e-fold of distance at speed 1 (see startAf)
+            double cur = Math.log(focusDistance), goal = Math.log(target);
+            double maxStep = 0.1 / 0.09 * chain.afSpeed();
+            focusDistance = (float) Math.exp(cur + Mth.clamp((goal - cur) * 0.6, -maxStep, maxStep));
         } else if (afState == AF_IDLE && tick % 4 == 0 && settings.subjectDetect()) {
             // show what the camera recognises even before focusing (real cameras do)
             subject = SubjectDetector.detect(mc.level, mc.getCameraEntity(), mc.gameRenderer.getMainCamera(),
@@ -771,8 +879,12 @@ public final class Viewfinder {
             return;
         }
         boolean mf = settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable();
-        if (mf || (settings.focusMode() == CameraSettings.FOCUS_AFC && afState == AF_LOCKED)) {
+        if (mf || (settings.focusMode() == CameraSettings.FOCUS_AFC && afState == AF_LOCKED)
+                || (buttonLock && afState != AF_SEARCHING)) {
+            // back-button focus: the shutter button never focuses, it fires wherever AF-ON left the focus
             release(mc);
+        } else if (buttonLock) {
+            shootWhenFocused = true; // AF-ON is still focusing: fire when it is done
         } else {
             shootWhenFocused = true;
             startAf(mc);
@@ -983,6 +1095,14 @@ public final class Viewfinder {
             int m = (settings.focusMode() + 1) % CameraSettings.FOCUS_COUNT;
             update(settings.withFocusMode(m).withFocusDistance(focusDistance));
             afState = AF_IDLE;
+            hunting = false;
+            buttonLock = false;
+        }
+        while (RCKeys.AF_ON.consumeClick()) {
+            if (settings.focusMode() != CameraSettings.FOCUS_MF && chain.afAvailable() && afState != AF_SEARCHING) {
+                buttonLock = true;
+                startAf(mc);
+            }
         }
         while (RCKeys.DISP.consumeClick()) {
             update(settings.withDisp((settings.disp() + 1) % CameraSettings.DISP_COUNT));
@@ -1001,6 +1121,8 @@ public final class Viewfinder {
         while (RCKeys.AF_AREA.consumeClick()) {
             update(settings.withAfArea((settings.afArea() + 1) % CameraSettings.AF_AREA_COUNT));
             afState = AF_IDLE;
+            hunting = false;
+            buttonLock = false;
         }
         float step = 0.08f;
         float dx = 0, dy = 0;

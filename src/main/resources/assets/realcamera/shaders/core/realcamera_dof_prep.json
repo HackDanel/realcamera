@@ -1,0 +1,13 @@
+{
+    "vertex": "blit_screen",
+    "fragment": "realcamera:realcamera_dof_prep",
+    "samplers": [
+        { "name": "DiffuseSampler" },
+        { "name": "CocSampler" }
+    ],
+    "uniforms": [
+        { "name": "InSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "FullMaxRadius", "type": "float", "count": 1, "values": [ 16.0 ] },
+        { "name": "MaxRadius", "type": "float", "count": 1, "values": [ 8.0 ] }
+    ]
+}

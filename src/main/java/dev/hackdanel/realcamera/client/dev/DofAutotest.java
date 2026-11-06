@@ -45,6 +45,7 @@ public final class DofAutotest {
 
     private static final Deque<Step> steps = new ArrayDeque<>();
     private static boolean worldRequested, scripted;
+    private static volatile String pendingScreenshot;
     private static int wait, polled;
 
     private DofAutotest() {}
@@ -100,6 +101,7 @@ public final class DofAutotest {
         }, 15);
         until("viewfinder " + label, Viewfinder::isActive, 60);
         step("settle " + label, () -> {}, 30);
+        step("viewfinder screenshot " + label, () -> pendingScreenshot = "vf_" + label.replace(' ', '_'), 5);
         step("shoot " + label, Viewfinder::debugPressShutter, 5);
         until("started " + label, PhotoCapture::busy, 80);
         until("stored " + label, () -> !PhotoCapture.busy(), 1200);
@@ -107,6 +109,41 @@ public final class DofAutotest {
             Minecraft.getInstance().options.keyUse.setDown(false);
             log("PASS shot {}", label);
         }, 40);
+    }
+
+    private static String f4(double v) {
+        return String.format(java.util.Locale.ROOT, "%.4f", v);
+    }
+
+    /** Aim, log the contrast the AF sees, focus; {@code locks} null = only report. */
+    private static void afCheck(String label, float pitch, Boolean locks) {
+        step("aim " + label, () -> {
+            var p = Minecraft.getInstance().player;
+            p.setXRot(pitch);
+            p.xRotO = pitch;
+        }, 30);
+        for (int i = 0; i < 3; i++) {
+            step("contrast " + label, () -> log("contrast {} = {} (blocks 1/2/3/4: {} {} {} {})", label,
+                    f4(dev.hackdanel.realcamera.client.hud.FrameSampler.contrastAt(0, 0, 0.06)),
+                    f4(dev.hackdanel.realcamera.client.hud.FrameSampler.contrastAt(0, 0, 0.06, 1)),
+                    f4(dev.hackdanel.realcamera.client.hud.FrameSampler.contrastAt(0, 0, 0.06, 2)),
+                    f4(dev.hackdanel.realcamera.client.hud.FrameSampler.contrastAt(0, 0, 0.06, 3)),
+                    f4(dev.hackdanel.realcamera.client.hud.FrameSampler.contrastAt(0, 0, 0.06, 4))), 5);
+        }
+        step("focus " + label, Viewfinder::debugPressShutter, 6);
+        step("mid-focus screenshot " + label, () -> pendingScreenshot = "af_" + label, 2);
+        until("af done " + label, () -> Viewfinder.afState() == Viewfinder.AF_LOCKED || Viewfinder.afState() == Viewfinder.AF_FAILED, 120);
+        step("result " + label, () -> {
+            boolean locked = Viewfinder.afState() == Viewfinder.AF_LOCKED;
+            String what = locked ? "locked at " + Viewfinder.focusDistance() + " m" : "failed";
+            if (locks == null) {
+                log("INFO af {}: {}", label, what);
+            } else {
+                log(locked == locks ? "PASS af {}: {}" : "FAIL af {}: {}", label, what);
+            }
+        }, 2);
+        until("stored " + label, () -> !PhotoCapture.busy(), 1200);
+        step("after " + label, () -> {}, 20);
     }
 
     private static void script() {
@@ -130,6 +167,36 @@ public final class DofAutotest {
         shoot("cow f1.8", "sony_fe_85_f18", 1.8, 6.0f);
         shoot("near grass f1.8", "sony_fe_50_f18", 1.8, 2.5f);
         shoot("cow f8", "sony_fe_85_f18", 8, 6.0f);
+        // autofocus: detail locks, a clear sky makes the lens hunt and give up
+        step("wall", () -> server(p -> cmd(p, "fill ~-8 ~ ~14 ~8 ~8 ~14 minecraft:white_concrete")), 40);
+        step("give af", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            ItemStack s = camera("sony_fe_50_f18", 1.8, 1000f);
+            s.set(RCComponents.CAMERA_SETTINGS.get(), s.get(RCComponents.CAMERA_SETTINGS.get())
+                    .withFocusMode(CameraSettings.FOCUS_AFS).withAfArea(CameraSettings.AF_POINT).withAfX(0).withAfY(0));
+            mc.player.getInventory().setItem(0, s);
+            mc.gameMode.handleCreativeModeItemAdd(s, 36);
+        }, 10);
+        step("raise af", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.player.getInventory().selected = 0;
+            mc.options.keyUse.setDown(true);
+            mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
+        }, 15);
+        until("viewfinder af", Viewfinder::isActive, 60);
+        afCheck("grass", 30, true);
+        afCheck("wall", -4, false);
+        step("stone wall", () -> server(p -> cmd(p, "fill ~-8 ~ ~14 ~8 ~8 ~14 minecraft:cobblestone")), 40);
+        afCheck("stone", -4, true);
+        afCheck("sky", -70, false);
+        step("lower af", () -> Minecraft.getInstance().options.keyUse.setDown(false), 20);
+        step("night", () -> server(p -> {
+            cmd(p, "fill ~-8 ~ ~14 ~8 ~8 ~14 minecraft:air");
+            cmd(p, "setblock ~2 ~ ~4 minecraft:torch");
+            cmd(p, "setblock ~-2 ~ ~8 minecraft:torch");
+            cmd(p, "time set 18000");
+        }), 60);
+        shoot("night cow f1.8", "sony_fe_85_f18", 1.8, 6.0f);
         step("done", () -> {
             log("done, stopping");
             Minecraft.getInstance().stop();
@@ -189,5 +256,24 @@ public final class DofAutotest {
             log("FAIL step {} threw {}", s.label(), e.toString());
         }
         wait = s.delay();
+    }
+
+    @SubscribeEvent
+    static void onFramePost(net.neoforged.neoforge.client.event.RenderFrameEvent.Post event) {
+        if (!ENABLED || pendingScreenshot == null) return;
+        String name = pendingScreenshot;
+        pendingScreenshot = null;
+        Minecraft mc = Minecraft.getInstance();
+        com.mojang.blaze3d.platform.NativeImage img = net.minecraft.client.Screenshot.takeScreenshot(mc.getMainRenderTarget());
+        java.io.File dir = new java.io.File(mc.gameDirectory, "screenshots/autotest");
+        net.minecraft.Util.ioPool().execute(() -> {
+            try (img) {
+                dir.mkdirs();
+                img.writeToFile(new java.io.File(dir, name + ".png"));
+                log("screenshot {}", name);
+            } catch (java.io.IOException e) {
+                RealCamera.LOGGER.error("screenshot failed", e);
+            }
+        });
     }
 }

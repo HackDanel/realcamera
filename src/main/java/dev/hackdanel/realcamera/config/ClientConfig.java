@@ -14,6 +14,10 @@ public final class ClientConfig {
             .comment("VRAM budget for photo textures shown in frames and in hand, in megabytes")
             .defineInRange("textureCacheMb", 256, 32, 4096);
 
+    public static final ModConfigSpec.BooleanValue LIVE_DEPTH_OF_FIELD = BUILDER
+            .comment("Blur the viewfinder like the photo will be: depth of field at the set aperture and focus, live")
+            .define("liveDepthOfField", true);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private ClientConfig() {}

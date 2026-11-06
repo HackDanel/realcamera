@@ -1,0 +1,12 @@
+{
+    "vertex": "blit_screen",
+    "fragment": "realcamera:realcamera_dof_blur",
+    "samplers": [
+        { "name": "DiffuseSampler" }
+    ],
+    "uniforms": [
+        { "name": "OutSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "MaxRadius", "type": "float", "count": 1, "values": [ 8.0 ] },
+        { "name": "RadScale", "type": "float", "count": 1, "values": [ 1.0 ] }
+    ]
+}

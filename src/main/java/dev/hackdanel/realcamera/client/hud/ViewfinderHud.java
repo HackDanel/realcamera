@@ -461,6 +461,9 @@ public final class ViewfinderHud {
     private static void topBar(GuiGraphics g, Font font, int x, int y, int w, CameraSettings s) {
         boolean mf = s.focusMode() == CameraSettings.FOCUS_MF || !Viewfinder.afAvailable();
         String focus = mf ? "MF" : s.focusMode() == CameraSettings.FOCUS_AFC ? "AF-C" : "AF-S";
+        if (!mf && Viewfinder.afButtonLock()) {
+            focus += " AF-L"; // focus held by AF-ON
+        }
         String meter = switch (s.metering()) {
             case CameraSettings.METER_CENTER -> "CTR";
             case CameraSettings.METER_SPOT -> "SPOT";

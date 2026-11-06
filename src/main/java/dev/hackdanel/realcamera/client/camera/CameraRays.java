@@ -24,6 +24,7 @@ public final class CameraRays {
     private final double tanH, tanV;
     private final double maxDist;
     private final List<Entity> entities;
+    private ClipContext.Block shape = ClipContext.Block.VISUAL;
 
     public CameraRays(ClientLevel level, Entity viewer, Camera camera, double vfovDeg, double aspect, double maxDist) {
         this.level = level;
@@ -56,6 +57,15 @@ public final class CameraRays {
         return this;
     }
 
+    /**
+     * Hit blocks by their outline (the selection box) instead of their collision shape: grass, flowers, saplings,
+     * crops and torches have no collision, but autofocus, peaking and the rangefinder must see them.
+     */
+    public CameraRays outline() {
+        shape = ClipContext.Block.OUTLINE;
+        return this;
+    }
+
     /** Unit direction for normalised frame coordinates u,v in [-1,1] (v up). */
     public Vec3 direction(double u, double v) {
         return forward.add(right.scale(u * tanH)).add(up.scale(v * tanV)).normalize();
@@ -63,7 +73,7 @@ public final class CameraRays {
 
     public HitResult cast(Vec3 dir) {
         Vec3 end = origin.add(dir.scale(maxDist));
-        BlockHitResult block = level.clip(new ClipContext(origin, end, ClipContext.Block.VISUAL, ClipContext.Fluid.ANY, viewer));
+        BlockHitResult block = level.clip(new ClipContext(origin, end, shape, ClipContext.Fluid.ANY, viewer));
         double best = block.getType() == HitResult.Type.MISS ? maxDist * maxDist : block.getLocation().distanceToSqr(origin);
         HitResult result = block;
         for (Entity e : entities) {

@@ -69,6 +69,13 @@ dispatched via `ClientBridge.handlePayload`.
    camera buffer (drains at the card's write speed), shutter. Composes a `PhotoCapture.Shot`. A correct exposure
    renders the metered area at middle grey however dark the game drew it (`PhotoCapture.relight`, global factor
    from the game's light curve at the metered points; not per pixel).
+   AF rays hit block outlines (grass and flowers count). AF needs local contrast (`hud/FrameSampler.contrastAt`,
+   the frame read back before the GUI): too little and the lens hunts and fails; it lands with a random error of
+   a fraction of the wide-open depth of focus. AF-ON (R) is back-button focus. `client/render/DofPreview` blurs
+   the viewfinder live from the depth buffer (three passes, shaders in `assets/realcamera/shaders/`; off during
+   capture and on rangefinders). Depth becomes blur radii at AFTER_LEVEL (the depth buffer is cleared before the
+   hand/GUI); the blur itself runs at once without a shader pack, or at `RenderGuiEvent.Pre` with one (Iris draws
+   its final picture after AFTER_LEVEL); the AF contrast is sampled at the same point, before the blur.
 2. `client/capture/PhotoCapture` — renders one clean frame at sensor resolution by temporarily resizing the
    window/main render target (one warm-up frame first), reads it back together with the depth buffer of the same
    frame (`RenderLevelStageEvent` AFTER_LEVEL, linearised with that frame's projection), and ray-casts depth and
