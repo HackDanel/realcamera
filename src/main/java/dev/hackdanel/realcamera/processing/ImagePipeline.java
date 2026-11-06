@@ -283,11 +283,7 @@ public final class ImagePipeline {
         int h = depth.length / w;
         double pxPerMm = w / f.sensorWidthMm();
         for (int y = 0; y < h; y++) {
-            double focus = f.focusM();
-            if (Math.abs(f.tiltDeg()) > 1e-3) {
-                double rowMm = (h / 2.0 - y - 0.5) / pxPerMm;
-                focus = Math.min(1e6, Optics.tiltedFocusM(f.focalMm(), f.focusM(), f.tiltDeg(), rowMm));
-            }
+            double focus = rowFocusM(f, y, w, h);
             for (int x = 0; x < w; x++) {
                 int i = y * w + x;
                 double c = Optics.blurCircleMm(f.focalMm(), f.fNumber(), focus, depth[i]);
@@ -295,6 +291,15 @@ public final class ImagePipeline {
             }
         }
         return r;
+    }
+
+    /** Focus distance of an image row: a tilted lens focuses every row at a different distance. */
+    static double rowFocusM(ImageParams.Focus f, int y, int w, int h) {
+        if (Math.abs(f.tiltDeg()) <= 1e-3) {
+            return f.focusM();
+        }
+        double rowMm = (h / 2.0 - y - 0.5) / (w / f.sensorWidthMm());
+        return Math.min(1e6, Optics.tiltedFocusM(f.focalMm(), f.focusM(), f.tiltDeg(), rowMm));
     }
 
     /**
@@ -325,7 +330,7 @@ public final class ImagePipeline {
         int levels = Math.max(1, (int) Math.ceil(Math.log(largest) / Math.log(2)) + 1);
         Level[] pyr = new Level[levels + 1];
         for (int k = 1; k <= levels; k++) {
-            pyr[k] = buildLevel(img, radius, w, h, k);
+            pyr[k] = buildLevel(img, radius, null, w, h, k, 0.02f, 1f);
         }
         float[] blurred = new float[img.length];
         float[] src = img;
@@ -353,6 +358,7 @@ public final class ImagePipeline {
                 out[j + 2] = a[2] + (b[2] - a[2]) * t;
             }
         });
+        foregroundSpread(img, blurred, depth, radius, w, h, p.focus());
         float[] out = blurred;
         if (p.lens().bokeh() == ImageParams.BOKEH_SWIRL) {
             out = swirl(out, radius, w, h);
@@ -404,23 +410,144 @@ public final class ImagePipeline {
         return out;
     }
 
-    private record Level(int scale, int lw, int lh, float[] rgb) {}
+    /**
+     * Out-of-focus things in front of the focus plane spread over whatever lies behind them (a blurred grass blade
+     * in front of a sharp cow covers it half-transparently), but a gather blur keeps every sharp pixel sharp and
+     * leaves the blurred foreground with a hard outline. Here the foreground alone is blurred again with the radius
+     * of the nearest foreground around each pixel and laid over the result by its coverage.
+     */
+    static void foregroundSpread(float[] img, float[] out, float[] depth, float[] radius, int w, int h, ImageParams.Focus f) {
+        float[] fg = new float[w * h];
+        float largest = 0;
+        for (int y = 0; y < h; y++) {
+            double focus = rowFocusM(f, y, w, h);
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x;
+                if (depth[i] < focus && radius[i] >= 1.5f) {
+                    fg[i] = radius[i];
+                    largest = Math.max(largest, radius[i]);
+                }
+            }
+        }
+        if (largest < 1.5f) {
+            return;
+        }
+        // reach: the largest foreground radius that can touch each 8x8 cell
+        int cs = 8, cw = (w + cs - 1) / cs, ch = (h + cs - 1) / cs;
+        float[] cell = new float[cw * ch];
+        for (int i = 0; i < fg.length; i++) {
+            int c = (i / w / cs) * cw + (i % w) / cs;
+            cell[c] = Math.max(cell[c], fg[i]);
+        }
+        float[] reach = new float[cw * ch];
+        int span = (int) Math.ceil(largest / cs) + 1;
+        java.util.stream.IntStream.range(0, ch).parallel().forEach(cy -> {
+            for (int cx = 0; cx < cw; cx++) {
+                float best = 0;
+                for (int dy = -span; dy <= span; dy++) {
+                    int yy = cy + dy;
+                    if (yy < 0 || yy >= ch) continue;
+                    for (int dx = -span; dx <= span; dx++) {
+                        int xx = cx + dx;
+                        if (xx < 0 || xx >= cw) continue;
+                        float r = cell[yy * cw + xx];
+                        if (r > best && Math.hypot(dx, dy) * cs <= r + cs) best = r;
+                    }
+                }
+                reach[cy * cw + cx] = best;
+            }
+        });
+        // background mask: what is not blurred foreground (seen next to and, by extrapolation, behind it)
+        float[] bgMask = new float[w * h];
+        for (int i = 0; i < bgMask.length; i++) bgMask[i] = fg[i] > 0 ? 0 : 1;
+        int levels = Math.max(1, (int) Math.ceil(Math.log(largest) / Math.log(2)) + 1);
+        Level[] pyr = new Level[levels + 1], bgPyr = new Level[levels + 1];
+        for (int k = 1; k <= levels; k++) {
+            // coverage counts foreground pixels blurred about as much as the radius this level stands for
+            pyr[k] = buildLevel(img, fg, null, w, h, k, 0f, 0.3f);
+            bgPyr[k] = buildLevel(img, null, bgMask, w, h, k, 1f, 1f);
+        }
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+            float[] fgc = new float[4], bgc = new float[4];
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x;
+                int j = i * 3;
+                float own = radius[i];
+                if (fg[i] > 0) {
+                    // the pixel's own blur, laid over what is around (and so presumably behind) it: a thin blurred
+                    // blade turns half-transparent at its edges instead of keeping a hard outline
+                    sampleBlend(pyr, levels, img, w, h, x, y, own, fgc);
+                    sampleBlend(bgPyr, levels, img, w, h, x, y, own, bgc);
+                    float alpha = clamp01(fgc[3] * 1.15f), behindW = clamp01(bgc[3] * 8f);
+                    for (int c = 0; c < 3; c++) {
+                        float behind = out[j + c] + (bgc[c] - out[j + c]) * behindW;
+                        out[j + c] = behind + (fgc[c] - behind) * alpha;
+                    }
+                }
+                // more blurred foreground nearby reaches over this pixel
+                float r = sampleGrid(reach, cw, ch, (x + 0.5f) / cs - 0.5f, (y + 0.5f) / cs - 0.5f);
+                if (r < 1.5f || r < own * 1.25f + 1) continue;
+                sampleBlend(pyr, levels, img, w, h, x, y, r, fgc);
+                float alpha = clamp01(fgc[3] * 1.15f);
+                if (alpha < 0.004f) continue;
+                for (int c = 0; c < 3; c++) {
+                    out[j + c] += (fgc[c] - out[j + c]) * alpha;
+                }
+            }
+        });
+    }
 
-    private static Level buildLevel(float[] img, float[] radius, int w, int h, int k) {
+    /** Colour and coverage of a pyramid at blur radius r (between the two levels around it). */
+    private static void sampleBlend(Level[] pyr, int levels, float[] img, int w, int h, int x, int y, float r, float[] out) {
+        double lv = Math.max(1, Math.log(Math.max(1, r)) / Math.log(2) + 1);
+        int k0 = Math.min(levels, (int) Math.floor(lv));
+        int k1 = Math.min(levels, k0 + 1);
+        float t = (float) (lv - Math.floor(lv));
+        float[] a = new float[4], b = new float[4];
+        sampleLevel(pyr[k0], img, w, h, x, y, a);
+        sampleLevel(pyr[k1], img, w, h, x, y, b);
+        for (int c = 0; c < 4; c++) {
+            out[c] = a[c] + (b[c] - a[c]) * t;
+        }
+    }
+
+    private static float sampleGrid(float[] g, int gw, int gh, float fx, float fy) {
+        int x0 = (int) Math.floor(fx), y0 = (int) Math.floor(fy);
+        float tx = fx - x0, ty = fy - y0;
+        int x1 = Math.min(gw - 1, Math.max(0, x0 + 1)), y1 = Math.min(gh - 1, Math.max(0, y0 + 1));
+        x0 = Math.min(gw - 1, Math.max(0, x0));
+        y0 = Math.min(gh - 1, Math.max(0, y0));
+        float top = g[y0 * gw + x0] + (g[y0 * gw + x1] - g[y0 * gw + x0]) * tx;
+        float bot = g[y1 * gw + x0] + (g[y1 * gw + x1] - g[y1 * gw + x0]) * tx;
+        return top + (bot - top) * ty;
+    }
+
+    /** A pyramid level: colour normalised by weight, and the mean weight per pixel (coverage). */
+    private record Level(int scale, int lw, int lh, float[] rgb, float[] alpha) {}
+
+    /**
+     * Level k approximates a blur of radius 2^k. Pixels are weighted by how blurred they are relative to the level
+     * (smoothstep(0.25 R, R, r)) plus {@code floor}, so sharp pixels do not bleed into the blur around them. Without
+     * radii every pixel weighs {@code floor}; a mask multiplies the weights. {@code rel} scales the reference radius R.
+     */
+    private static Level buildLevel(float[] img, float[] radius, float[] mask, int w, int h, int k, float floor, float rel) {
         int scale = 1 << k;
         int lw = Math.max(1, (w + scale - 1) / scale);
         int lh = Math.max(1, (h + scale - 1) / scale);
         float[] acc = new float[lw * lh * 4];
-        float levelR = scale;
+        float levelR = scale * rel;
         // each level row gathers its own block of source rows, so level rows can run in parallel
         java.util.stream.IntStream.range(0, lh).parallel().forEach(ly -> {
             for (int y = ly * scale; y < Math.min(h, (ly + 1) * scale); y++) {
                 for (int x = 0; x < w; x++) {
                     int i = y * w + x;
-                    float r = radius[i];
-                    // smoothstep(0.25 R, R, r): pixels sharper than this level contribute little
-                    float t = clamp01((r - 0.25f * levelR) / (0.75f * levelR));
-                    float wgt = 0.02f + t * t * (3 - 2 * t);
+                    float wgt = floor;
+                    if (radius != null) {
+                        // smoothstep(0.25 R, R, r): pixels sharper than this level contribute little
+                        float t = clamp01((radius[i] - 0.25f * levelR) / (0.75f * levelR));
+                        wgt += t * t * (3 - 2 * t);
+                    }
+                    if (mask != null) wgt *= mask[i];
                     int li = (ly * lw + x / scale) * 4;
                     int j = i * 3;
                     acc[li] += img[j] * wgt;
@@ -433,13 +560,16 @@ public final class ImagePipeline {
         tent(acc, lw, lh);
         tent(acc, lw, lh);
         float[] rgb = new float[lw * lh * 3];
+        float[] alpha = new float[lw * lh];
+        float perCell = 1f / (scale * scale);
         for (int i = 0; i < lw * lh; i++) {
             float wsum = Math.max(acc[i * 4 + 3], 1e-6f);
             rgb[i * 3] = acc[i * 4] / wsum;
             rgb[i * 3 + 1] = acc[i * 4 + 1] / wsum;
             rgb[i * 3 + 2] = acc[i * 4 + 2] / wsum;
+            alpha[i] = acc[i * 4 + 3] * perCell;
         }
-        return new Level(scale, lw, lh, rgb);
+        return new Level(scale, lw, lh, rgb, alpha);
     }
 
     /** Separable [1 2 1]/4 blur on 4-channel data, in place. */
@@ -469,6 +599,7 @@ public final class ImagePipeline {
             out[0] = img[j];
             out[1] = img[j + 1];
             out[2] = img[j + 2];
+            if (out.length > 3) out[3] = 0;
             return;
         }
         float fx = (x + 0.5f) / lvl.scale() - 0.5f;
@@ -483,6 +614,12 @@ public final class ImagePipeline {
             float a = d[(y0 * lvl.lw() + x0) * 3 + c], b = d[(y0 * lvl.lw() + x1) * 3 + c];
             float e = d[(y1 * lvl.lw() + x0) * 3 + c], f = d[(y1 * lvl.lw() + x1) * 3 + c];
             out[c] = (a + (b - a) * tx) + ((e + (f - e) * tx) - (a + (b - a) * tx)) * ty;
+        }
+        if (out.length > 3) {
+            float[] al = lvl.alpha();
+            float a = al[y0 * lvl.lw() + x0], b = al[y0 * lvl.lw() + x1];
+            float e = al[y1 * lvl.lw() + x0], f = al[y1 * lvl.lw() + x1];
+            out[3] = (a + (b - a) * tx) + ((e + (f - e) * tx) - (a + (b - a) * tx)) * ty;
         }
     }
 

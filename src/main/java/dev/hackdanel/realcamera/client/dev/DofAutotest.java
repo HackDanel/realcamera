@@ -1,0 +1,193 @@
+package dev.hackdanel.realcamera.client.dev;
+
+import dev.hackdanel.realcamera.RealCamera;
+import dev.hackdanel.realcamera.client.camera.Viewfinder;
+import dev.hackdanel.realcamera.client.capture.PhotoCapture;
+import dev.hackdanel.realcamera.component.CameraParts;
+import dev.hackdanel.realcamera.component.CameraSettings;
+import dev.hackdanel.realcamera.item.RCStacks;
+import dev.hackdanel.realcamera.optics.ExposureScales;
+import dev.hackdanel.realcamera.registry.RCComponents;
+import dev.hackdanel.realcamera.registry.RCRegistries;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Difficulty;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.LevelSettings;
+import net.minecraft.world.level.WorldDataConfiguration;
+import net.minecraft.world.level.levelgen.WorldOptions;
+import net.minecraft.world.level.levelgen.presets.WorldPresets;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+
+/**
+ * Depth-of-field check (-Drealcamera.autotest=dof): a low-angle shot across a grass meadow at f/1.8 with a cow in
+ * focus, then focused on the grass close by. Look at the photos and realcamera_debug/depth*.jpg afterwards.
+ */
+@EventBusSubscriber(modid = RealCamera.MODID, value = Dist.CLIENT)
+public final class DofAutotest {
+    private static final boolean ENABLED = "dof".equals(System.getProperty("realcamera.autotest"));
+
+    private record Step(String label, Runnable action, int delay, BooleanSupplier until, int timeout) {}
+
+    private static final Deque<Step> steps = new ArrayDeque<>();
+    private static boolean worldRequested, scripted;
+    private static int wait, polled;
+
+    private DofAutotest() {}
+
+    static void log(String msg, Object... args) {
+        RealCamera.LOGGER.info("[autotest] " + msg, args);
+    }
+
+    private static void step(String label, Runnable r, int waitTicks) {
+        steps.add(new Step(label, r, waitTicks, null, 0));
+    }
+
+    private static void until(String label, BooleanSupplier cond, int timeout) {
+        steps.add(new Step(label, () -> {}, 0, cond, timeout));
+    }
+
+    private static void server(Consumer<ServerPlayer> action) {
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+        server.execute(() -> action.accept(server.getPlayerList().getPlayers().get(0)));
+    }
+
+    private static void cmd(ServerPlayer p, String command) {
+        p.server.getCommands().performPrefixedCommand(p.createCommandSourceStack().withPermission(4).withSuppressedOutput(), command);
+    }
+
+    private static ItemStack camera(String lens, double fNumber, float focusM) {
+        Minecraft mc = Minecraft.getInstance();
+        var regs = mc.level.registryAccess();
+        var body = regs.lookupOrThrow(RCRegistries.CAMERA_BODY)
+                .getOrThrow(ResourceKey.create(RCRegistries.CAMERA_BODY, RealCamera.id("sony_a7iv")));
+        ItemStack cam = RCStacks.kit(regs, body).orElseThrow();
+        CameraParts parts = cam.get(RCComponents.CAMERA_PARTS.get());
+        cam.set(RCComponents.CAMERA_PARTS.get(), parts.with(CameraParts.SLOT_LENS,
+                RCStacks.lens(ResourceKey.create(RCRegistries.LENS, RealCamera.id(lens)))));
+        cam.set(RCComponents.CAMERA_SETTINGS.get(), CameraSettings.DEFAULT.withMode(CameraSettings.MODE_A)
+                .withApertureIndex(ExposureScales.nearestAperture(fNumber)).withFocusMode(CameraSettings.FOCUS_MF)
+                .withFocusDistance(focusM));
+        return cam;
+    }
+
+    private static void shoot(String label, String lens, double fNumber, float focusM) {
+        step("give " + label, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            ItemStack s = camera(lens, fNumber, focusM);
+            mc.player.getInventory().setItem(0, s);
+            mc.gameMode.handleCreativeModeItemAdd(s, 36);
+        }, 10);
+        step("raise " + label, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.player.getInventory().selected = 0;
+            mc.options.keyUse.setDown(true);
+            mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
+        }, 15);
+        until("viewfinder " + label, Viewfinder::isActive, 60);
+        step("settle " + label, () -> {}, 30);
+        step("shoot " + label, Viewfinder::debugPressShutter, 5);
+        until("started " + label, PhotoCapture::busy, 80);
+        until("stored " + label, () -> !PhotoCapture.busy(), 1200);
+        step("lower " + label, () -> {
+            Minecraft.getInstance().options.keyUse.setDown(false);
+            log("PASS shot {}", label);
+        }, 40);
+    }
+
+    private static void script() {
+        step("scene", () -> server(p -> {
+            BlockPos o = p.blockPosition();
+            cmd(p, "time set 6000");
+            cmd(p, "weather clear");
+            cmd(p, "fill ~-16 ~-3 ~-6 ~16 ~-1 ~40 minecraft:dirt");
+            cmd(p, "fill ~-16 ~-1 ~-6 ~16 ~-1 ~40 minecraft:grass_block");
+            cmd(p, "fill ~-16 ~ ~-6 ~16 ~20 ~40 minecraft:air");
+            cmd(p, "fill ~-16 ~ ~-6 ~16 ~ ~40 minecraft:short_grass");
+            for (int i = 0; i < 40; i++) {
+                int x = (i * 7) % 29 - 14, z = (i * 13) % 40;
+                String block = i % 5 == 0 ? "minecraft:poppy" : i % 5 == 1 ? "minecraft:dandelion" : "minecraft:tall_grass";
+                cmd(p, String.format("setblock ~%d ~ ~%d %s", x, z, block));
+            }
+            cmd(p, "fill ~-1 ~ ~5 ~1 ~ ~7 minecraft:air");
+            cmd(p, "summon minecraft:cow ~0.5 ~ ~6 {NoAI:1b,Rotation:[90f,0f]}");
+            cmd(p, String.format("tp @s %d.5 %d %d.5 0 12", o.getX(), o.getY(), o.getZ()));
+        }), 80);
+        shoot("cow f1.8", "sony_fe_85_f18", 1.8, 6.0f);
+        shoot("near grass f1.8", "sony_fe_50_f18", 1.8, 2.5f);
+        shoot("cow f8", "sony_fe_85_f18", 8, 6.0f);
+        step("done", () -> {
+            log("done, stopping");
+            Minecraft.getInstance().stop();
+        }, 40);
+    }
+
+    @SubscribeEvent
+    static void onTick(ClientTickEvent.Post event) {
+        if (!ENABLED) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (!worldRequested && mc.screen instanceof TitleScreen && mc.getOverlay() == null) {
+            worldRequested = true;
+            String name = "rc_dof_" + System.currentTimeMillis();
+            GameRules rules = new GameRules();
+            rules.getRule(GameRules.RULE_DAYLIGHT).set(false, null);
+            rules.getRule(GameRules.RULE_WEATHER_CYCLE).set(false, null);
+            rules.getRule(GameRules.RULE_DOMOBSPAWNING).set(false, null);
+            mc.createWorldOpenFlows().createFreshLevel(name, new LevelSettings(name, GameType.CREATIVE, false,
+                            Difficulty.PEACEFUL, true, rules, WorldDataConfiguration.DEFAULT),
+                    new WorldOptions(20261106L, false, false), WorldPresets::createNormalWorldDimensions, new TitleScreen());
+            return;
+        }
+        if (mc.level == null || mc.player == null || (mc.screen != null && !scripted)) return;
+        if (!scripted) {
+            if (++polled < 200) return;
+            scripted = true;
+            polled = 0;
+            script();
+        }
+        if (wait > 0) {
+            wait--;
+            return;
+        }
+        Step s = steps.peekFirst();
+        if (s == null) return;
+        if (s.until() != null) {
+            boolean ok;
+            try {
+                ok = s.until().getAsBoolean();
+            } catch (RuntimeException e) {
+                ok = false;
+            }
+            if (ok) {
+                steps.pollFirst();
+                polled = 0;
+            } else if (++polled > s.timeout()) {
+                log("FAIL timeout waiting for {}", s.label());
+                steps.pollFirst();
+                polled = 0;
+            }
+            return;
+        }
+        steps.pollFirst();
+        try {
+            s.action().run();
+        } catch (RuntimeException e) {
+            log("FAIL step {} threw {}", s.label(), e.toString());
+        }
+        wait = s.delay();
+    }
+}

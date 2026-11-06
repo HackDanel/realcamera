@@ -59,6 +59,29 @@ class ImagePipelineTest {
     }
 
     @Test
+    void blurredForegroundSpreadsOverSharpBackground() {
+        // a bright grass blade 1 m in front of the lens, the focus on a dark wall 10 m away
+        int w = 256, h = 96;
+        int[] img = new int[w * h];
+        float[] depth = new float[w * h];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                boolean blade = x >= 120 && x < 136;
+                img[y * w + x] = blade ? 0xFFFFFF : 0x202020;
+                depth[y * w + x] = blade ? 1f : 10f;
+            }
+        }
+        int[] out = ImagePipeline.develop(img, depth, w, h, ImageParams.neutral().withFocus(85, 1.8, 10));
+        int y = h / 2;
+        int bg = red(out[y * w + 20]), near = red(out[y * w + 112]), edgeIn = red(out[y * w + 121]);
+        StringBuilder row = new StringBuilder();
+        for (int x = 96; x < 160; x += 4) row.append(red(out[y * w + x])).append(' ');
+        // no hard outline: the blade's blur reaches over the wall next to it, and its own edge is soft
+        assertTrue(near > bg + 25, "spread " + row);
+        assertTrue(edgeIn < 230, "soft edge " + row);
+    }
+
+    @Test
     void highIsoAddsNoise() {
         ImageParams clean = ImageParams.neutral().withNoise(1, 1, 1);
         ImageParams noisy = ImageParams.neutral().withNoise(128, 1, 1);

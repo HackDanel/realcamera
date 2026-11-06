@@ -83,12 +83,14 @@ public final class CameraRays {
     }
 
     /**
-     * Depth and, optionally, how brightly the game lit each surface (0..1, the light map curve of the
-     * air block in front of the hit). The light grid lets the flash recover surface colour.
+     * Depth, optionally how brightly the game lit each surface (0..1, the light map curve of the air block in
+     * front of the hit; lets the flash recover surface colour), and where a ray hit an entity's box (1) rather
+     * than a block or the sky (0).
      */
     public float[][] grids(int gw, int gh, boolean withLight) {
         float[] depth = new float[gw * gh];
         float[] light = withLight ? new float[gw * gh] : null;
+        float[] entity = new float[gw * gh];
         float skyFactor = level.getSkyDarken(1f);
         for (int y = 0; y < gh; y++) {
             double v = 1 - (y + 0.5) * 2 / gh;
@@ -98,12 +100,13 @@ public final class CameraRays {
                 HitResult hit = cast(dir);
                 double d = planeDistance(hit, dir);
                 depth[y * gw + x] = (float) (Double.isInfinite(d) ? 10_000 : Math.max(0.05, d));
+                entity[y * gw + x] = hit.getType() == HitResult.Type.ENTITY ? 1 : 0;
                 if (light != null) {
                     light[y * gw + x] = hit.getType() == HitResult.Type.MISS ? 1f : lightAt(hit, skyFactor);
                 }
             }
         }
-        return new float[][]{depth, light};
+        return new float[][]{depth, light, entity};
     }
 
     private float lightAt(HitResult hit, float skyFactor) {

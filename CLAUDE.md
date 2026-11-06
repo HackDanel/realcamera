@@ -19,7 +19,7 @@ The system Java may be newer than 21; Gradle downloads JDK 21 itself (foojay too
   in the NeoForge unit-test environment, the project dir comes in as `realcamera.projectDir`
 - single test: `./gradlew test --tests 'dev.hackdanel.realcamera.processing.ImagePipelineTest'` (append `.methodName` for one method)
 - `./gradlew runClient` / `runClient2` (second client, nick Player2) / `runServer` (the owner must set `eula=true` in `run/eula.txt` themselves — do not do it for them)
-- `./gradlew runClientAutotest -Pautotest=stage1|…|stage7`, and `-Pautotest=stage8 -Pviewer=jei|emi|rei` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
+- `./gradlew runClientAutotest -Pautotest=stage1|…|stage7|dof`, and `-Pautotest=stage8 -Pviewer=jei|emi|rei` — unattended end-to-end run in `run-autotest/`: creates a world, builds a scene, shoots, prints, etc. Results are `[autotest] PASS/FAIL` log lines; screenshots go to `run-autotest/screenshots/autotest/`, photos to `run-autotest/screenshots/realcamera/<date>/`. Check results visually by reading those images. The autotest window must not be touched while it runs.
 - `-Pviewer=jei|emi|rei` puts that recipe viewer on the dev runtime classpath (any run task); plugins live in
   `client/compat/` and share `RecipeViews`
 - `-PcaptureWarmup=N` changes warm-up frames for capture in the autotest run; `-PnoShaders` skips copying Sodium/Iris into run dirs. Iris shaders on/off for the autotest: `run-autotest/config/iris.properties`.
@@ -62,8 +62,11 @@ dispatched via `ClientBridge.handlePayload`.
    (`SceneMeter` converts game light to EV), `optics/Exposure.solve` (P/A/S/M), AF/subject detection,
    drive modes, shutter. Composes a `PhotoCapture.Shot`.
 2. `client/capture/PhotoCapture` — renders one clean frame at sensor resolution by temporarily resizing the
-   window/main render target (one warm-up frame first), reads it back, ray-casts depth and light grids
-   (`CameraRays`); exposures ≥ 1/4 s accumulate every frame through PBOs. Development runs on a worker thread.
+   window/main render target (one warm-up frame first), reads it back together with the depth buffer of the same
+   frame (`RenderLevelStageEvent` AFTER_LEVEL, linearised with that frame's projection), and ray-casts depth and
+   light grids (`CameraRays`). The per-pixel GPU depth is used when it agrees with the ray grid
+   (`DepthUpsampler.agrees`; a shader pack may leave something else in the depth buffer), otherwise the grid is
+   upsampled. Exposures ≥ 1/4 s accumulate every frame through PBOs. Development runs on a worker thread.
 3. `processing/ImagePipeline` + `ImageParams` — pure Java (no Minecraft classes, unit-tested): exposure,
    DoF/bokeh, flash, motion blur, rolling shutter, distortion/CA, vignetting, wear, flare, noise, colour.
    `optics/` is pure Java too. Keep both packages free of game classes. Special optics: fisheyes render a capped
@@ -117,5 +120,11 @@ axis; 1 model unit ≈ 9 mm, shared mount point in `tools/gen_assets.py`).
 - The pipeline's row loops run as parallel streams: no shared scratch arrays inside them (allocate per row).
 - Model elements must stay inside -16..32 and rotate only by ±22.5/45° on one axis: `cylinder()` in gen_assets builds a
   16-sided prism from 8 rotated spokes; very long lenses are shortened to 24.5 units.
-- The depth map comes from ray casts against entity bounding boxes, not the rendered model: wide-open portraits get a
-  sharp halo where the box is wider than the model. Tiny light sources get the blur radius of their surroundings.
+- Ray casts see neither grass/flowers/leaves without collision nor the real shape of mobs (only their boxes), so the
+  depth map comes from the GPU depth buffer when it can; only the fallback (ray grid) has the old artefacts: grass
+  blurred like the ground behind it, a sharp halo around wide-open portraits. Tiny light sources get the blur radius
+  of their surroundings.
+- A gather blur alone leaves blurred foreground with a hard outline; `ImagePipeline.foregroundSpread` lays the
+  foreground (nearer than the focus plane) over an extrapolated background by its coverage.
+- `-Pautotest=dof`: grass meadow at f/1.8 for checking depth of field; `realcamera.debugDumps` writes
+  `raw_<ms>.jpg`/`depth_<ms>.jpg` per shot to `screenshots/realcamera_debug/`.

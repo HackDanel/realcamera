@@ -103,8 +103,10 @@ public final class PhotoCapture {
         final int[] pbo = new int[2];
         float[] sum;
         int frameIndex, accumulated;
-        float[] depthGrid, lightGrid;
+        float[] depthGrid, lightGrid, entityGrid;
         int gw, gh;
+        /** Per-pixel depth from the GPU of the captured (first) frame, or null. */
+        float[] gpuDepth;
 
         Active(Shot shot, boolean savedHideGui, net.minecraft.world.entity.Entity savedCamera, int origW, int origH, int w, int h) {
             this.shot = shot;
@@ -208,10 +210,67 @@ public final class PhotoCapture {
             finish(mc, a);
             int[] rgb = toRgb(image);
             image.close();
-            submit(mc, a.shot, rgb, null, a.w, a.h, grids[0], grids[1], gw, gh, a.shot.seconds());
+            submit(mc, a.shot, rgb, null, a.w, a.h, grids[0], grids[1], grids[2], a.gpuDepth, gw, gh, a.shot.seconds());
             return;
         }
         accumulateFrame(mc, a);
+    }
+
+    /**
+     * The depth buffer of the frame that becomes the photo, read at the end of the level render (before the
+     * hand and the GUI clear it) and turned into metres along the view axis with that frame's projection.
+     */
+    @SubscribeEvent
+    static void onLevelStage(net.neoforged.neoforge.client.event.RenderLevelStageEvent event) {
+        Active a = active;
+        if (a == null || a.warmup > 0 || a.gpuDepth != null
+                || event.getStage() != net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+            return;
+        }
+        RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
+        if (target.width != a.w || target.height != a.h) {
+            return;
+        }
+        try {
+            a.gpuDepth = readDepth(target, event.getProjectionMatrix());
+        } catch (RuntimeException e) {
+            RealCamera.LOGGER.warn("Could not read the depth buffer", e);
+        }
+    }
+
+    private static float[] readDepth(RenderTarget target, org.joml.Matrix4f projection) {
+        int w = target.width, h = target.height;
+        java.nio.FloatBuffer buf = org.lwjgl.system.MemoryUtil.memAllocFloat(w * h);
+        try {
+            RenderSystem.bindTexture(target.getDepthTextureId());
+            GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 4);
+            GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_DEPTH_COMPONENT, GL11.GL_FLOAT, buf);
+            RenderSystem.bindTexture(0);
+            // view-space z is linear in NDC depth through the inverse projection: z = (a*n + b) / (c*n + d)
+            org.joml.Matrix4f inv = new org.joml.Matrix4f(projection).invert();
+            float pa = inv.m22(), pb = inv.m32(), pc = inv.m23(), pd = inv.m33();
+            float[] out = new float[w * h];
+            java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+                int src = (h - 1 - y) * w; // GL rows are bottom-up
+                for (int x = 0; x < w; x++) {
+                    float z = buf.get(src + x);
+                    float m;
+                    if (z >= 0.999999f) {
+                        m = 10_000; // sky
+                    } else if (z <= 1e-6f) {
+                        m = -1; // nothing can be on the near plane: a shader pack cleared it to 0 (unknown)
+                    } else {
+                        float n = z * 2 - 1;
+                        m = -(pa * n + pb) / (pc * n + pd);
+                        m = Math.max(0.05f, Math.min(10_000, m));
+                    }
+                    out[y * w + x] = m;
+                }
+            });
+            return out;
+        } finally {
+            org.lwjgl.system.MemoryUtil.memFree(buf);
+        }
     }
 
     // ------------------------------------------------------------------ long exposure
@@ -226,6 +285,7 @@ public final class PhotoCapture {
             float[][] grids = grids(mc, a.shot, a.gw, a.gh);
             a.depthGrid = grids[0];
             a.lightGrid = grids[1];
+            a.entityGrid = grids[2];
             for (int i = 0; i < 2; i++) {
                 a.pbo[i] = GL15.glGenBuffers();
                 GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, a.pbo[i]);
@@ -265,7 +325,7 @@ public final class PhotoCapture {
             linear[i] *= inv;
         }
         RealCamera.LOGGER.debug("Long exposure {} s: {} frames", String.format("%.2f", elapsed), a.accumulated);
-        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.gw, a.gh, elapsed);
+        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.entityGrid, a.gpuDepth, a.gw, a.gh, elapsed);
     }
 
     /** Sum one frame (GL rows are bottom-up) into the float buffer in linear light. */
@@ -327,7 +387,7 @@ public final class PhotoCapture {
     }
 
     private static void submit(Minecraft mc, Shot shot, int[] rgb, float[] linear, int w, int h, float[] grid,
-                               float[] lightGrid, int gw, int gh, double actualSeconds) {
+                               float[] lightGrid, float[] entityGrid, float[] gpuDepth, int gw, int gh, double actualSeconds) {
         ColorProfileSpec profile = Specs.profile(mc.level.registryAccess(), shot.chain().body(), shot.settings().profile())
                 .orElse(null);
         String artist = mc.getUser().getName();
@@ -335,20 +395,28 @@ public final class PhotoCapture {
         dev.hackdanel.realcamera.spec.FilmStockSpec film = shot.chain().body().isFilm()
                 ? dev.hackdanel.realcamera.client.camera.Viewfinder.filmStock() : null;
         developing++;
-        WORKER.execute(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, gw, gh, actualSeconds, profile, film, artist,
-                maxUpload));
+        WORKER.execute(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, entityGrid, gpuDepth, gw, gh, actualSeconds,
+                profile, film, artist, maxUpload));
     }
 
     // ------------------------------------------------------------------ worker thread
 
     private static void develop(Shot s, int[] rgb, float[] linear, int w, int h, float[] grid, float[] lightGrid,
-                                int gw, int gh, double seconds, ColorProfileSpec profile,
+                                float[] entityGrid, float[] gpuDepth, int gw, int gh, double seconds, ColorProfileSpec profile,
                                 @javax.annotation.Nullable dev.hackdanel.realcamera.spec.FilmStockSpec film, String artist,
                                 int maxUpload) {
         long t0 = System.nanoTime();
         try {
             int[] guide = rgb != null ? rgb : ImagePipeline.toSrgb(linear);
-            float[] depth = DepthUpsampler.upsample(grid, gw, gh, guide, w, h);
+            // per-pixel depth from the GPU sees grass, leaves and the real shape of mobs; the ray grid is the fallback
+            if (gpuDepth != null) {
+                int dropped = DepthUpsampler.dropFixedLayer(gpuDepth, w, h, grid, gw, gh);
+                if (dropped > 0) RealCamera.LOGGER.debug("Depth map: {} pixels of a fixed-depth layer taken from the rays", dropped);
+            }
+            boolean gpu = gpuDepth != null && DepthUpsampler.agrees(gpuDepth, w, h, grid, entityGrid, gw, gh);
+            float[] depth = gpu ? DepthUpsampler.fillUnknown(gpuDepth, () -> DepthUpsampler.upsample(grid, gw, gh, guide, w, h))
+                    : DepthUpsampler.upsample(grid, gw, gh, guide, w, h);
+            RealCamera.LOGGER.debug("Depth map: {}", gpu ? "GPU depth buffer" : gpuDepth == null ? "ray grid" : "ray grid (GPU depth rejected: " + DepthUpsampler.lastCheck + ")");
             float[] light = lightGrid == null ? null : DepthUpsampler.upsample(lightGrid, gw, gh, guide, w, h);
             ImageParams params = params(s, profile, film, w, h, seconds);
             if (Boolean.getBoolean("realcamera.debugDumps")) {
@@ -569,7 +637,8 @@ public final class PhotoCapture {
             int v = (int) Math.max(0, Math.min(255, Math.log(Math.max(0.05, depth[i])) / Math.log(10000) * 255));
             d[i] = (v << 16) | (v << 8) | v;
         }
-        Files.write(dir.resolve("raw.jpg"), JpegCodec.encode(rgb, w, h, 0.95f));
-        Files.write(dir.resolve("depth.jpg"), JpegCodec.encode(d, w, h, 0.95f));
+        long t = System.currentTimeMillis();
+        Files.write(dir.resolve("raw_" + t + ".jpg"), JpegCodec.encode(rgb, w, h, 0.95f));
+        Files.write(dir.resolve("depth_" + t + ".jpg"), JpegCodec.encode(d, w, h, 0.95f));
     }
 }
