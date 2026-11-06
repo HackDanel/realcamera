@@ -25,9 +25,11 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Server-side frame analysis (plan §7.1). Works from the server's own world state at the moment of the release:
- * the photographer's (or tripod's) eye and rotation, the lens's field of view, depth of field from the f-number and
- * focus distance the client reports. Nothing the client could fake about the content of the picture is trusted.
+ * Server-side frame analysis (plan §7.1). What is in the picture (subjects, sky, sun and moon, biome, phenomena)
+ * comes from the server's own world state at the moment of the release: the photographer's (or tripod's) eye and
+ * rotation and the lens's field of view. The camera settings the client reports (focal length, f-number, shutter,
+ * ISO, focus distance) are clamped to what the camera and lens can do; the exposure error and the motion blur are
+ * the client's own measurements and are taken as reported (bounded), so a modified client could improve its stars.
  */
 public final class FrameAnalyzer {
     private static final double RANGE = 256;
@@ -49,11 +51,26 @@ public final class FrameAnalyzer {
         }
     }
 
-    public static PhotoMeta.Analysis analyze(ServerLevel level, Entity viewer, Entity photographer, OpticalChain chain,
-                                             CameraSettings settings, Payloads.ShotInfo info, boolean electronic,
-                                             boolean flash, boolean tripod) {
+    /** The reported settings, limited to what this camera and lens can actually do. */
+    static Payloads.ShotInfo checked(Payloads.ShotInfo info, OpticalChain chain) {
+        var body = chain.body();
+        float focal = info.focal() > 0 ? chain.focal(info.focal()) : info.focal();
+        float wide = chain.maxApertureAt(focal > 0 ? focal : chain.lens().focalMin());
+        float n = Math.max(wide * 0.97f, Math.min(chain.minAperture() * 1.03f, info.fNumber()));
+        float fastest = Math.min(body.shutter().hasMechanical() ? body.shutter().mechMin() : 1, body.shutter().elecMin() > 0
+                ? body.shutter().elecMin() : 1);
+        float shutter = info.shutter() < 0 ? info.shutter() : Math.max(fastest * 0.9f, Math.min(3600, info.shutter()));
+        var sn = chain.sensor();
+        int iso = body.isFilm() ? Math.max(6, Math.min(25600, info.iso())) : Math.max(sn.isoMin(), Math.min(sn.isoMax(), info.iso()));
+        float focus = Math.max(chain.lens().minFocusM() * 0.95f, Math.min(10_000, info.focusM()));
+        float ev = Math.max(-10, Math.min(10, info.exposureEv()));
+        float blur = Math.max(0, Math.min(1, info.blur()));
+        return new Payloads.ShotInfo(info.nonce(), focal, n, shutter, iso, focus, ev, blur);
+    }
+
+    private static Frame frame(Entity viewer, OpticalChain chain, CameraSettings settings, Payloads.ShotInfo info) {
         float focal = info.focal() > 0 ? info.focal() : chain.focal(settings.focal());
-        double vfov = chain.renderVfovDeg(focal, settings);
+        double vfov = chain.renderVfovDeg(focal, settings, Math.max(0.05, info.focusM()));
         double aspect = chain.sensor().aspect();
         double tanV = Math.tan(Math.toRadians(vfov) / 2), tanH = tanV * aspect;
         float pitch = viewer.getXRot() - (float) chain.shiftPitchDeg(focal, settings);
@@ -61,9 +78,30 @@ public final class FrameAnalyzer {
         Vec3 worldUp = Math.abs(fw.y) > 0.999 ? new Vec3(0, 0, 1) : new Vec3(0, 1, 0);
         Vec3 right = fw.cross(worldUp).normalize();
         Vec3 up = right.cross(fw).normalize();
-        Frame frame = new Frame(viewer.getEyePosition(), fw, right, up, tanH, tanV);
-        dev.hackdanel.realcamera.RealCamera.LOGGER.debug("[analysis] focal {} f/{} focus {} vfov {} aspect {} eye {} yaw {} pitch {}",
-                focal, info.fNumber(), info.focusM(), vfov, aspect, frame.eye(), viewer.getYRot(), pitch);
+        return new Frame(viewer.getEyePosition(), fw, right, up, tanH, tanV);
+    }
+
+    private static boolean boltInFrame(Frame frame, Vec3 boltPos) {
+        double[] c = frame.project(boltPos.add(0, 30, 0));
+        return c != null && Math.abs(c[0]) < 1.2 && Math.abs(c[1]) < 1.6;
+    }
+
+    /** For bolts striking while the shutter is still open (a long exposure): would this one show in the frame? */
+    public static java.util.function.Predicate<Vec3> lightningTest(Entity viewer, OpticalChain chain, CameraSettings settings,
+                                                                  Payloads.ShotInfo info) {
+        Frame frame = frame(viewer, chain, settings, checked(info, chain));
+        return pos -> boltInFrame(frame, pos);
+    }
+
+    public static PhotoMeta.Analysis analyze(ServerLevel level, Entity viewer, Entity photographer, OpticalChain chain,
+                                             CameraSettings settings, Payloads.ShotInfo info, boolean electronic,
+                                             boolean flash, boolean tripod) {
+        info = checked(info, chain);
+        float focal = info.focal() > 0 ? info.focal() : chain.focal(settings.focal());
+        Frame frame = frame(viewer, chain, settings, info);
+        Vec3 fw = frame.fw();
+        dev.hackdanel.realcamera.RealCamera.LOGGER.debug("[analysis] focal {} f/{} focus {} eye {} yaw {} pitch {}",
+                focal, info.fNumber(), info.focusM(), frame.eye(), viewer.getYRot(), viewer.getXRot());
 
         // ---------------------------------------------------------------- subjects
         double coc = Optics.FF_COC_MM * chain.sensor().diagonalMm() / 43.27;
@@ -73,13 +111,17 @@ public final class FrameAnalyzer {
         AABB around = new AABB(frame.eye(), frame.eye()).inflate(RANGE);
         for (Entity e : level.getEntities(viewer, around, e -> e.isAlive() && !e.isSpectator())) {
             if (e instanceof LightningBolt) {
-                double[] c = frame.project(e.position().add(0, 30, 0));
-                if (c != null && Math.abs(c[0]) < 1.2 && Math.abs(c[1]) < 1.6) lightning = true;
+                if (boltInFrame(frame, e.position())) lightning = true;
                 continue;
             }
             if (!(e instanceof LivingEntity) && !(e instanceof EnderDragonPart)) continue;
             if (e instanceof EnderDragonPart) continue; // the dragon itself carries the whole body box
             if (e.isInvisible()) continue;
+            // only what the photographer's client draws: entities are sent within their tracking range and drawn
+            // within 64 blocks x their size x the entity distance (the capture raises it to 4x for long lenses)
+            double far = Math.min(e.getType().clientTrackingRange() * 16.0,
+                    64 * 4 * Math.max(1, e.getBoundingBox().getSize()));
+            if (e.distanceTo(viewer) > far) continue;
             PhotoMeta.Subject s = subject(level, viewer, frame, e, dof);
             if (s != null) subjects.add(s);
         }
@@ -118,6 +160,14 @@ public final class FrameAnalyzer {
                 ClipContext.Fluid.NONE, viewer));
         if (centre.getType() != HitResult.Type.MISS) focusPoint = centre.getLocation();
         String structure = structureAt(level, BlockPos.containing(focusPoint));
+        // the biome the picture shows: at the focus point, and only with some sky or depth (not the ground at one's feet)
+        double centreDist = centre.getType() == HitResult.Type.MISS ? Double.POSITIVE_INFINITY
+                : centre.getLocation().distanceTo(frame.eye());
+        String biome = sky >= 0.05f || centreDist >= 8 ? level.getBiome(BlockPos.containing(
+                centre.getType() == HitResult.Type.MISS ? frame.eye().add(fw.scale(48)) : focusPoint))
+                .unwrapKey().map(k -> k.location().toString()).orElse("") : PhotoMeta.NO_BIOME;
+        // a landscape is sharp where the frame's middle is (or everything far is, focused at/near the hyperfocal)
+        boolean sceneInFocus = centreDist >= dof[0] && centreDist <= dof[1];
 
         // ---------------------------------------------------------------- how it was taken
         boolean underwater = viewer.isEyeInFluid(FluidTags.WATER);
@@ -163,9 +213,9 @@ public final class FrameAnalyzer {
         int quality = QualityScore.score(main.isPresent(), main.map(PhotoMeta.Subject::area).orElse(0f),
                 main.map(PhotoMeta.Subject::x).orElse(0f), main.map(PhotoMeta.Subject::y).orElse(0f),
                 main.map(PhotoMeta.Subject::inFocus).orElse(false), info.blur(), info.exposureEv(), isoStops, sky,
-                !phenomena.isEmpty());
+                !phenomena.isEmpty(), sceneInFocus);
         return new PhotoMeta.Analysis(subjects, structure, sky, sun, moon, moonPhase, dayTime, weather, phenomena, flags,
-                (float) mag, quality, QualityScore.stars(quality));
+                (float) mag, quality, QualityScore.stars(quality), biome);
     }
 
     /**

@@ -17,5 +17,6 @@
   "grain": {
     "amount": 0.25,
     "size": 1.2
-  }
+  },
+  "reciprocity": 0.85
 }

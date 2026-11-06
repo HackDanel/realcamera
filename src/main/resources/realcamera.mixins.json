@@ -3,6 +3,6 @@
   "minVersion": "0.8",
   "package": "dev.hackdanel.realcamera.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": ["ItemCostMixin"],
+  "mixins": ["ItemCostMixin", "MerchantContainerMixin", "MerchantResultSlotMixin"],
   "injectors": {"defaultRequire": 1}
 }

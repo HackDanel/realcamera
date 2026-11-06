@@ -709,5 +709,6 @@
   "realcamera.battery_type.realcamera.lp_e6p": "Canon LP-E6P",
   "realcamera.battery_type.realcamera.sr44_single": "SR44",
   "realcamera.memory_card_type.realcamera.cf_udma7_128": "CompactFlash UDMA 7 128 GB",
-  "realcamera.memory_card_type.realcamera.hasselblad_x2d_ssd": "Hasselblad X2D internal SSD 1 TB"
+  "realcamera.memory_card_type.realcamera.hasselblad_x2d_ssd": "Hasselblad X2D internal SSD 1 TB",
+  "message.realcamera.enlarger.chemistry": "Для бумаги нужна химия: цветная для RA-4, чёрно-белая для остальной"
 }

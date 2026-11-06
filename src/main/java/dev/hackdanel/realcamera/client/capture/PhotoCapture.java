@@ -105,6 +105,7 @@ public final class PhotoCapture {
         int frameIndex, accumulated;
         float[] depthGrid, lightGrid, entityGrid;
         int gw, gh;
+        double savedViewScale = 1;
         /** Per-pixel depth from the GPU of the captured (first) frame, or null. */
         float[] gpuDepth;
 
@@ -190,6 +191,9 @@ public final class PhotoCapture {
         }
         resize(mc, w, h);
         mc.options.hideGui = true;
+        // a long lens shows animals far beyond the normal entity draw distance (the server's analysis assumes 4x)
+        active.savedViewScale = net.minecraft.world.entity.Entity.getViewScale();
+        net.minecraft.world.entity.Entity.setViewScale(Math.max(active.savedViewScale, 4));
     }
 
     @SubscribeEvent
@@ -369,6 +373,7 @@ public final class PhotoCapture {
 
     private static void finish(Minecraft mc, Active a) {
         mc.options.hideGui = a.savedHideGui;
+        net.minecraft.world.entity.Entity.setViewScale(a.savedViewScale);
         if (a.savedCamera != null && mc.getCameraEntity() != a.savedCamera) {
             mc.setCameraEntity(a.savedCamera);
         }
@@ -449,10 +454,12 @@ public final class PhotoCapture {
             if (film != null) {
                 double scale = w / 2560.0;
                 dev.hackdanel.realcamera.processing.FilmLook.halation(finished, w, h, film.grain().halation());
-                // underexposed negatives show more grain
-                double under = Math.max(0, -params.sensor().exposureEv());
+                // underexposed negatives show more grain; a bigger negative (120) is enlarged less, so finer grain
+                double under = Math.max(0, -(s.exposure().delta() - Math.log(s.exposure().iso() / film.iso()) / Math.log(2)));
+                double enlarge = 36.0 / Math.max(36, Math.max(s.chain().sensor().widthMm(), s.chain().sensor().heightMm()));
                 dev.hackdanel.realcamera.processing.FilmLook.grain(finished, w, h,
-                        film.grain().amount() * (1 + under * 0.4), film.grain().size() * scale * 2, params.seed());
+                        film.grain().amount() * (1 + under * 0.4) * Math.sqrt(enlarge), film.grain().size() * scale * 2 * enlarge,
+                        params.seed());
             }
             int[] developed = ImagePipeline.toSrgb(finished);
 
@@ -514,14 +521,24 @@ public final class PhotoCapture {
                                       int w, int h, double seconds) {
         if (film != null) {
             ImageParams digital = params(s, null, null, w, h, seconds);
+            // what the emulsion got: rated above box speed it is underexposed (to be pushed), long exposures lose
+            // speed (reciprocity failure)
+            double ev = digital.sensor().exposureEv() - Math.log(s.exposure().iso() / film.iso()) / Math.log(2)
+                    - film.reciprocityLossEv(seconds < 0 ? 1 : seconds);
+            double latOver = film.latitudeOver(), latUnder = film.latitudeUnder();
+            double shown = film.printedEv(ev), contrastK = 1;
+            if (film.negative()) {
+                // printed back to normal, but an overexposed negative prints a little flatter, a thin one muddier
+                contrastK = ev >= 0 ? 1 - 0.05 * Math.min(ev, latOver) : 1 - 0.06 * Math.min(-ev, latUnder + 1);
+            }
             // film is balanced for daylight (or tungsten for "T" stocks) and cannot auto white-balance
             double[] wb = ImagePipeline.whiteBalance(s.sceneK(), film.name().endsWith("T") ? 3200 : 5500);
             var look = film.look();
             var sn = digital.sensor();
-            return new ImageParams(new ImageParams.Sensor(sn.exposureEv(), 1, 0, 0, sn.resolutionScale(),
+            return new ImageParams(new ImageParams.Sensor(shown, 1, 0, 0, sn.resolutionScale(),
                     dev.hackdanel.realcamera.processing.FilmLook.dynamicRange(film.latitudeOver())),
                     digital.focus(), digital.lens(), digital.motion(), digital.sun(),
-                    new ImageParams.Colour(wb[0], wb[1], wb[2], look.contrast(), look.saturation(), film.monochrome(),
+                    new ImageParams.Colour(wb[0], wb[1], wb[2], look.contrast() * contrastK, look.saturation(), film.monochrome(),
                             look.tintR(), look.tintG(), look.tintB(), look.shadowLift()),
                     digital.extras(), digital.seed());
         }

@@ -8,7 +8,31 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
  * Latitude: how many stops of over/under exposure still give a good negative (slide film has little).
  */
 public record FilmStockSpec(String name, String process, int iso, int frames135, int frames120, float latitudeOver,
-                            float latitudeUnder, Look look, Grain grain) {
+                            float latitudeUnder, Look look, Grain grain, float reciprocity) {
+    /**
+     * Reciprocity failure (Schwarzschild exponent p): beyond 1 s the film acts as if exposed for t^p seconds, i.e.
+     * loses (1 - p) * log2(t) EV. Tri-X about 0.6 (10 s metered needs about 50 s), modern colour about 0.9.
+     */
+    public double reciprocityLossEv(double seconds) {
+        return seconds <= 1 ? 0 : (1 - reciprocity) * Math.log(seconds) / Math.log(2);
+    }
+
+    /**
+     * Exposure error the finished picture shows for a frame exposed {@code ev} off: a negative is printed back to
+     * normal, so over within the latitude is nearly invisible and under within it prints thin; beyond the latitude
+     * the error shows in full. Slide film shows every error.
+     */
+    public double printedEv(double ev) {
+        if (!negative()) return ev;
+        if (ev >= 0) return ev <= latitudeOver ? ev * 0.15 : latitudeOver * 0.15 + (ev - latitudeOver);
+        return ev >= -latitudeUnder ? ev * 0.35 : -latitudeUnder * 0.35 + (ev + latitudeUnder);
+    }
+
+    /** Negative film is printed back to normal within its latitude; slide film shows every exposure error. */
+    public boolean negative() {
+        return !"e6".equals(process);
+    }
+
 
     /** Colour rendering of the developed film (applied instead of a camera colour profile). */
     public record Look(float contrast, float saturation, boolean monochrome, float tintR, float tintG, float tintB,
@@ -46,7 +70,8 @@ public record FilmStockSpec(String name, String process, int iso, int frames135,
             Codec.FLOAT.optionalFieldOf("latitude_over", 3f).forGetter(FilmStockSpec::latitudeOver),
             Codec.FLOAT.optionalFieldOf("latitude_under", 1.5f).forGetter(FilmStockSpec::latitudeUnder),
             Look.CODEC.optionalFieldOf("look", new Look(1, 1, false, 1, 1, 1, 0)).forGetter(FilmStockSpec::look),
-            Grain.CODEC.fieldOf("grain").forGetter(FilmStockSpec::grain)
+            Grain.CODEC.fieldOf("grain").forGetter(FilmStockSpec::grain),
+            Codec.FLOAT.optionalFieldOf("reciprocity", 0.85f).forGetter(FilmStockSpec::reciprocity)
     ).apply(i, FilmStockSpec::new));
 
     public boolean monochrome() {

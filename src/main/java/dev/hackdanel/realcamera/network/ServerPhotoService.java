@@ -85,9 +85,29 @@ public final class ServerPhotoService {
     private static final Map<UUID, Session> uploads = new HashMap<>();
 
     /** Frame analyses made at the release, waiting for their picture (keyed by player, then shot nonce). */
-    private record PendingShot(PhotoMeta.Analysis analysis, long time) {}
+    private record PendingShot(PhotoMeta.Analysis analysis, long time, net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dim,
+                               java.util.function.Predicate<Vec3> boltInFrame, float shutterS) {}
 
     private static final Map<UUID, java.util.LinkedHashMap<Integer, PendingShot>> pendingShots = new HashMap<>();
+
+    /**
+     * A lightning bolt struck: shots whose shutter is still open (long and bulb exposures, the way lightning is really
+     * photographed) and that frame it record it.
+     */
+    public static void lightningStruck(net.minecraft.server.level.ServerLevel level, Vec3 pos) {
+        long now = Util.getMillis();
+        for (var map : pendingShots.values()) {
+            for (var e : map.entrySet()) {
+                PendingShot p = e.getValue();
+                double openMs = p.shutterS() < 0 ? 300_000 : p.shutterS() * 1000 + 250;
+                if (!p.dim().equals(level.dimension()) || now - p.time() > openMs || !p.boltInFrame().test(pos)
+                        || p.analysis().phenomena().contains("lightning")) continue;
+                List<String> ph = new java.util.ArrayList<>(p.analysis().phenomena());
+                ph.add("lightning");
+                e.setValue(new PendingShot(p.analysis().withPhenomena(ph), p.time(), p.dim(), p.boltInFrame(), p.shutterS()));
+            }
+        }
+    }
 
     private static Optional<PhotoMeta.Analysis> takeAnalysis(ServerPlayer player, int nonce, PhotoMeta.Exif exif) {
         var map = pendingShots.get(player.getUUID());
@@ -106,12 +126,15 @@ public final class ServerPhotoService {
             PhotoMeta.Analysis a = dev.hackdanel.realcamera.analysis.FrameAnalyzer.analyze(player.serverLevel(), viewer,
                     player, chain.get(), CameraHelper.settings(camera), msg.info(),
                     shutterType(player, camera, msg) == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_ELECTRONIC,
-                    msg.flash(), msg.ref().isTripod());
+                    msg.flash() && (chain.get().body().flash().builtInGn() > 0 || !CameraHelper.parts(camera).flash().isEmpty()),
+                    msg.ref().isTripod());
             var map = pendingShots.computeIfAbsent(player.getUUID(), k -> new java.util.LinkedHashMap<>());
             long now = Util.getMillis();
             map.values().removeIf(p -> now - p.time() > 300_000);
             while (map.size() > 64) map.remove(map.keySet().iterator().next());
-            map.put(msg.info().nonce(), new PendingShot(a, now));
+            map.put(msg.info().nonce(), new PendingShot(a, now, player.level().dimension(),
+                    dev.hackdanel.realcamera.analysis.FrameAnalyzer.lightningTest(viewer, chain.get(), CameraHelper.settings(camera),
+                            msg.info()), msg.info().shutter()));
         } catch (RuntimeException e) {
             RealCamera.LOGGER.warn("Frame analysis failed", e);
         }

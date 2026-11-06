@@ -43,7 +43,11 @@ public final class FilmLab {
                     rgb = FilmLook.push(rgb, size[0], size[1], push, seed);
                     double severity = switch (fog) {
                         case FOG_ALL -> 1;
-                        case FOG_BACK_OPENED -> i >= frames.size() - 4 ? 1 : 0.25 + 0.15 * ((seed >>> 8) & 3);
+                        // the outer turns on the take-up spool burn, a few inner ones get streaks, the rest is shielded
+                        case FOG_BACK_OPENED -> {
+                            int fromEnd = frames.size() - 1 - i;
+                            yield fromEnd < 3 ? 1 : fromEnd < 9 ? (0.65 - 0.08 * (fromEnd - 3)) * (0.85 + 0.05 * ((seed >>> 8) & 3)) : 0;
+                        }
                         default -> 0;
                     };
                     rgb = FilmLook.lightLeak(rgb, size[0], size[1], severity, seed);
@@ -74,8 +78,12 @@ public final class FilmLab {
                     index.put(done2);
                     // the frame is visible now: the photographer's encyclopedia and advancements learn of it
                     var author = server.getPlayerList().getPlayer(done2.meta().authorId());
-                    if (author != null && fog != FOG_ALL) {
-                        dev.hackdanel.realcamera.gameplay.PhotoEvents.photoStored(author, done2.meta());
+                    if (fog != FOG_ALL) {
+                        if (author != null) {
+                            dev.hackdanel.realcamera.gameplay.PhotoEvents.photoStored(author, done2.meta());
+                        } else { // credited at the photographer's next login
+                            dev.hackdanel.realcamera.gameplay.PendingCredits.get(server).add(done2.meta().authorId(), done2.meta().id());
+                        }
                     }
                 }
                 done.run();
@@ -91,7 +99,7 @@ public final class FilmLab {
      * @param paper         rc_bw, fiber_bw or ra4
      */
     public static void enlarge(MinecraftServer server, UUID frame, UUID owner, double exposureStops, int grade,
-                               String paper, boolean fogged, Consumer<Optional<PhotoMeta>> done) {
+                               String paper, boolean fogged, boolean reversal, Consumer<Optional<PhotoMeta>> done) {
         PhotoIndex.Entry src = PhotoStorage.index(server).get(frame);
         if (src == null || src.revoked() || src.latent()) {
             done.accept(Optional.empty());
@@ -102,12 +110,18 @@ public final class FilmLab {
                 byte[] jpeg = PhotoStorage.read(server, frame);
                 int[] size = new int[2];
                 int[] rgb = JpegCodec.decode(jpeg, size);
+                if (reversal) {
+                    for (int k = 0; k < rgb.length; k++) rgb[k] = 0xFF000000 | (~rgb[k] & 0xFFFFFF);
+                }
                 int[] printed = print(rgb, size[0], size[1], exposureStops, grade, paper, fogged);
                 byte[] out = JpegCodec.encode(printed, size[0], size[1], 0.9f);
                 UUID id = UUID.randomUUID();
                 PhotoStorage.write(server, id, out);
                 server.execute(() -> {
                     PhotoMeta meta = src.meta().editedCopy(id, size[0], size[1]);
+                    if (fogged || reversal) {
+                        meta = meta.withAnalysis(Optional.empty()); // no longer the picture it was
+                    }
                     PhotoStorage.index(server).put(new PhotoIndex.Entry(meta, out.length, 0, 0, false, 0,
                             Optional.of(owner), false));
                     done.accept(Optional.of(meta));

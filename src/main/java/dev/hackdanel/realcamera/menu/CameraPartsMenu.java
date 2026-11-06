@@ -148,7 +148,8 @@ public class CameraPartsMenu extends AbstractContainerMenu {
             return;
         }
         var next = roll.withState(dev.hackdanel.realcamera.component.FilmRoll.EXPOSED);
-        if (!p.level().isClientSide && p.level().getMaxLocalRawBrightness(p.blockPosition()) > 3) {
+        // 120 film is not rewound: it is wound on to the end onto the take-up spool, its paper backing keeps it safe
+        if (!"120".equals(roll.format()) && !p.level().isClientSide && p.level().getMaxLocalRawBrightness(p.blockPosition()) > 3) {
             next = next.fog();
             p.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.realcamera.film_fogged"), true);
         }

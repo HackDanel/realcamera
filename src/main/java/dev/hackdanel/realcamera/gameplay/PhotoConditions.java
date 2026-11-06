@@ -29,7 +29,7 @@ public final class PhotoConditions {
         PhotoMeta.Analysis a = meta.analysis().get();
         if (a.stars() < minStars) return false;
         if (phenomenon.isPresent() && !a.phenomena().contains(phenomenon.get())) return false;
-        if (biome.isPresent() && !meta.place().biome().equals(biome.get())) return false;
+        if (biome.isPresent() && !meta.sceneBiome().equals(biome.get())) return false;
         if (dimension.isPresent() && !meta.place().dimension().equals(dimension.get())) return false;
         if (flag.isPresent() && !a.has(flag(flag.get()))) return false;
         if (shot.minShutter() > 0 && meta.exif().shutter() < shot.minShutter()) return false;

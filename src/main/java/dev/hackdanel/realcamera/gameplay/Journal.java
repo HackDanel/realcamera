@@ -69,7 +69,7 @@ public record Journal(Map<String, Page> pages, Map<String, Integer> counters) {
     public static List<String> keysFor(PhotoMeta meta) {
         List<String> keys = new java.util.ArrayList<>();
         keys.add(DIMENSION + meta.place().dimension());
-        keys.add(BIOME + meta.place().biome());
+        if (!meta.sceneBiome().isEmpty()) keys.add(BIOME + meta.sceneBiome());
         meta.analysis().ifPresent(a -> {
             for (PhotoMeta.Subject s : a.subjects()) {
                 if (s.inFocus() && s.area() >= 0.01f && !s.type().equals("minecraft:player")) {

@@ -22,6 +22,17 @@ public final class QualityScore {
      */
     public static int score(boolean hasSubject, double area, double x, double y, boolean inFocus, double blur,
                             double exposureEv, double isoStops, double sky, boolean phenomenon) {
+        return score(hasSubject, area, x, y, inFocus, blur, exposureEv, isoStops, sky, phenomenon, true);
+    }
+
+    /**
+     * @param sceneInFocus for a picture without a subject: the point in the middle of the frame is sharp (a
+     *                     landscape focused at one's feet is not a good landscape)
+     */
+    public static int score(boolean hasSubject, double area, double x, double y, boolean inFocus, double blur,
+                            double exposureEv, double isoStops, double sky, boolean phenomenon, boolean sceneInFocus) {
+        // a creature covering less than 2% of the frame is not the subject, just part of the scene
+        hasSubject = hasSubject && area >= 0.02;
         double exposure = clamp(1 - Math.max(0, Math.abs(exposureEv) - 0.3) / 2.2);
         double blurPx = blur * 1000; // pixels on a 1000 px wide picture
         double sharp = clamp(1 - Math.max(0, blurPx - 1) / 8);
@@ -33,6 +44,7 @@ public final class QualityScore {
             composition = composition(x, y);
         } else {
             // landscape: some sky but not only sky; a phenomenon makes the picture
+            if (!sceneInFocus) sharp *= 0.2;
             size = sky <= 0.02 ? 0.45 : sky > 0.85 ? 0.5 : 0.75;
             if (phenomenon) size = Math.min(1, size + 0.35);
             composition = sky > 0.15 && sky < 0.75 ? 0.9 : 0.6;

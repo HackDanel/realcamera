@@ -60,6 +60,7 @@ public class EnlargerScreen extends AbstractContainerScreen<EnlargerMenu> {
         UiDraw.slot(g, leftPos + 8, topPos + 18);
         UiDraw.slot(g, leftPos + 8, topPos + 54);
         UiDraw.slot(g, leftPos + 152, topPos + 54);
+        UiDraw.slot(g, leftPos + 8, topPos + 36);
         int px = leftPos + 28, py = topPos + 16, pw = 78, ph = 42;
         // the projected image: red-lit baseboard
         UiDraw.inset(g, px, py, pw, ph, 0xFF2A0606);

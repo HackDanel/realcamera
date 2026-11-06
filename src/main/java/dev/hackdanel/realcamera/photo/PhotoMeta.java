@@ -40,7 +40,14 @@ public record PhotoMeta(UUID id, UUID authorId, String authorName, long createdM
      */
     public record Analysis(java.util.List<Subject> subjects, String structure, float sky, boolean sun, boolean moon,
                            int moonPhase, int timeOfDay, int weather, java.util.List<String> phenomena, int flags,
-                           float magnification, int quality, int stars) {
+                           float magnification, int quality, int stars, String biome) {
+        public Analysis(java.util.List<Subject> subjects, String structure, float sky, boolean sun, boolean moon,
+                        int moonPhase, int timeOfDay, int weather, java.util.List<String> phenomena, int flags,
+                        float magnification, int quality, int stars) {
+            this(subjects, structure, sky, sun, moon, moonPhase, timeOfDay, weather, phenomena, flags, magnification,
+                    quality, stars, "");
+        }
+
         public static final Codec<Analysis> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Subject.CODEC.listOf().fieldOf("subjects").forGetter(Analysis::subjects),
                 Codec.STRING.optionalFieldOf("structure", "").forGetter(Analysis::structure),
@@ -54,7 +61,8 @@ public record PhotoMeta(UUID id, UUID authorId, String authorName, long createdM
                 Codec.INT.optionalFieldOf("flags", 0).forGetter(Analysis::flags),
                 Codec.FLOAT.optionalFieldOf("magnification", 0f).forGetter(Analysis::magnification),
                 Codec.INT.optionalFieldOf("quality", 0).forGetter(Analysis::quality),
-                Codec.INT.optionalFieldOf("stars", 1).forGetter(Analysis::stars)
+                Codec.INT.optionalFieldOf("stars", 1).forGetter(Analysis::stars),
+                Codec.STRING.optionalFieldOf("biome", "").forGetter(Analysis::biome)
         ).apply(i, Analysis::new));
 
         public static final int FLAG_TRIPOD = 1, FLAG_FILM = 2, FLAG_FLASH = 4, FLAG_ELECTRONIC = 8, FLAG_FISHEYE = 16,
@@ -76,7 +84,7 @@ public record PhotoMeta(UUID id, UUID authorId, String authorName, long createdM
 
         public Analysis withPhenomena(java.util.List<String> p) {
             return new Analysis(subjects, structure, sky, sun, moon, moonPhase, timeOfDay, weather, p, flags,
-                    magnification, quality, stars);
+                    magnification, quality, stars, biome);
         }
     }
 
@@ -151,6 +159,19 @@ public record PhotoMeta(UUID id, UUID authorId, String authorName, long createdM
     }
 
     /** A new photo made from this one in the editor. */
+    /**
+     * The biome the picture shows: where the lens was focused (with some sky or depth in the frame), as the server
+     * worked it out. Empty for a shot of the ground at one's feet. Photos without an analysis use where they were taken.
+     */
+    public String sceneBiome() {
+        String b = analysis.map(Analysis::biome).orElse("");
+        if (b.equals(NO_BIOME)) return "";
+        return b.isEmpty() ? place.biome() : b; // analysed before the focus-point biome existed: where it was taken
+    }
+
+    /** Analysis biome of a picture that shows no landscape (the ground at one's feet). */
+    public static final String NO_BIOME = "-";
+
     public PhotoMeta editedCopy(UUID newId, int w, int h) {
         return new PhotoMeta(newId, authorId, authorName, createdMillis, w, h, exif, place, java.util.Optional.of(id), analysis);
     }

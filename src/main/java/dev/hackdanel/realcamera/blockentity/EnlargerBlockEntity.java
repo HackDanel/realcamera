@@ -36,7 +36,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * contrast grade of black-and-white paper are set before exposing. Paper only survives under a safelight.
  */
 public class EnlargerBlockEntity extends MachineBlockEntity {
-    public static final int SLOT_FILM = 0, SLOT_PAPER = 1, SLOT_OUTPUT = 2, SLOTS = 3;
+    public static final int SLOT_FILM = 0, SLOT_PAPER = 1, SLOT_OUTPUT = 2, SLOT_CHEMISTRY = 3, SLOTS = 4;
     public static final int EXPOSE_TICKS = 60;
     public static final int B_PREV = 0, B_NEXT = 1, B_DARKER = 2, B_LIGHTER = 3, B_SOFTER = 4, B_HARDER = 5, B_EXPOSE = 6;
     public static final String[] DARKROOM_PAPERS = {"rc_bw", "fiber_bw", "ra4"};
@@ -88,6 +88,9 @@ public class EnlargerBlockEntity extends MachineBlockEntity {
         return switch (slot) {
             case SLOT_FILM -> stack.getItem() instanceof FilmRollItem && FilmRollItem.roll(stack).state() == FilmRoll.DEVELOPED;
             case SLOT_PAPER -> stack.getItem() instanceof PhotoPaperItem && darkroomPaper(stack);
+            // paper developer, stop and fix: colour (RA-4) chemistry for colour paper, black-and-white for the rest
+            case SLOT_CHEMISTRY -> stack.is(dev.hackdanel.realcamera.registry.RCItems.CHEMISTRY_C41.get())
+                    || stack.is(dev.hackdanel.realcamera.registry.RCItems.CHEMISTRY_BW.get());
             default -> false;
         };
     }
@@ -134,7 +137,16 @@ public class EnlargerBlockEntity extends MachineBlockEntity {
             case B_HARDER -> grade = Math.min(5, grade + 1);
             case B_EXPOSE -> {
                 if (n == 0 || items.getStackInSlot(SLOT_PAPER).isEmpty() || !items.getStackInSlot(SLOT_OUTPUT).isEmpty()) return;
-                fogged = !Darkroom.dark(level, worldPosition, true);
+                PaperData sheet = items.getStackInSlot(SLOT_PAPER).get(RCComponents.PAPER.get());
+                boolean colour = sheet != null && "ra4".equals(sheet.finish());
+                ItemStack chem = items.getStackInSlot(SLOT_CHEMISTRY);
+                if (!chem.is(colour ? dev.hackdanel.realcamera.registry.RCItems.CHEMISTRY_C41.get()
+                        : dev.hackdanel.realcamera.registry.RCItems.CHEMISTRY_BW.get())) {
+                    player.displayClientMessage(Component.translatable("message.realcamera.enlarger.chemistry"), true);
+                    return;
+                }
+                // colour paper is sensitive to all colours: no safelight, total darkness
+                fogged = !Darkroom.dark(level, worldPosition, !colour);
                 if (fogged) {
                     player.displayClientMessage(Component.translatable("message.realcamera.enlarger.fogged"), true);
                 }
@@ -162,9 +174,17 @@ public class EnlargerBlockEntity extends MachineBlockEntity {
         if (list.isEmpty() || paper == null || level.getServer() == null) return;
         UUID frame = list.get(Math.min(selected, list.size() - 1));
         items.extractItem(SLOT_PAPER, 1, false);
+        if (level.random.nextInt(4) == 0) { // a bottle of paper chemistry develops a few dozen sheets
+            ItemStack chem = items.getStackInSlot(SLOT_CHEMISTRY).copy();
+            chem.setDamageValue(chem.getDamageValue() + 1);
+            items.setStackInSlot(SLOT_CHEMISTRY, chem.getDamageValue() >= chem.getMaxDamage() ? ItemStack.EMPTY : chem);
+        }
+        // a slide is a positive: on negative paper it prints as a negative
+        boolean reversal = dev.hackdanel.realcamera.camera.Specs.film(level.registryAccess(), items.getStackInSlot(SLOT_FILM))
+                .map(f -> !f.negative()).orElse(false);
         waiting = true;
         var server = level.getServer();
-        FilmLab.enlarge(server, frame, new UUID(0, 0), exposure, grade, paper.finish(), fogged, meta -> {
+        FilmLab.enlarge(server, frame, new UUID(0, 0), exposure, grade, paper.finish(), fogged, reversal, meta -> {
             waiting = false;
             if (meta.isEmpty() || isRemoved()) return;
             PhotoIndex index = PhotoStorage.index(server);

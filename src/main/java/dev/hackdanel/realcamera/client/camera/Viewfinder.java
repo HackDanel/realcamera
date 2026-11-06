@@ -525,12 +525,17 @@ public final class Viewfinder {
         int isoMax = ExposureScales.nearestIso(sensor().isoMax());
         int autoMax = Math.min(isoMax, ExposureScales.nearestIso(Exposure.AUTO_ISO_MAX_DEFAULT));
         var stock = filmStock();
+        int filmBox = -1;
         if (stock != null) {
-            // film: the box speed is the only sensitivity
-            isoMin = isoMax = autoMax = ExposureScales.nearestIso(stock.iso());
+            // film: rated at its box speed, or deliberately at another speed (one stop under to three over) to be
+            // pulled or pushed in development
+            filmBox = ExposureScales.nearestIso(stock.iso());
+            isoMin = ExposureScales.nearestIso(stock.iso() / 2.0);
+            isoMax = ExposureScales.nearestIso(stock.iso() * 8.0);
+            autoMax = filmBox;
         }
         double handheld = Optics.handheldLimit(Optics.focal35(f, sensor().cropFactor()), 0);
-        int autoMin = stock != null ? isoMin : Math.max(isoMin, ExposureScales.nearestIso(sensor().baseIso()));
+        int autoMin = stock != null ? filmBox : Math.max(isoMin, ExposureScales.nearestIso(sensor().baseIso()));
         return new Exposure.Limits(wide, narrow, fast, slow, isoMin, isoMax, autoMax, handheld, autoMin);
     }
 
@@ -847,7 +852,7 @@ public final class Viewfinder {
         var shot = r.shot();
         PacketDistributor.sendToServer(new Payloads.Shutter(shot.ref(), type, r.flash(), new Payloads.ShotInfo(shot.nonce(),
                 shot.focal(), (float) shot.exposure().fNumber(), (float) shot.seconds(), (int) shot.exposure().iso(),
-                shot.focusDistance(), (float) shot.exposure().delta(),
+                shot.focusDistance(), (float) printedError(shot),
                 (float) Math.hypot(shot.motion().blurX(), shot.motion().blurY()))));
         bufferFill = cameraBuffer() + 1;
         if (isBurst()) {
@@ -860,6 +865,18 @@ public final class Viewfinder {
             bulbStartMs = System.currentTimeMillis();
         }
         PhotoCapture.request(r.shot());
+    }
+
+    /**
+     * The exposure error the finished picture will show (what the frame analysis scores): film rated off its box
+     * speed and long exposures (reciprocity) count, and a negative forgives what its latitude covers.
+     */
+    private static double printedError(PhotoCapture.Shot shot) {
+        var stock = filmStock();
+        if (stock == null) return shot.exposure().delta();
+        double ev = shot.exposure().delta() - Math.log(shot.exposure().iso() / stock.iso()) / Math.log(2)
+                - stock.reciprocityLossEv(shot.seconds() < 0 ? 1 : shot.seconds());
+        return stock.printedEv(ev);
     }
 
     /** Flash (TTL power, sync), filters and wear for this exposure. */

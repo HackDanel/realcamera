@@ -19,6 +19,12 @@ public abstract class MachineBlockEntity extends BlockEntity implements MenuProv
         super(type, pos, state);
         this.items = new ItemStackHandler(slots) {
             @Override
+            public net.minecraft.world.item.ItemStack extractItem(int slot, int amount, boolean simulate) {
+                return MachineBlockEntity.this.canTake(slot) ? super.extractItem(slot, amount, simulate)
+                        : net.minecraft.world.item.ItemStack.EMPTY;
+            }
+
+            @Override
             protected void onContentsChanged(int slot) {
                 setChanged();
                 MachineBlockEntity.this.onItemsChanged(slot);
@@ -41,6 +47,11 @@ public abstract class MachineBlockEntity extends BlockEntity implements MenuProv
     }
 
     protected void onItemsChanged(int slot) {}
+
+    /** Whether a slot's item may be taken out right now (e.g. not while a process runs). */
+    protected boolean canTake(int slot) {
+        return true;
+    }
 
     protected boolean isItemValid(int slot, net.minecraft.world.item.ItemStack stack) {
         return true;
@@ -66,7 +77,14 @@ public abstract class MachineBlockEntity extends BlockEntity implements MenuProv
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         if (tag.contains("items")) {
+            int slots = items.getSlots();
             items.deserializeNBT(registries, tag.getCompound("items"));
+            if (items.getSlots() < slots) { // saved before the machine got another slot: keep the items, add the slot
+                var kept = new java.util.ArrayList<net.minecraft.world.item.ItemStack>();
+                for (int i = 0; i < items.getSlots(); i++) kept.add(items.getStackInSlot(i));
+                items.setSize(slots);
+                for (int i = 0; i < kept.size(); i++) items.setStackInSlot(i, kept.get(i));
+            }
         }
     }
 }

@@ -52,19 +52,20 @@ to fix everything that is confirmed. `[x]` = done, `[-]` = declined (reason give
 - [x] C13 Hand shake as a short random walk
 
 ## D. Film and gameplay
-- [ ] D1 Newspaper orders: no reselling the same photo, author only, no fogged/ink-starved prints
-- [ ] D2 Negative film latitude (C-41/B&W normalised within latitude; slide 1:1); score tolerance per stock
-- [ ] D3 Push/pull: rate film at a different ISO; push compensates
-- [ ] D4 Stars: landscapes need focus; subject scoring only for subjects ≥ ~2% of frame
-- [ ] D5 Telephoto advancement: subjects within the client's entity render distance
-- [ ] D6 Server re-checks client-reported values against camera limits / honest javadoc
-- [ ] D7 Biome at the focus point, not where the photographer stands
-- [ ] D8 Lightning during long exposures counts
-- [ ] D9 Medium-format grain finer
-- [ ] D10 Offline photographer: queue photoStored on development
-- [ ] D11 Reciprocity failure for film
-- [ ] D12 Light leaks fade over the last frames; 120 needs no rewind
-- [ ] D13 RA-4 paper needs full darkness
-- [ ] D14 Printing uses paper chemistry; slides on negative paper
-- [ ] D15 film_developed counted on finish; removing the roll mid-process fogs it
-- [ ] D16 CineStill tint_b
+- [x] D1 Newspaper orders: no reselling the same photo, author only, no fogged/ink-starved prints
+- [x] D2 Negative film latitude (C-41/B&W normalised within latitude; slide 1:1); score tolerance per stock
+- [x] D3 Push/pull: rate film at a different ISO; push compensates
+- [x] D4 Stars: landscapes need focus; subject scoring only for subjects ≥ ~2% of frame
+- [x] D5 Telephoto advancement: subjects within the client's entity render distance
+- [x] D6 Server clamps reported settings to the camera/lens limits and checks the flash; exposure error and blur stay
+      client measurements (bounded) and the javadoc says so
+- [x] D7 Biome at the focus point, not where the photographer stands
+- [x] D8 Lightning during long exposures counts
+- [x] D9 Medium-format grain finer
+- [x] D10 Offline photographer: queue photoStored on development
+- [x] D11 Reciprocity failure for film
+- [x] D12 Light leaks fade over the last frames; 120 needs no rewind
+- [x] D13 RA-4 paper needs full darkness
+- [x] D14 Printing uses paper chemistry; slides on negative paper
+- [x] D15 film_developed counted on finish; removing the roll mid-process fogs it
+- [x] D16 CineStill tint_b

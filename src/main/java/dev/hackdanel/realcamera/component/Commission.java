@@ -24,14 +24,20 @@ public record Commission(Optional<String> entity, Optional<String> biome, Option
     ).apply(i, Commission::new));
     public static final StreamCodec<ByteBuf, Commission> STREAM_CODEC = ByteBufCodecs.fromCodec(CODEC);
 
-    /** Does this print's photo fulfil the order? */
+    /**
+     * The player trading with a newspaper editor right now (set around the vanilla trade checks by mixins), so an
+     * order also knows who is selling. Null on the client's auto-fill.
+     */
+    public static final ThreadLocal<net.minecraft.world.entity.player.Player> TRADER = new ThreadLocal<>();
+
+    /** Does this print's photo fulfil the order? A print with missing inks is not fit to publish. */
     public boolean matches(PrintData print) {
         PhotoMeta meta = print.photo();
-        if (meta.analysis().isEmpty()) return false;
+        if (meta.analysis().isEmpty() || print.missingInks() != 0) return false;
         PhotoMeta.Analysis a = meta.analysis().get();
         if (a.stars() < minStars) return false;
         if (entity.isPresent() && !a.shows(entity.get())) return false;
-        if (biome.isPresent() && !meta.place().biome().equals(biome.get())) return false;
+        if (biome.isPresent() && !meta.sceneBiome().equals(biome.get())) return false;
         return phenomenon.isEmpty() || a.phenomena().contains(phenomenon.get());
     }
 }

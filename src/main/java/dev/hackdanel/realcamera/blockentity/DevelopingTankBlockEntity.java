@@ -112,9 +112,7 @@ public class DevelopingTankBlockEntity extends MachineBlockEntity {
                 player.displayClientMessage(Component.translatable("message.realcamera.tank.fogged"), true);
             }
             progress = 0;
-            if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
-                dev.hackdanel.realcamera.gameplay.PhotoEvents.count(sp, "film_developed");
-            }
+            developer = player.getUUID();
             level.playSound(null, worldPosition, SoundEvents.BUCKET_EMPTY, SoundSource.BLOCKS, 0.6f, 1.3f);
         }
         setChanged();
@@ -137,7 +135,33 @@ public class DevelopingTankBlockEntity extends MachineBlockEntity {
         be.setChanged();
     }
 
+    /** The roll stays in the closed tank until the process is done. */
+    @Override
+    protected boolean canTake(int slot) {
+        return slot != SLOT_ROLL || progress < 0;
+    }
+
+    /** Breaking the tank open mid-process exposes the half-developed film to light. */
+    @Override
+    public void dropContents(Level level, BlockPos pos) {
+        if (progress >= 0) {
+            ItemStack roll = items.getStackInSlot(SLOT_ROLL).copy();
+            FilmRoll r = FilmRollItem.roll(roll);
+            roll.set(RCComponents.FILM.get(), r.developed(push).withState(FilmRoll.RUINED).fog());
+            items.setStackInSlot(SLOT_ROLL, roll);
+            progress = -1;
+        }
+        super.dropContents(level, pos);
+    }
+
+    private java.util.UUID developer;
+
     private void finish() {
+        if (developer != null && level.getServer() != null
+                && level.getServer().getPlayerList().getPlayer(developer) instanceof net.minecraft.server.level.ServerPlayer sp) {
+            dev.hackdanel.realcamera.gameplay.PhotoEvents.count(sp, "film_developed");
+        }
+        developer = null;
         ItemStack roll = items.getStackInSlot(SLOT_ROLL).copy();
         FilmRoll r = FilmRollItem.roll(roll);
         int fogMode = fog;
@@ -163,6 +187,7 @@ public class DevelopingTankBlockEntity extends MachineBlockEntity {
         tag.putInt("progress", progress);
         tag.putInt("push", push);
         tag.putInt("fog", fog);
+        if (developer != null) tag.putUUID("developer", developer);
     }
 
     @Override
@@ -171,6 +196,7 @@ public class DevelopingTankBlockEntity extends MachineBlockEntity {
         progress = tag.contains("progress") ? tag.getInt("progress") : -1;
         push = tag.getInt("push");
         fog = tag.getInt("fog");
+        developer = tag.hasUUID("developer") ? tag.getUUID("developer") : null;
     }
 
     @Override

@@ -66,7 +66,23 @@ public final class PhotoEvents {
 
     @SubscribeEvent
     static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer p) sync(p);
+        if (!(event.getEntity() instanceof ServerPlayer p)) return;
+        // frames developed while the photographer was away
+        var index = dev.hackdanel.realcamera.photo.PhotoStorage.index(p.server);
+        for (java.util.UUID id : PendingCredits.get(p.server).take(p.getUUID())) {
+            var e = index.get(id);
+            if (e != null && !e.revoked()) photoStored(p, e.meta());
+        }
+        sync(p);
+    }
+
+    /** Lightning striking while someone's shutter is open shows up in their long exposure. */
+    @SubscribeEvent
+    static void onEntityJoin(net.neoforged.neoforge.event.entity.EntityJoinLevelEvent event) {
+        if (event.getEntity() instanceof net.minecraft.world.entity.LightningBolt bolt
+                && event.getLevel() instanceof net.minecraft.server.level.ServerLevel level) {
+            dev.hackdanel.realcamera.network.ServerPhotoService.lightningStruck(level, bolt.position());
+        }
     }
 
     @SubscribeEvent

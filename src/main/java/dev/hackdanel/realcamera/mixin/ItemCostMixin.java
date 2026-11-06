@@ -22,7 +22,16 @@ public abstract class ItemCostMixin {
         Commission c = ((ItemCost) (Object) this).itemStack().get(RCComponents.COMMISSION.get());
         if (c != null) {
             PrintData print = stack.get(RCComponents.PRINT.get());
-            cir.setReturnValue(stack.is(RCItems.PHOTO_PRINT.get()) && print != null && c.matches(print));
+            boolean ok = stack.is(RCItems.PHOTO_PRINT.get()) && print != null && c.matches(print);
+            // a paper buys photos from the photographer, and each picture only once
+            net.minecraft.world.entity.player.Player trader = Commission.TRADER.get();
+            if (ok && trader != null) {
+                ok = print.photo().authorId().equals(trader.getUUID());
+                if (ok && trader instanceof net.minecraft.server.level.ServerPlayer sp) {
+                    ok = !dev.hackdanel.realcamera.gameplay.SoldPhotos.get(sp.server).isSold(sp.server, print.photo());
+                }
+            }
+            cir.setReturnValue(ok);
         }
     }
 }

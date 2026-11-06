@@ -30,6 +30,7 @@ public class EnlargerMenu extends MachineMenu<EnlargerBlockEntity> {
         addMachineSlot(EnlargerBlockEntity.SLOT_FILM, 8, 18);
         addMachineSlot(EnlargerBlockEntity.SLOT_PAPER, 8, 54);
         addMachineSlot(EnlargerBlockEntity.SLOT_OUTPUT, 152, 54);
+        addMachineSlot(EnlargerBlockEntity.SLOT_CHEMISTRY, 8, 36);
         addPlayerInventory(inv, 84);
         addDataSlots(data);
     }
