@@ -185,7 +185,8 @@ class ImagePipelineTest {
         java.util.Arrays.fill(depth, 100f);
         ImageParams p = ImageParams.neutral().withExposure(2).withFocus(85, 1.8, 1.5);
         int[] out = ImagePipeline.develop(img, depth, w, h, p);
-        int edge = red(out[40 * w + 45]);
+        // the blur disc here has a radius of about 3 px: its light is inside it, none outside
+        int edge = red(out[40 * w + 43]);
         int far = red(out[40 * w + 70]);
         assertTrue(edge > far + 10, "disc around the highlight: " + edge + " vs " + far);
     }

@@ -18,9 +18,19 @@ class OpticsTest {
         double[] dof = Optics.depthOfFieldM(50, 1.8, 3, 0.03);
         assertEquals(2.82, dof[0], 0.01);
         assertEquals(3.20, dof[1], 0.01);
-        // the blur circle at the DoF limits equals the CoC
-        assertEquals(0.03, Optics.blurCircleMm(50, 1.8, 3, dof[0]), 0.0005);
-        assertEquals(0.03, Optics.blurCircleMm(50, 1.8, 3, dof[1]), 0.0005);
+        // the blur circle at the DoF limits equals the CoC (the blur circle measures distances from the sensor, the
+        // calculator from the lens: a few percent apart at 3 m)
+        assertEquals(0.03, Optics.blurCircleMm(50, 1.8, 3, dof[0]), 0.0015);
+        assertEquals(0.03, Optics.blurCircleMm(50, 1.8, 3, dof[1]), 0.0015);
+    }
+
+    @Test
+    void macroDepthOfFieldIsMillimetres() {
+        // 1:1 at f/2.8 (90 mm focused at 0.36 m from the sensor): real total depth 2Nc(1+m)/m^2 = 0.34 mm
+        double s = 0.36, near = s, far = s;
+        while (Optics.blurCircleMm(90, 2.8, s, near) < 0.03) near -= 1e-5;
+        while (Optics.blurCircleMm(90, 2.8, s, far) < 0.03) far += 1e-5;
+        assertEquals(0.34, (far - near) * 1000, 0.08);
     }
 
     @Test

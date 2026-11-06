@@ -24,7 +24,8 @@
     "ca_px": 1.6,
     "flare": 0.8,
     "bokeh": "smooth",
-    "projection": "stereographic"
+    "projection": "stereographic",
+    "max_magnification": 0.09
   },
   "filter_mm": 0,
   "tc_compatible": false,

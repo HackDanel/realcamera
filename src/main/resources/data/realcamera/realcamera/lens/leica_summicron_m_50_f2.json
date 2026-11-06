@@ -22,7 +22,8 @@
     "distortion_wide": 0.0,
     "distortion_tele": 0.0,
     "ca_px": 0.6,
-    "flare": 0.35
+    "flare": 0.35,
+    "max_magnification": 0.09
   },
   "filter_mm": 39,
   "model": "realcamera:item/lens/leica_summicron_m_50_f2"

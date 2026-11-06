@@ -115,7 +115,19 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
      * fisheyes (remapped later), a slightly wider one for a shifted lens.
      */
     public double renderVfovDeg(float focal, CameraSettings s) {
-        double v = dev.hackdanel.realcamera.optics.Optics.renderVfovDeg(projection(), focal, sensor.widthMm(), sensor.heightMm());
+        return renderVfovDeg(focal, s, 1e9);
+    }
+
+    /**
+     * Same, focused at {@code focusM}: close up the image moves away from the lens (v = f(1+m)) and the field of
+     * view narrows, a macro lens at 1:1 frames a subject the size of the sensor.
+     */
+    public double renderVfovDeg(float focal, CameraSettings s, double focusM) {
+        double framing = focal;
+        if (projection() == dev.hackdanel.realcamera.optics.Optics.PROJ_RECTILINEAR && focusM < 100) {
+            framing = Math.max(focal, focusM * 1000 * magnification(focusM));
+        }
+        double v = dev.hackdanel.realcamera.optics.Optics.renderVfovDeg(projection(), (float) framing, sensor.widthMm(), sensor.heightMm());
         if (shiftMm(s) != 0) {
             v = Math.toDegrees(2 * Math.atan(Math.tan(Math.toRadians(v) / 2) * SHIFT_OVERSCAN));
         }
@@ -165,6 +177,17 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
     /** Crop of an APS-C lens's image circle: Canon EF-S / RF-S are made for the 1.6x sensor, the rest for 1.5x. */
     static float apscCrop(LensSpec lens) {
         return lens.mount().location().getPath().startsWith("canon") ? 1.6f : 1.5f;
+    }
+
+    /** Reproduction ratio focused at focusM (a teleconverter multiplies it). */
+    public double magnification(double focusM) {
+        return lens.magnificationAt(focusM) * tcFactor();
+    }
+
+    /** Light lost to the extension at close focus (the bellows factor), EV: 2 at 1:1. */
+    public double bellowsLossEv(double focusM) {
+        double m = lens.magnificationAt(focusM);
+        return m < 0.05 ? 0 : 2 * Math.log(1 + m) / Math.log(2);
     }
 
     public boolean afAvailable() {

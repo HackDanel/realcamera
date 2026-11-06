@@ -22,7 +22,8 @@
     "distortion_wide": -0.01,
     "distortion_tele": -0.01,
     "ca_px": 1.5,
-    "flare": 0.6
+    "flare": 0.6,
+    "max_magnification": 0.21
   },
   "filter_mm": 49,
   "model": "realcamera:item/lens/canon_ef_50_f18_stm"

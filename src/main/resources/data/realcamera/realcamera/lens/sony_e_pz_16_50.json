@@ -22,7 +22,8 @@
     "distortion_wide": -0.14,
     "distortion_tele": 0.02,
     "ca_px": 2.6,
-    "flare": 0.8
+    "flare": 0.8,
+    "max_magnification": 0.215
   },
   "filter_mm": 40,
   "model": "realcamera:item/lens/sony_e_pz_16_50"

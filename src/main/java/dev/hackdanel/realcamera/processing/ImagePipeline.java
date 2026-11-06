@@ -314,14 +314,15 @@ public final class ImagePipeline {
      * are then drawn as discs in the shape of the aperture (bokeh highlights).
      */
     static float[] depthOfField(float[] img, float[] depth, int w, int h, ImageParams p) {
-        float maxR = Math.max(4, w / 40f);
+        // real backgrounds blur a lot: 85 mm f/1.8 at 2 m gives a disc 6% of the frame wide, a long tele 17%
+        float maxR = Math.max(4, w / 8f);
         float[] radius = blurRadius(depth, w, p.focus(), maxR);
         float largest = 0;
         for (float r : radius) largest = Math.max(largest, r);
         if (largest < 0.75f) {
             return img;
         }
-        List<Highlight> highlights = findHighlights(img, radius, w, h);
+        List<Highlight> highlights = extractHighlights(img, findHighlights(img, radius, w, h), w, h);
         // small bright sources (lamps, glints) often get no reliable depth of their own: blur their core like
         // their surroundings, otherwise a sharp dot stays in the middle of the bokeh disc
         for (Highlight hl : highlights) {
@@ -365,10 +366,10 @@ public final class ImagePipeline {
         });
         foregroundSpread(img, blurred, depth, radius, w, h, p.focus());
         float[] out = blurred;
-        if (p.lens().bokeh() == ImageParams.BOKEH_SWIRL) {
-            out = swirl(out, radius, w, h);
+        if (p.lens().bokeh() == ImageParams.BOKEH_SWIRL && stopsDown(p) < 2) {
+            out = swirl(out, radius, w, h, 1 - stopsDown(p) / 2); // the swirl fades stopping down
         }
-        drawBokeh(out, w, h, highlights, p.lens());
+        drawBokeh(out, w, h, highlights, p.lens(), stopsDown(p));
         return out;
     }
 
@@ -377,6 +378,10 @@ public final class ImagePipeline {
      * more towards the edges and the more it is blurred.
      */
     static float[] swirl(float[] img, float[] radius, int w, int h) {
+        return swirl(img, radius, w, h, 1);
+    }
+
+    static float[] swirl(float[] img, float[] radius, int w, int h, double strength) {
         double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, halfDiag = Math.hypot(cx, cy);
         float[] out = img.clone();
         int taps = 9;
@@ -385,7 +390,7 @@ public final class ImagePipeline {
                 int i = y * w + x;
                 double ox = x - cx, oy = y - cy;
                 double dist = Math.hypot(ox, oy) / halfDiag;
-                double len = radius[i] * 4.0 * Math.pow(dist, 1.5);
+                double len = radius[i] * 4.0 * Math.pow(dist, 1.5) * strength;
                 if (len < 1) continue;
                 double tx = -oy / Math.max(1e-6, Math.hypot(ox, oy)), ty = ox / Math.max(1e-6, Math.hypot(ox, oy));
                 int j = i * 3;
@@ -438,7 +443,7 @@ public final class ImagePipeline {
             return;
         }
         // reach: the largest foreground radius that can touch each 8x8 cell
-        int cs = 8, cw = (w + cs - 1) / cs, ch = (h + cs - 1) / cs;
+        int cs = Math.max(8, (int) Math.ceil(largest / 6)), cw = (w + cs - 1) / cs, ch = (h + cs - 1) / cs;
         float[] cell = new float[cw * ch];
         for (int i = 0; i < fg.length; i++) {
             int c = (i / w / cs) * cw + (i % w) / cs;
@@ -630,7 +635,66 @@ public final class ImagePipeline {
 
     // ------------------------------------------------------------------ bokeh highlights
 
-    record Highlight(float x, float y, float r, float cr, float cg, float cb) {}
+    /** A bright out-of-focus point: position, blur radius, colour and (after extraction) its light energy. */
+    record Highlight(float x, float y, float r, float cr, float cg, float cb, float er, float eg, float eb) {
+        Highlight(float x, float y, float r, float cr, float cg, float cb) {
+            this(x, y, r, cr, cg, cb, 0, 0, 0);
+        }
+    }
+
+    /**
+     * Takes each highlight's light out of the image (its bright core is set to the level of its surroundings) and
+     * returns the highlights carrying that energy, so the bokeh disc spreads the light instead of adding it twice.
+     */
+    static List<Highlight> extractHighlights(float[] img, List<Highlight> found, int w, int h) {
+        List<Highlight> out = new ArrayList<>(found.size());
+        for (Highlight hl : found) {
+            int cx = (int) hl.x, cy = (int) hl.y, k = 2;
+            // the surroundings: a ring 3-4 px out
+            float rr = 0, rg = 0, rb = 0;
+            int n = 0;
+            for (int d = -4; d <= 4; d += 8) {
+                for (int t = -4; t <= 4; t += 2) {
+                    int[][] pts = {{cx + d, cy + t}, {cx + t, cy + d}};
+                    for (int[] q : pts) {
+                        if (q[0] < 0 || q[1] < 0 || q[0] >= w || q[1] >= h) continue;
+                        int j = (q[1] * w + q[0]) * 3;
+                        rr += img[j];
+                        rg += img[j + 1];
+                        rb += img[j + 2];
+                        n++;
+                    }
+                }
+            }
+            if (n == 0) continue;
+            rr /= n;
+            rg /= n;
+            rb /= n;
+            float er = 0, eg = 0, eb = 0;
+            for (int y = Math.max(0, cy - k); y <= Math.min(h - 1, cy + k); y++) {
+                for (int x = Math.max(0, cx - k); x <= Math.min(w - 1, cx + k); x++) {
+                    int j = (y * w + x) * 3;
+                    float l = 0.2126f * img[j] + 0.7152f * img[j + 1] + 0.0722f * img[j + 2];
+                    float ring = 0.2126f * rr + 0.7152f * rg + 0.0722f * rb;
+                    if (l <= ring * 1.3f) continue;
+                    er += Math.max(0, img[j] - rr);
+                    eg += Math.max(0, img[j + 1] - rg);
+                    eb += Math.max(0, img[j + 2] - rb);
+                    img[j] = Math.min(img[j], rr);
+                    img[j + 1] = Math.min(img[j + 1], rg);
+                    img[j + 2] = Math.min(img[j + 2], rb);
+                }
+            }
+            if (er + eg + eb > 0) {
+                out.add(new Highlight(hl.x, hl.y, hl.r, hl.cr, hl.cg, hl.cb, er, eg, eb));
+            }
+        }
+        return out;
+    }
+
+    static double stopsDown(ImageParams p) {
+        return Math.max(0, Math.log(p.focus().fNumber() / p.lens().maxAperture()) / Math.log(2));
+    }
 
     /**
      * Bright, out-of-focus points (lamps, sun glints, sky through leaves): the brightest pixel of
@@ -699,27 +763,39 @@ public final class ImagePipeline {
      * circle for rounded blades, clipped towards the frame edge into a "cat's eye" by the lens barrel.
      */
     static void drawBokeh(float[] img, int w, int h, List<Highlight> highlights, ImageParams.Lens lens) {
+        drawBokeh(img, w, h, highlights, lens, 0);
+    }
+
+    /**
+     * stopsDown: wide open the blades are retracted, so even a straight-bladed lens draws round discs; cat's eye and
+     * swirl come from the barrel vignetting the aperture and fade within two stops.
+     */
+    static void drawBokeh(float[] img, int w, int h, List<Highlight> highlights, ImageParams.Lens lens, double stopsDown) {
         double cx = w / 2.0, cy = h / 2.0, halfDiag = Math.hypot(cx, cy);
         int blades = Math.max(5, lens.blades());
         int style = lens.bokeh();
+        boolean round = lens.rounded() || stopsDown < 0.17;
+        double barrel = Math.max(0, 1 - stopsDown / 2);
+        double budget = 6.0 * w * h; // pixels of disc area drawn at most (the brightest highlights come first)
         for (Highlight hl : highlights) {
             float r = hl.r;
-            // energy of the source spread over the disc, with a slightly brighter rim
             float area = (float) (Math.PI * r * r);
-            float k = 16f / area * 0.7f;
+            if ((budget -= area) < 0) break;
+            // the extracted light spread over the disc, with a slightly brighter rim (mean rim factor ~1.07)
+            float k = 1f / area / 1.07f;
             double ox = hl.x - cx, oy = hl.y - cy;
             double dist = Math.hypot(ox, oy) / halfDiag;
-            double clipShift = r * 1.2 * dist; // second circle shifted towards the centre
+            double clipShift = r * 1.2 * dist * barrel; // second circle shifted towards the centre
             double ux = dist > 1e-6 ? -ox / Math.hypot(ox, oy) : 0, uy = dist > 1e-6 ? -oy / Math.hypot(ox, oy) : 0;
             // swirl: discs squeezed along the radius into ovals that line up on circles around the centre
-            double squeeze = style == ImageParams.BOKEH_SWIRL ? 1 - 0.7 * Math.min(1, dist * 1.2) : 1;
+            double squeeze = style == ImageParams.BOKEH_SWIRL ? 1 - 0.7 * Math.min(1, dist * 1.2) * barrel : 1;
             int x0 = (int) Math.floor(hl.x - r), x1 = (int) Math.ceil(hl.x + r);
             int y0 = (int) Math.floor(hl.y - r), y1 = (int) Math.ceil(hl.y + r);
             for (int y = Math.max(0, y0); y <= Math.min(h - 1, y1); y++) {
                 for (int x = Math.max(0, x0); x <= Math.min(w - 1, x1); x++) {
                     double dx = x - hl.x, dy = y - hl.y;
                     double rr = Math.hypot(dx, dy);
-                    double edge = lens.rounded() ? r : polygonRadius(Math.atan2(dy, dx), blades, r);
+                    double edge = round ? r : polygonRadius(Math.atan2(dy, dx), blades, r);
                     if (squeeze < 1) {
                         double rad = -(dx * ux + dy * uy), tan = dx * uy - dy * ux;
                         double q = Math.hypot(rad / squeeze, tan);
@@ -740,9 +816,9 @@ public final class ImagePipeline {
                         default -> (float) (0.8 + 0.4 * e);
                     };
                     int j = (y * w + x) * 3;
-                    img[j] += hl.cr * k * rim;
-                    img[j + 1] += hl.cg * k * rim;
-                    img[j + 2] += hl.cb * k * rim;
+                    img[j] += hl.er * k * rim;
+                    img[j + 1] += hl.eg * k * rim;
+                    img[j + 2] += hl.eb * k * rim;
                 }
             }
         }
@@ -766,9 +842,12 @@ public final class ImagePipeline {
         int taps = (int) Math.min(32, Math.ceil(len) + 1);
         float[] out = new float[img.length];
         float inv = 1f / taps;
+        // a hand-held smear is not a straight line: the path wanders a little to the side
+        double px = -dy / len, py = dx / len, wobble = 0.12 * len, phase = (len * 7.3) % (2 * Math.PI);
         for (int t = 0; t < taps; t++) {
             double f = taps == 1 ? 0 : (double) t / (taps - 1) - 0.5;
-            float sx = (float) (dx * f), sy = (float) (dy * f);
+            double side = len >= 3 ? wobble * Math.sin(2 * Math.PI * 1.3 * (f + 0.5) + phase) : 0;
+            float sx = (float) (dx * f + px * side), sy = (float) (dy * f + py * side);
             java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
                 for (int x = 0; x < w; x++) {
                     int j = (y * w + x) * 3;
@@ -890,7 +969,9 @@ public final class ImagePipeline {
         double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, halfDiag = Math.hypot(cx, cy);
         double cover = Optics.fisheyeCornerAngle(l.projection(), focal, halfDiag / pxPerMm);
         double render = l.renderCorner() > 0 ? l.renderCorner() : Math.min(cover, Optics.MAX_RENDER_HALF_ANGLE);
-        double squeeze = cover > render ? render / cover : 1;
+        // angles beyond the rendered cap are folded into the outer zone only: the centre keeps its true scale
+        double knee = Math.min(render, cover) * 0.6;
+        double expo = cover > render ? (cover - knee) / (render - knee) : 1;
         double tanRender = Math.tan(render);
         double caScale = l.caPx() / halfDiag;
         float[] out = new float[img.length];
@@ -905,9 +986,14 @@ public final class ImagePipeline {
                 // soft edge of a circular image
                 double edgePx = Optics.fisheyeRadius(l.projection(), focal, Math.PI / 2) * pxPerMm;
                 float fall = (float) clamp01((float) ((edgePx - rPx) / Math.max(1.5, edgePx * 0.012)));
-                double phi = Math.min(theta * squeeze, Math.PI / 2 - 1e-3);
+                double phi = theta;
+                if (cover > render && theta > knee) {
+                    double u = Math.min(1, (theta - knee) / (cover - knee));
+                    phi = knee + (render - knee) * (1 - Math.pow(1 - u, expo));
+                }
+                phi = Math.min(phi, Math.PI / 2 - 1e-3);
                 double srcR = Math.tan(phi) / tanRender * halfDiag;
-                double k = rPx > 1e-6 ? srcR / rPx : (squeeze * pxPerMm * focal > 0 ? halfDiag / (tanRender * focal * pxPerMm) * squeeze : 1);
+                double k = rPx > 1e-6 ? srcR / rPx : (pxPerMm * focal > 0 ? halfDiag / (tanRender * focal * pxPerMm) : 1);
                 double[] scale = {k * (1 + caScale), k, k * (1 - caScale)};
                 for (int c = 0; c < 3; c++) {
                     float sx = (float) (cx + nx * scale[c]), sy = (float) (cy + ny * scale[c]);
@@ -944,8 +1030,9 @@ public final class ImagePipeline {
     /** Corner light fall-off (EV) at this aperture: strongest wide open, mostly gone two stops down. */
     static double vignetteEv(ImageParams p) {
         ImageParams.Lens l = p.lens();
-        double stopsDown = Math.max(0, Math.log(p.focus().fNumber() / l.maxAperture()) / Math.log(2));
-        return l.vignettingEv() * Math.max(0, 1 - stopsDown * 0.45);
+        // the optical part goes away stopping down; the natural cos^4 fall-off of wide angles stays
+        double residual = Math.max(0.08, Math.min(0.35, (35 - p.focus().focalMm()) / 20 * 0.35));
+        return l.vignettingEv() * Math.max(residual, 1 - stopsDown(p) * 0.45);
     }
 
     /**
@@ -990,6 +1077,24 @@ public final class ImagePipeline {
                     img[j] *= m;
                     img[j + 1] *= m;
                     img[j + 2] *= m;
+                }
+            });
+        }
+        // Diffraction: the Airy disc grows with the f-number (sigma ~ 0.42 lambda N); and corners are softer wide open.
+        double pitchMm = p.focus().sensorWidthMm() / w;
+        double sigmaPx = 0.42 * 0.00055 * p.focus().fNumber() / Math.max(1e-6, pitchMm);
+        double corner = Math.max(0, 1 - stopsDown(p) / 2.5) * Math.max(0, 1.05 - l.sharpness()) * 2.5;
+        if (sigmaPx > 0.3 || corner > 0.02) {
+            float[] soft = box3(img, w, h);
+            float base = (float) Math.min(1, sigmaPx > 0.3 ? (sigmaPx - 0.3) * 1.2 : 0);
+            float edge = (float) Math.min(1, corner);
+            java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+                for (int x = 0; x < w; x++) {
+                    double r2 = ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / norm;
+                    float t = Math.min(1, base + edge * (float) (r2 * r2));
+                    if (t <= 0) continue;
+                    int j = (y * w + x) * 3;
+                    for (int c = 0; c < 3; c++) img[j + c] += (soft[j + c] - img[j + c]) * t;
                 }
             });
         }

@@ -22,7 +22,8 @@
     "distortion_wide": -0.01,
     "distortion_tele": -0.01,
     "ca_px": 1.2,
-    "flare": 0.5
+    "flare": 0.5,
+    "max_magnification": 0.15
   },
   "filter_mm": 58,
   "model": "realcamera:item/lens/nikon_afs_50_f18g"

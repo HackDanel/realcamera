@@ -23,7 +23,8 @@
     "distortion_tele": -0.01,
     "ca_px": 0.8,
     "flare": 0.4,
-    "bokeh": "smooth"
+    "bokeh": "smooth",
+    "max_magnification": 0.19
   },
   "filter_mm": 67,
   "tc_compatible": false,

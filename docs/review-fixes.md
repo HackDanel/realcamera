@@ -37,19 +37,19 @@ to fix everything that is confirmed. `[x]` = done, `[-]` = declined (reason give
 - [x] B14 RAW without lens corrections
 
 ## C. Optics
-- [ ] C1 Max magnification per lens (catalog), magnification() capped by spec, not 1:1 at 4f
-- [ ] C2 Blur cap w/40 → ~w/8
-- [ ] C3 Macro: FOV narrows with magnification, DoF from lens-to-subject distance, bellows factor
-- [ ] C4 Shifted lens: depth along the level axis (focus plane parallel to sensor)
-- [ ] C5 Vignetting/distortion/CA scaled by sensor diagonal / image circle
-- [ ] C6 Bokeh: round wide open; cat's eye and swirl fade when stopped down
-- [ ] C7 Diffraction blur and corner softness wide open
-- [ ] C8 Residual vignetting for wide lenses when stopped down
-- [ ] C9 (=A11) XCD flange; Canon APS-C 1.6
-- [ ] C10 Fisheye: do not compress the centre
-- [ ] C11 Bokeh discs: subtract gathered highlight energy
-- [ ] C12 Variable-aperture zooms step in 1/3 stops
-- [ ] C13 Hand shake as a short random walk
+- [x] C1 Max magnification per lens (catalog), magnification() capped by spec, not 1:1 at 4f
+- [x] C2 Blur cap w/40 → ~w/8
+- [x] C3 Macro: FOV narrows with magnification, DoF from lens-to-subject distance, bellows factor
+- [x] C4 Shifted lens: depth along the level axis (focus plane parallel to sensor)
+- [x] C5 Vignetting/distortion/CA scaled by sensor diagonal / image circle
+- [x] C6 Bokeh: round wide open; cat's eye and swirl fade when stopped down
+- [x] C7 Diffraction blur and corner softness wide open
+- [x] C8 Residual vignetting for wide lenses when stopped down
+- [x] C9 (=A11) XCD flange; Canon APS-C 1.6
+- [x] C10 Fisheye: do not compress the centre
+- [x] C11 Bokeh discs: subtract gathered highlight energy
+- [x] C12 Variable-aperture zooms step in 1/3 stops
+- [x] C13 Hand shake as a short random walk
 
 ## D. Film and gameplay
 - [ ] D1 Newspaper orders: no reselling the same photo, author only, no fogged/ink-starved prints

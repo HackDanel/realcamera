@@ -22,7 +22,8 @@
     "distortion_tele": 0.02,
     "ca_px": 1.6,
     "flare": 0.65,
-    "rounded": true
+    "rounded": true,
+    "max_magnification": 0.19
   },
   "filter_mm": 55,
   "model": "realcamera:item/lens/sony_fe_28_70_oss"

@@ -27,7 +27,8 @@
     "tilt_shift": {
       "tilt_deg": 8.5,
       "shift_mm": 12.0
-    }
+    },
+    "max_magnification": 0.34
   },
   "filter_mm": 82,
   "tc_compatible": false,

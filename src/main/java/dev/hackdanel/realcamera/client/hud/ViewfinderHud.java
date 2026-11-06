@@ -471,10 +471,7 @@ public final class ViewfinderHud {
         String area = mf ? "" : afAreaLabel(s.afArea()) + "  ";
         String left = String.format(Locale.ROOT, "%.0f mm   %s %s  %s%s", Viewfinder.focal(), focus, dist, area, meter);
         // close-up: reproduction ratio, like the scale on a macro lens
-        double mag = dev.hackdanel.realcamera.optics.Optics.magnification(Viewfinder.focal(), d);
-        if (Viewfinder.chain() != null && Viewfinder.chain().lens().optics().maxMagnification() > 0) {
-            mag = Math.min(mag, Viewfinder.chain().lens().optics().maxMagnification() * Viewfinder.chain().tcFactor());
-        }
+        double mag = Viewfinder.chain() == null ? 0 : Viewfinder.chain().magnification(d);
         if (mag >= 0.1) {
             left += String.format(Locale.ROOT, "   %s", mag >= 0.995 ? "1:1" : String.format(Locale.ROOT, "1:%.1f", 1 / mag));
         }

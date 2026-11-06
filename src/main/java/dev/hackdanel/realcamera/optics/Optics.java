@@ -21,9 +21,16 @@ public final class Optics {
      * focused at {@code focusM}.
      */
     public static double blurCircleMm(double focalMm, double fNumber, double focusM, double objectM) {
-        double s = Math.max(focusM * 1000, focalMm * 1.001);
+        double s = Math.max(focusM * 1000, focalMm * 4.001);
         double d = Math.max(objectM * 1000, 1e-3);
-        return (focalMm * focalMm / fNumber) * Math.abs(d - s) / (d * (s - focalMm));
+        // distances are measured from the sensor: the lens sits v in front of it (v = f(1+m)), which matters close up
+        double u = (s + Math.sqrt(s * s - 4 * s * focalMm)) / 2, v = s - u;
+        double ud = d - v;
+        if (ud <= focalMm * 1.0005) {
+            return focalMm / fNumber; // in front of the focal point: a fully spread disc
+        }
+        double vd = 1 / (1 / focalMm - 1 / ud);
+        return (focalMm / fNumber) * Math.abs(vd - v) / vd;
     }
 
     public static double hyperfocalMm(double focalMm, double fNumber, double cocMm) {

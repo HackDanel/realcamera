@@ -133,9 +133,7 @@ public final class FrameAnalyzer {
         if (chain.adapter() != null) flags |= PhotoMeta.Analysis.FLAG_ADAPTER;
         if (chain.sensor().widthMm() > 40) flags |= PhotoMeta.Analysis.FLAG_MEDIUM_FORMAT;
         if (underwater) flags |= PhotoMeta.Analysis.FLAG_UNDERWATER;
-        double mag = Optics.magnification(focal, Math.max(0.05, info.focusM()));
-        float maxMag = chain.lens().maxMagnification() * chain.tcFactor();
-        if (maxMag > 0) mag = Math.min(mag, maxMag);
+        double mag = chain.magnification(Math.max(0.05, info.focusM()));
 
         // ---------------------------------------------------------------- natural phenomena
         List<String> phenomena = new ArrayList<>();

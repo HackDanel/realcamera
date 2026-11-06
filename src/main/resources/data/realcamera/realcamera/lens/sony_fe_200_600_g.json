@@ -22,7 +22,8 @@
     "distortion_wide": 0.01,
     "distortion_tele": 0.015,
     "ca_px": 0.8,
-    "flare": 0.3
+    "flare": 0.3,
+    "max_magnification": 0.2
   },
   "filter_mm": 95,
   "model": "realcamera:item/lens/sony_fe_200_600_g",

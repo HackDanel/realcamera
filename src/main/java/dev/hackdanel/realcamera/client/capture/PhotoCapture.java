@@ -154,7 +154,7 @@ public final class PhotoCapture {
     static void onFov(net.neoforged.neoforge.client.event.ViewportEvent.ComputeFov event) {
         Active a = active;
         if (a != null && event.usedConfiguredFov()) {
-            event.setFOV(a.shot.chain().renderVfovDeg(a.shot.focal(), a.shot.settings()));
+            event.setFOV(a.shot.chain().renderVfovDeg(a.shot.focal(), a.shot.settings(), a.shot.focusDistance()));
         }
     }
 
@@ -232,13 +232,13 @@ public final class PhotoCapture {
             return;
         }
         try {
-            a.gpuDepth = readDepth(target, event.getProjectionMatrix());
+            a.gpuDepth = readDepth(target, event.getProjectionMatrix(), a.shot.chain().shiftPitchDeg(a.shot.focal(), a.shot.settings()));
         } catch (RuntimeException e) {
             RealCamera.LOGGER.warn("Could not read the depth buffer", e);
         }
     }
 
-    private static float[] readDepth(RenderTarget target, org.joml.Matrix4f projection) {
+    private static float[] readDepth(RenderTarget target, org.joml.Matrix4f projection, double levelPitchDeg) {
         int w = target.width, h = target.height;
         java.nio.FloatBuffer buf = org.lwjgl.system.MemoryUtil.memAllocFloat(w * h);
         try {
@@ -249,6 +249,9 @@ public final class PhotoCapture {
             // view-space z is linear in NDC depth through the inverse projection: z = (a*n + b) / (c*n + d)
             org.joml.Matrix4f inv = new org.joml.Matrix4f(projection).invert();
             float pa = inv.m22(), pb = inv.m32(), pc = inv.m23(), pd = inv.m33();
+            // shifted lens: the frame is pitched up, but the plane of focus stays parallel to the (level) sensor
+            float sinB = (float) Math.sin(Math.toRadians(levelPitchDeg)), cosB = (float) Math.cos(Math.toRadians(levelPitchDeg));
+            boolean level = Math.abs(levelPitchDeg) > 1e-3;
             float[] out = new float[w * h];
             java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
                 int src = (h - 1 - y) * w; // GL rows are bottom-up
@@ -262,6 +265,11 @@ public final class PhotoCapture {
                     } else {
                         float n = z * 2 - 1;
                         m = -(pa * n + pb) / (pc * n + pd);
+                        if (level) {
+                            org.joml.Vector4f v = inv.transform(new org.joml.Vector4f((x + 0.5f) / w * 2 - 1,
+                                    1 - (y + 0.5f) / h * 2, n, 1));
+                            m = -(v.y / v.w) * sinB - (v.z / v.w) * cosB;
+                        }
                         m = Math.max(0.05f, Math.min(10_000, m));
                     }
                     out[y * w + x] = m;
@@ -354,7 +362,8 @@ public final class PhotoCapture {
 
     private static float[][] grids(Minecraft mc, Shot s, int gw, int gh) {
         return new CameraRays(mc.level, mc.getCameraEntity(), mc.gameRenderer.getMainCamera(),
-                s.chain().renderVfovDeg(s.focal(), s.settings()), s.chain().sensor().aspect(), 512)
+                s.chain().renderVfovDeg(s.focal(), s.settings(), s.focusDistance()), s.chain().sensor().aspect(), 512)
+                .withLevelAxis(s.chain().shiftPitchDeg(s.focal(), s.settings()))
                 .grids(gw, gh, s.extras().flashAt1m() > 0);
     }
 
@@ -535,9 +544,12 @@ public final class PhotoCapture {
         boolean correct = s.settings().lensCorrection();
         var optics = chain.lens().optics();
         // uncorrected optics: corrections are applied after the RAW is taken (ImagePipeline.correctLens)
-        var lens = new ImageParams.Lens(optics.vignettingEv(), chain.maxApertureAt(s.focal()),
-                chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(s.focal())),
-                optics.caPx() * (w / 3840.0), chain.imageCircle(), optics.blades(),
+        // a lens made for a bigger format only shows the middle of its image on a smaller sensor (a full-frame lens
+        // on APS-C): less vignetting, distortion and lateral colour at the frame corner
+        double q = Math.min(1, Math.hypot(sensor.widthMm(), sensor.heightMm()) / OpticalChain.circleDiagonalMm(chain.lens().imageCircle()));
+        var lens = new ImageParams.Lens(optics.vignettingEv() * q * q, chain.maxApertureAt(s.focal()),
+                chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(s.focal())) * q * q,
+                optics.caPx() * (w / 3840.0) * q, chain.imageCircle(), optics.blades(),
                 optics.rounded(), optics.flare());
         lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh()));
         int projection = chain.projection();

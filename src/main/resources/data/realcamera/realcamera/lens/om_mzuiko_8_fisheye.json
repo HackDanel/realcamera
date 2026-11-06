@@ -24,7 +24,8 @@
     "ca_px": 1.2,
     "flare": 0.6,
     "bokeh": "smooth",
-    "projection": "equisolid"
+    "projection": "equisolid",
+    "max_magnification": 0.2
   },
   "filter_mm": 0,
   "tc_compatible": false,

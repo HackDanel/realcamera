@@ -108,10 +108,24 @@ public record LensSpec(
         return optics.distortionWide() + (optics.distortionTele() - optics.distortionWide()) * t;
     }
 
-    /** Reproduction ratio at the closest focus distance (thin lens), unless the spec states it. */
+    /**
+     * Reproduction ratio at the closest focus distance, as the lens's spec sheet states it. Without a stated value
+     * the thin-lens estimate, capped at 0.25: ordinary lenses focus closer by shortening their focal length
+     * (internal focusing), not by reaching macro ratios.
+     */
     public float maxMagnification() {
         if (optics.maxMagnification() > 0) return optics.maxMagnification();
-        return (float) dev.hackdanel.realcamera.optics.Optics.magnification(focalMax, minFocusM);
+        return (float) Math.min(0.25, dev.hackdanel.realcamera.optics.Optics.magnification(focalMax, minFocusM));
+    }
+
+    /**
+     * Reproduction ratio focused at {@code focusM} (from the sensor): the thin-lens curve, scaled so it reaches the
+     * lens's real maximum at its closest focus.
+     */
+    public double magnificationAt(double focusM) {
+        double mt = dev.hackdanel.realcamera.optics.Optics.magnification(focalMax, Math.max(focusM, minFocusM));
+        double mtMin = dev.hackdanel.realcamera.optics.Optics.magnification(focalMax, minFocusM);
+        return mt / Math.max(1e-9, mtMin) * maxMagnification();
     }
 
     public boolean isZoom() {
@@ -127,7 +141,11 @@ public record LensSpec(
         if (!isZoom()) {
             return apertureWide;
         }
-        float t = (clampFocal(focal) - focalMin) / (focalMax - focalMin);
-        return apertureWide + (apertureTele - apertureWide) * t;
+        // the f-number grows with the focal length and is shown (and set) in 1/3-stop steps: f/3.5, 4, 4.5, 5, 5.6
+        double t = Math.log(clampFocal(focal) / focalMin) / Math.log(focalMax / focalMin);
+        double av = Math.log(apertureWide) + (Math.log(apertureTele) - Math.log(apertureWide)) * t;
+        double thirds = Math.ceil(av / Math.log(2) * 6 - 1e-6) / 6; // 1/3 stop = 1/6 of log2(N)
+        float n = (float) Math.pow(2, thirds);
+        return Mth.clamp(n, apertureWide, apertureTele);
     }
 }

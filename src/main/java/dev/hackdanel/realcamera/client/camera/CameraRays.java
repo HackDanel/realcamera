@@ -19,6 +19,8 @@ public final class CameraRays {
     private final Entity viewer;
     private final Vec3 origin;
     private final Vec3 forward, up, right;
+    /** Axis depth is measured along: the view axis, or the level axis of a shifted lens (plane of focus stays put). */
+    private Vec3 axis;
     private final double tanH, tanV;
     private final double maxDist;
     private final List<Entity> entities;
@@ -31,6 +33,7 @@ public final class CameraRays {
         this.forward = new Vec3(f.x(), f.y(), f.z());
         this.up = new Vec3(u.x(), u.y(), u.z());
         this.right = new Vec3(-l.x(), -l.y(), -l.z());
+        this.axis = forward;
         this.tanV = Math.tan(Math.toRadians(vfovDeg) / 2);
         this.tanH = tanV * aspect;
         this.maxDist = maxDist;
@@ -44,6 +47,13 @@ public final class CameraRays {
 
     public Vec3 forward() {
         return forward;
+    }
+
+    /** The frame is rendered pitched up by {@code deg} (shifted lens): measure depth along the level axis. */
+    public CameraRays withLevelAxis(double deg) {
+        double b = Math.toRadians(deg);
+        axis = forward.scale(Math.cos(b)).subtract(up.scale(Math.sin(b))).normalize();
+        return this;
     }
 
     /** Unit direction for normalised frame coordinates u,v in [-1,1] (v up). */
@@ -74,7 +84,7 @@ public final class CameraRays {
         if (hit.getType() == HitResult.Type.MISS) {
             return Double.POSITIVE_INFINITY;
         }
-        return hit.getLocation().subtract(origin).dot(forward);
+        return hit.getLocation().subtract(origin).dot(axis);
     }
 
     /** Depth map (metres along the axis) on a gw x gh grid, row-major top-down. Sky = 10 km. */

@@ -136,8 +136,9 @@ public final class Viewfinder {
     }
 
     /** The camera meters through the lens, so a filter's light loss is already in the reading. */
+    /** What reaches the sensor: the filter's loss and, close up, the extension's (TTL metering sees both). */
     public static double meteredThroughFilter() {
-        return meteredEv - filterLossEv();
+        return meteredEv - filterLossEv() - (chain == null ? 0 : chain.bellowsLossEv(focusDistance));
     }
 
     public static double filterLossEv() {
@@ -228,7 +229,7 @@ public final class Viewfinder {
      * fisheyes, a little wider for a shifted tilt-shift lens.
      */
     public static double sensorVfov() {
-        return chain.renderVfovDeg(focal(), settings);
+        return chain.renderVfovDeg(focal(), settings, focusDistance);
     }
 
     /** Parameters the dials can select: tilt and shift only on a tilt-shift lens. */
