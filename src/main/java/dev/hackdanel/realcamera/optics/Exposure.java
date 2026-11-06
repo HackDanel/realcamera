@@ -20,8 +20,15 @@ public final class Exposure {
     }
 
     /** Limits the program can use. Index ranges refer to {@link ExposureScales}. */
+    /** autoIsoMinIdx: Auto ISO starts at the base ISO, not at an extended low setting. */
     public record Limits(int apertureWideIdx, int apertureNarrowIdx, int shutterFastIdx, int shutterSlowIdx,
-                         int isoMinIdx, int isoMaxIdx, int autoIsoMaxIdx, double handheldLimitS) {}
+                         int isoMinIdx, int isoMaxIdx, int autoIsoMaxIdx, double handheldLimitS, int autoIsoMinIdx) {
+        public Limits(int apertureWideIdx, int apertureNarrowIdx, int shutterFastIdx, int shutterSlowIdx,
+                      int isoMinIdx, int isoMaxIdx, int autoIsoMaxIdx, double handheldLimitS) {
+            this(apertureWideIdx, apertureNarrowIdx, shutterFastIdx, shutterSlowIdx, isoMinIdx, isoMaxIdx, autoIsoMaxIdx,
+                    handheldLimitS, isoMinIdx);
+        }
+    }
 
     /** Result: chosen indices plus the remaining error. delta > 0 means over-exposed by delta EV. */
     public record Result(int apertureIdx, int shutterIdx, int isoIdx, double delta) {
@@ -50,7 +57,7 @@ public final class Exposure {
     public static Result solve(int mode, double sceneEv, double evCompEv, int apertureIdx, int shutterIdx, int isoIdx,
                                Limits lim) {
         boolean autoIso = isoIdx < 0 || mode == MODE_AUTO;
-        int iso = autoIso ? lim.isoMinIdx() : clamp(isoIdx, lim.isoMinIdx(), lim.isoMaxIdx());
+        int iso = autoIso ? Math.max(lim.isoMinIdx(), lim.autoIsoMinIdx()) : clamp(isoIdx, lim.isoMinIdx(), lim.isoMaxIdx());
         double target = sceneEv - evCompEv; // EV100 the camera should be set to
         int av, tv;
         switch (mode) {
@@ -80,8 +87,8 @@ public final class Exposure {
                     iso = isoFor(target, av, tv, lim);
                 }
             }
-            default -> { // AUTO and P: program line
-                av = programAperture(target, lim);
+            default -> { // AUTO and P: program line (on the light the sensor gets: a high ISO closes the lens down)
+                av = programAperture(target + log2(ExposureScales.isoValue(iso) / 100), lim);
                 tv = shutterFor(target, av, iso, lim);
                 if (autoIso && ExposureScales.SHUTTER[tv] > lim.handheldLimitS()) {
                     int hand = clamp(ExposureScales.nearestShutter(lim.handheldLimitS()), lim.shutterFastIdx(), lim.shutterSlowIdx());

@@ -78,7 +78,7 @@ public class PrinterBlockEntity extends MachineBlockEntity {
     @Override
     protected boolean isItemValid(int slot, ItemStack stack) {
         return switch (slot) {
-            case SLOT_CARD -> stack.getItem() instanceof MemoryCardItem;
+            case SLOT_CARD -> stack.getItem() instanceof MemoryCardItem || dev.hackdanel.realcamera.camera.CameraHelper.usbCard(stack) != null;
             case SLOT_PAPER -> stack.getItem() instanceof PhotoPaperItem && !EnlargerBlockEntity.darkroomPaper(stack);
             case SLOT_OUTPUT -> false;
             default -> stack.getItem() instanceof InkCartridgeItem ink
@@ -100,7 +100,9 @@ public class PrinterBlockEntity extends MachineBlockEntity {
     }
 
     public UUID cardId() {
-        CardData d = items.getStackInSlot(SLOT_CARD).get(RCComponents.CARD.get());
+        ItemStack slot = items.getStackInSlot(SLOT_CARD);
+        ItemStack inside = dev.hackdanel.realcamera.camera.CameraHelper.usbCard(slot); // a camera over USB/PictBridge
+        CardData d = (inside != null ? inside : slot).get(RCComponents.CARD.get());
         return d == null ? null : d.id().orElse(null);
     }
 

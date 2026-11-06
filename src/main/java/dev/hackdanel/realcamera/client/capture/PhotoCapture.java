@@ -74,7 +74,7 @@ public final class PhotoCapture {
     public record Shot(dev.hackdanel.realcamera.camera.CameraRef ref, OpticalChain chain, CameraSettings settings, Exposure.Result exposure,
                        float focal, float focusDistance, double sceneEv, boolean blockLit, int frameNumber,
                        String cameraName, String lensName, double seconds, ImageParams.Motion motion,
-                       ImageParams.Sun sun, ImageParams.Extras extras, int nonce) {
+                       ImageParams.Sun sun, ImageParams.Extras extras, int nonce, double gameLight, double sceneK) {
         boolean longExposure() {
             return seconds < 0 || seconds >= LONG_EXPOSURE_S;
         }
@@ -423,9 +423,19 @@ public final class PhotoCapture {
                 debugDump(guide, depth, w, h);
             }
             float[] img = linear != null ? linear : ImagePipeline.toLinear(rgb);
+            // A correct exposure puts the metered area at middle grey, however dimly the game drew it: a moonlit
+            // field correctly exposed on a tripod looks almost like day, as on a real camera. Light grid in step.
+            float relight = (float) relight(s);
+            if (relight != 1) {
+                for (int i = 0; i < img.length; i++) img[i] *= relight;
+                if (light != null) for (int i = 0; i < light.length; i++) light[i] *= relight;
+            }
             float[] sensor = ImagePipeline.developSensor(img, depth, light, w, h, params);
             int format = film != null ? CameraSettings.FORMAT_JPEG : s.settings().fileFormat();
             float[] rawData = format != CameraSettings.FORMAT_JPEG && ClientConfig.AUTO_EXPORT.get() ? sensor.clone() : null;
+            if (film == null && s.settings().lensCorrection()) {
+                sensor = ImagePipeline.correctLens(sensor, w, h, params);
+            }
             float[] finished = ImagePipeline.finish(sensor, params);
             if (film != null) {
                 double scale = w / 2560.0;
@@ -477,6 +487,11 @@ public final class PhotoCapture {
         }
     }
 
+    /** Brightening of a dimly drawn scene (1 in daylight, up to 16x by night or in a dark cave). */
+    static double relight(Shot s) {
+        return Math.max(1, Math.min(16, 1 / Math.max(0.01, s.gameLight())));
+    }
+
     /** Exposure error, recomputed with the real time for bulb shots. */
     private static double exposureEv(Shot s, double seconds) {
         if (s.seconds() >= 0) {
@@ -491,8 +506,7 @@ public final class PhotoCapture {
         if (film != null) {
             ImageParams digital = params(s, null, null, w, h, seconds);
             // film is balanced for daylight (or tungsten for "T" stocks) and cannot auto white-balance
-            double sceneK = s.blockLit() ? 3400 : 5500;
-            double[] wb = ImagePipeline.whiteBalance(sceneK, film.name().endsWith("T") ? 3200 : 5500);
+            double[] wb = ImagePipeline.whiteBalance(s.sceneK(), film.name().endsWith("T") ? 3200 : 5500);
             var look = film.look();
             var sn = digital.sensor();
             return new ImageParams(new ImageParams.Sensor(sn.exposureEv(), 1, 0, 0, sn.resolutionScale(),
@@ -504,8 +518,10 @@ public final class PhotoCapture {
         }
         OpticalChain chain = s.chain();
         var sensor = chain.sensor();
-        double isoGain = s.exposure().iso() / Math.max(1, sensor.baseIso());
-        double sceneK = s.blockLit() ? 4200 : 5500;
+        double isoGain = s.exposure().iso() / 100.0;
+        double areaFactor = Math.sqrt(864.0 / Math.max(1, sensor.widthMm() * sensor.heightMm()));
+        double belowBase = Math.max(0, Math.log(sensor.baseIso() / s.exposure().iso()) / Math.log(2));
+        double sceneK = s.sceneK();
         double settingK = switch (s.settings().whiteBalance()) {
             case CameraSettings.WB_DAYLIGHT, CameraSettings.WB_FLASH -> 5500;
             case CameraSettings.WB_CLOUDY -> 6500;
@@ -518,9 +534,10 @@ public final class PhotoCapture {
         double[] wb = ImagePipeline.whiteBalance(sceneK, settingK);
         boolean correct = s.settings().lensCorrection();
         var optics = chain.lens().optics();
-        var lens = new ImageParams.Lens(optics.vignettingEv() * (correct ? 0.5 : 1), chain.maxApertureAt(s.focal()),
-                chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(s.focal())) * (correct ? 0.15 : 1),
-                optics.caPx() * (w / 3840.0) * (correct ? 0.2 : 1), chain.imageCircle(), optics.blades(),
+        // uncorrected optics: corrections are applied after the RAW is taken (ImagePipeline.correctLens)
+        var lens = new ImageParams.Lens(optics.vignettingEv(), chain.maxApertureAt(s.focal()),
+                chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(s.focal())),
+                optics.caPx() * (w / 3840.0), chain.imageCircle(), optics.blades(),
                 optics.rounded(), optics.flare());
         lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh()));
         int projection = chain.projection();
@@ -535,7 +552,7 @@ public final class PhotoCapture {
         var motion = new ImageParams.Motion(s.motion().blurX() * w, s.motion().blurY() * w, s.motion().rollingSkewPx() * w);
         return new ImageParams(
                 new ImageParams.Sensor(exposureEv(s, seconds), isoGain, sensor.noiseLuma(), sensor.noiseChroma(),
-                        (double) w * h / (sensor.megapixels() * 1e6), sensor.dynamicRangeEv()),
+                        (double) w * h / (sensor.megapixels() * 1e6), sensor.dynamicRangeEv(), areaFactor, belowBase),
                 new ImageParams.Focus(s.focal(), s.exposure().fNumber(), s.focusDistance(), sensor.widthMm(),
                         chain.tiltDeg(s.settings())),
                 lens, motion, s.sun(),

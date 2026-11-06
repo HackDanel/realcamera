@@ -34,7 +34,7 @@
   "af": {
     "speed": 1.5,
     "low_light_ev": -9,
-    "subject_detect": "eye"
+    "subject_detect": "vehicle"
   },
   "ibis_stops": 6.0,
   "battery_type": "realcamera:en_el18d",

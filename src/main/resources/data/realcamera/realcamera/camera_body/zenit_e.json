@@ -22,7 +22,7 @@
   "shutter": {
     "mech_min": 0.002,
     "elec_min": 0.002,
-    "max": 0.5,
+    "max": 0.03333333333333333,
     "rated_life": 50000,
     "sound": "dslr",
     "readout_ms": 0,
@@ -49,6 +49,10 @@
   },
   "film": {
     "format": "135",
-    "mechanical": true
+    "mechanical": true,
+    "modes": [
+      "m"
+    ],
+    "meter": "selenium"
   }
 }

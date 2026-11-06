@@ -82,6 +82,39 @@ class ImagePipelineTest {
     }
 
     @Test
+    void smallerSensorIsNoisierAndOverexposureIsNot() {
+        ImageParams base = ImageParams.neutral();
+        java.util.function.Function<ImageParams.Sensor, Integer> spreadOf = sn -> spread(ImagePipeline.develop(flat(48, 48, 0x555555),
+                null, 48, 48, new ImageParams(sn, base.focus(), base.lens(), base.motion(), base.sun(), base.colour(),
+                        base.extras(), base.seed())));
+        int ff = spreadOf.apply(new ImageParams.Sensor(0, 32, 1, 1, 1, 14, 1, 0));
+        int mft = spreadOf.apply(new ImageParams.Sensor(0, 32, 1, 1, 1, 14, 2, 0));
+        assertTrue(mft > ff * 1.4, "ff " + ff + " mft " + mft);
+        // a brighter exposure does not amplify the noise (expose to the right)
+        int dark = spreadOf.apply(new ImageParams.Sensor(-1, 32, 1, 1, 1, 14, 1, 0));
+        int bright = spreadOf.apply(new ImageParams.Sensor(1, 32, 1, 1, 1, 14, 1, 0));
+        assertTrue(bright < dark * 2.5, "dark " + dark + " bright " + bright);
+    }
+
+    @Test
+    void contrastCurveKeepsBlackAndWhite() {
+        for (double c : new double[]{0.8, 1.2}) {
+            assertEquals(1f, ImagePipeline.curve(1f, c, 0), 1e-3);
+            assertEquals(0f, ImagePipeline.curve(0f, c, 0), 1e-6);
+            assertEquals(0.18f, ImagePipeline.curve(0.18f, c, 0), 1e-3);
+        }
+        assertTrue(ImagePipeline.curve(0.5f, 0.8, 0) < 1 && ImagePipeline.curve(0.9f, 1.2, 0) < 1);
+    }
+
+    @Test
+    void clippedHighlightsStayWhiteUnderAnyWhiteBalance() {
+        float[] img = {2.4f, 2.4f, 2.4f}; // clipped in the sensor
+        double[] wb = ImagePipeline.whiteBalance(5500, 3200); // tungsten preset in daylight
+        ImagePipeline.whiteBalance(img, new ImageParams.Colour(wb[0], wb[1], wb[2], 1, 1, false, 1, 1, 1, 0), 2.4);
+        assertEquals(img[0], img[2], 1e-3);
+    }
+
+    @Test
     void highIsoAddsNoise() {
         ImageParams clean = ImageParams.neutral().withNoise(1, 1, 1);
         ImageParams noisy = ImageParams.neutral().withNoise(128, 1, 1);

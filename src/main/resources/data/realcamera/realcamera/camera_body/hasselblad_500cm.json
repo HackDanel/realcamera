@@ -29,7 +29,8 @@
     "burst_mech": 0.8,
     "burst_elec": 0.8,
     "buffer_shots": 1,
-    "efcs": false
+    "efcs": false,
+    "leaf": true
   },
   "af": {
     "speed": 0,
@@ -49,6 +50,10 @@
   },
   "film": {
     "format": "120",
-    "mechanical": true
+    "mechanical": true,
+    "modes": [
+      "m"
+    ],
+    "meter": "none"
   }
 }

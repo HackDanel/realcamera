@@ -40,6 +40,14 @@ public class CameraBodyItem extends Item {
     @Override
     public void inventoryTick(ItemStack stack, Level level, net.minecraft.world.entity.Entity entity, int slot, boolean selected) {
         if (level.isClientSide || level.getGameTime() % 10 != 0) return;
+        dev.hackdanel.realcamera.camera.Specs.body(level.registryAccess(), stack).filter(CameraBodySpec::internalStorage).ifPresent(b -> {
+            CameraParts parts = CameraHelper.parts(stack);
+            if (parts.card().isEmpty()) {
+                level.registryAccess().lookupOrThrow(dev.hackdanel.realcamera.registry.RCRegistries.MEMORY_CARD_TYPE).listElements()
+                        .filter(h -> b.cardForms().contains(h.value().form())).findFirst()
+                        .ifPresent(h -> CameraHelper.setParts(stack, parts.with(CameraParts.SLOT_CARD, RCStacks.card(h.key()))));
+            }
+        });
         dev.hackdanel.realcamera.camera.Specs.body(level.registryAccess(), stack).flatMap(CameraBodySpec::fixedLens).ifPresent(key -> {
             CameraParts parts = CameraHelper.parts(stack);
             if (!key.equals(parts.lens().get(RCComponents.LENS.get()))) {
@@ -103,7 +111,7 @@ public class CameraBodyItem extends Item {
         }
         int used = getUseDuration(stack, entity) - remaining;
         boolean evf = dev.hackdanel.realcamera.camera.Specs.body(level.registryAccess(), stack)
-                .map(b -> b.viewfinder().equals("evf")).orElse(true);
+                .map(b -> b.viewfinder().equals("evf") || b.viewfinder().equals("hybrid")).orElse(true);
         if (evf && used > 0 && used % EVF_DRAIN_TICKS == 0) {
             CameraHelper.drain(stack, 1);
             if (!CameraHelper.canFire(level.registryAccess(), stack)) {

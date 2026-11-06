@@ -29,7 +29,8 @@
     "burst_mech": 15,
     "burst_elec": 15,
     "buffer_shots": 30,
-    "efcs": false
+    "efcs": false,
+    "leaf": true
   },
   "af": {
     "speed": 1.0,

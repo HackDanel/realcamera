@@ -29,11 +29,12 @@
     "burst_mech": 1.5,
     "burst_elec": 1.5,
     "buffer_shots": 1,
-    "efcs": false
+    "efcs": false,
+    "leaf": true
   },
   "af": {
     "speed": 0.5,
-    "low_light_ev": 2,
+    "low_light_ev": -12,
     "subject_detect": "none"
   },
   "ibis_stops": 0,
@@ -44,12 +45,16 @@
   "color_profiles": [],
   "model": "realcamera:item/body/contax_t2",
   "flash": {
-    "built_in_gn": 0,
+    "built_in_gn": 8,
     "sync": 0.002
   },
   "film": {
     "format": "135",
-    "mechanical": false
+    "mechanical": false,
+    "modes": [
+      "p",
+      "a"
+    ]
   },
   "fixed_lens": "realcamera:contax_t2_sonnar_38"
 }

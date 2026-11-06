@@ -49,6 +49,11 @@
   },
   "film": {
     "format": "135",
-    "mechanical": false
+    "mechanical": false,
+    "modes": [
+      "p",
+      "s",
+      "m"
+    ]
   }
 }

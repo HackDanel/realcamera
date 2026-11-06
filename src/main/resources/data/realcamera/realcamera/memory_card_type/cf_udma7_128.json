@@ -1,0 +1,7 @@
+{
+  "name": "CompactFlash UDMA 7 128 GB",
+  "form": "cf",
+  "capacity_gb": 128,
+  "write_mb_s": 150,
+  "model": "realcamera:item/card/cf"
+}

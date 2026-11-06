@@ -37,7 +37,7 @@
     "subject_detect": "none"
   },
   "ibis_stops": 0,
-  "battery_type": "realcamera:sr44",
+  "battery_type": "realcamera:sr44_single",
   "battery_drain": 0.2,
   "card_forms": [],
   "weather_sealing": 0,
@@ -49,6 +49,9 @@
   },
   "film": {
     "format": "135",
-    "mechanical": true
+    "mechanical": true,
+    "modes": [
+      "m"
+    ]
   }
 }

@@ -119,7 +119,7 @@ def stage6_catalog():
         ing = [(rc("lens_element"), 3 if t["spec"]["factor"] < 1.6 else 4), (rc("magnesium_alloy"), 1), (rc("circuit_board"), 1)]
         assembly(f"tc_{t['key']}", ing, rc("teleconverter"), 1, 160, {f"{NS}:teleconverter": rc(t["key"])})
     for key, (name, cap, _, _) in C.BATTERIES.items():
-        small = cap >= 1000 and key in ("px28", "px625", "cr2_lithium")
+        small = cap >= 1000 and key in ("px28", "px625", "cr2_lithium", "sr44_single")
         ing = [(rc("battery_cell"), 1), (mc("iron_nugget"), 1)] if small else \
               [(rc("battery_cell"), 2), (rc("plastic"), 1), (rc("circuit_board"), 1)]
         charge = cap if small else cap // 2
@@ -127,6 +127,8 @@ def stage6_catalog():
                  {f"{NS}:battery_type": rc(key), f"{NS}:charge": {"charge": charge, "capacity": cap}})
     card = {"used_bytes": 0, "photo_count": 0}
     for key, (name, form, gb, speed, icon) in C.CARDS.items():
+        if form.startswith("internal"):
+            continue  # built into a body
         ing = [(rc("flash_memory"), max(2, gb // 64)), (rc("plastic"), 1), (rc("circuit_board"), 1)]
         if form == "cfexpress_b":
             ing += [(rc("processor"), 1), (rc("magnesium_alloy"), 1)]

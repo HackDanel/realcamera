@@ -705,5 +705,9 @@
   "recipe_viewer.realcamera.repair.filter": "Repair: new filter glass",
   "recipe_viewer.realcamera.process.c41": "C-41 colour negative",
   "recipe_viewer.realcamera.process.e6": "E-6 slide film",
-  "recipe_viewer.realcamera.process.bw": "Black and white"
+  "recipe_viewer.realcamera.process.bw": "Black and white",
+  "realcamera.battery_type.realcamera.lp_e6p": "Canon LP-E6P",
+  "realcamera.battery_type.realcamera.sr44_single": "SR44",
+  "realcamera.memory_card_type.realcamera.cf_udma7_128": "CompactFlash UDMA 7 128 GB",
+  "realcamera.memory_card_type.realcamera.hasselblad_x2d_ssd": "Hasselblad X2D internal SSD 1 TB"
 }

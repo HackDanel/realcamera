@@ -29,10 +29,14 @@ MOUNTS = {
     "olympus_om": ("Olympus OM", 46.0, 41.0),
     "m42": ("M42", 45.46, 42.0),
     "hasselblad_v": ("Hasselblad V", 74.9, 60.0),
-    "hasselblad_xcd": ("Hasselblad XCD", 20.5, 60.0),
+    "hasselblad_xcd": ("Hasselblad XCD", 18.14, 60.0),
     "fixed": ("—", 0.0, 0.0),  # built-in lenses of compact cameras
 }
 OLD_MOUNT_FLANGE = {"sony_e": 18.0, "canon_ef": 44.0, "nikon_f": 46.5, "leica_m": 27.8}
+
+
+# capacities of the batteries made in earlier stages (hand-written JSON)
+OLD_BATTERY_CAPACITY = {"np_fz100": 580, "en_el15c": 1230, "bp_scl7": 700, "sr44": 4000, "cr2": 1500}
 
 
 def flange(mount):
@@ -59,6 +63,8 @@ BATTERIES = {
     "px28": ("4LR44", 4000, "#9a9aa0", "#404040"),
     "px625": ("PX625", 4000, "#9a9aa0", "#404040"),
     "cr2_lithium": ("CR2", 1200, "#202020", "#e09030"),
+    "lp_e6p": ("Canon LP-E6P", 590, "#2a2a2c", "#d02020"),
+    "sr44_single": ("SR44", 2000, "#9a9aa0", "#404040"),
 }
 
 # key: (display name, form, capacity GB, write MB/s, icon model)
@@ -67,6 +73,9 @@ CARDS = {
     "sd_uhs2_256": ("SD UHS-II 256 GB", "sd", 256, 280, "sd_uhs2"),
     "cfexpress_b_256": ("CFexpress Type B 256 GB", "cfexpress_b", 256, 1500, "cfexpress_b"),
     "cfexpress_b_512": ("CFexpress Type B 512 GB", "cfexpress_b", 512, 1700, "cfexpress_b"),
+    "cf_udma7_128": ("CompactFlash UDMA 7 128 GB", "cf", 128, 150, "cf"),
+    # built into the body (Hasselblad X2D): never crafted, the body comes with it; read over USB by the computer
+    "hasselblad_x2d_ssd": ("Hasselblad X2D internal SSD 1 TB", "internal_x2d", 1024, 2000, "internal_ssd"),
 }
 
 # ----------------------------------------------------------------------------- colour profiles
@@ -102,11 +111,16 @@ F120_66 = (56.0, 56.0)
 
 
 def body(key, name, brand, make, model, tier, btype, mount, sensor, mp, iso, dr, noise, vf, shutter, af, ibis,
-         battery, cards, sealing, profiles, flash=(0, 1 / 200), film=None, fixed_lens=None, look=None, drain=1.0):
+         battery, cards, sealing, profiles, flash=(0, 1 / 200), film=None, fixed_lens=None, look=None, drain=1.0,
+         cipa=None, shutter_extra=None, film_extra=None):
     """
     sensor: (w, h); iso: (base, min, max); noise: (luma, chroma); shutter: (mech_min, elec_min, max, life, sound,
     readout_ms, burst_mech, burst_elec, buffer, efcs); af: (speed, low_light_ev, detect); look: model style/colours.
+    cipa: CIPA shots per charge (viewfinder use) -> battery_drain = battery capacity / cipa.
+    shutter_extra: e.g. {"leaf": True} or {"full_mech": False}; film_extra: {"modes": [...], "meter": "..."}.
     """
+    if cipa:
+        drain = round((BATTERIES[battery][1] if battery in BATTERIES else OLD_BATTERY_CAPACITY[battery]) / cipa, 3)
     mech, elec, slow, life, sound, readout, bm, be, buf, efcs = shutter
     spec = {
         "info": {"brand": brand, "exif_make": make, "exif_model": model, "tier": tier, "type": btype},
@@ -127,8 +141,12 @@ def body(key, name, brand, make, model, tier, btype, mount, sensor, mp, iso, dr,
         "model": rc(f"item/body/{key}"),
         "flash": {"built_in_gn": flash[0], "sync": flash[1]},
     }
+    if shutter_extra:
+        spec["shutter"].update(shutter_extra)
     if film:
         spec["film"] = {"format": film[0], "mechanical": film[1]}
+        if film_extra:
+            spec["film"].update(film_extra)
     if fixed_lens:
         spec["fixed_lens"] = rc(fixed_lens)
     return {"key": key, "name": name, "spec": spec, "tier": tier, "look": look or {}}
@@ -152,140 +170,140 @@ BODIES = [
     body("sony_zv_e10", "Sony ZV-E10", "Sony", "SONY", "ZV-E10", "entry", "mirrorless", "sony_e", APSC, 24.2,
          (100, 100, 32000), 13.0, (1.15, 1.1), "none", (S4000, S4000, 30, 100000, MIRRORLESS, 50, 11, 11, 116, True),
          (0.9, -3, "eye"), 0, "np_fw50", ["sd"], 0, "sony", (0, 1 / 160),
-         look=look("flat", "SONY", (210, 60, 40), "ZV")),
+         look=look("flat", "SONY", (210, 60, 40), "ZV"), cipa=440),
     body("sony_a6400", "Sony α6400", "Sony", "SONY", "ILCE-6400", "mid", "mirrorless", "sony_e", APSC, 24.2,
          (100, 100, 32000), 13.5, (1.1, 1.05), "evf", (S4000, S4000, 30, 200000, MIRRORLESS, 45, 11, 8, 99, True),
          (1.0, -2, "eye"), 0, "np_fw50", ["sd"], 1, "sony", (6, 1 / 160),
-         look=look("flat", "SONY", (210, 60, 40), "6400")),
+         look=look("flat", "SONY", (210, 60, 40), "6400"), cipa=360),
     body("sony_a7rv", "Sony α7R V", "Sony", "SONY", "ILCE-7RM5", "pro", "mirrorless", "sony_e", (35.7, 23.8), 61.0,
          (100, 100, 32000), 15.0, (1.1, 1.05), "evf", (S8000, S8000, 30, 500000, MIRRORLESS, 100, 10, 7, 583, True),
          (1.1, -4, "eye"), 8.0, "np_fz100", ["sd", "cfexpress_a"], 1, "sony", (0, 1 / 250),
-         look=look(MIRRORLESS, "SONY", (210, 60, 40), "7RV")),
+         look=look(MIRRORLESS, "SONY", (210, 60, 40), "7RV"), cipa=440),
     body("sony_a1ii", "Sony α1 II", "Sony", "SONY", "ILCE-1M2", "flagship", "mirrorless", "sony_e", (35.9, 24.0), 50.1,
          (100, 100, 32000), 15.0, (1.0, 1.0), "evf", (S8000, 1 / 32000, 30, 500000, MIRRORLESS, 4, 10, 30, 1000, True),
-         (1.4, -4, "eye"), 8.5, "np_fz100", ["sd", "cfexpress_a"], 2, "sony", (0, 1 / 400),
-         look=look(MIRRORLESS, "SONY", (232, 118, 30), "α1II")),
+         (1.4, -4, "vehicle"), 8.5, "np_fz100", ["sd", "cfexpress_a"], 2, "sony", (0, 1 / 400),
+         look=look(MIRRORLESS, "SONY", (232, 118, 30), "α1II"), cipa=420),
     # ---------------------------------------------------------------- Nikon
     body("nikon_d3500", "Nikon D3500", "Nikon", "NIKON CORPORATION", "NIKON D3500", "entry", "dslr", "nikon_f", APSC, 24.2,
          (100, 100, 25600), 13.5, (1.15, 1.1), "ovf", (S4000, S4000, 30, 100000, "dslr", 0, 5, 5, 100, False),
          (0.75, -0.5, "none"), 0, "en_el14a", ["sd"], 0, "nikon", (12, 1 / 200),
-         look=look("dslr", "NIKON", (200, 40, 30), "D3500")),
+         look=look("dslr", "NIKON", (200, 40, 30), "D3500"), cipa=1550),
     body("nikon_z50ii", "Nikon Z50II", "Nikon", "NIKON CORPORATION", "NIKON Z50_2", "entry", "mirrorless", "nikon_z", APSC, 20.9,
          (100, 100, 51200), 13.0, (1.1, 1.05), "evf", (S4000, S4000, 30, 150000, MIRRORLESS, 40, 11, 30, 100, True),
          (1.0, -7, "eye"), 0, "en_el25", ["sd"], 1, "nikon", (7, 1 / 200),
-         look=look(MIRRORLESS, "NIKON", (230, 190, 40), "Z50II")),
+         look=look(MIRRORLESS, "NIKON", (230, 190, 40), "Z50II"), cipa=250),
     body("nikon_z6iii", "Nikon Z6III", "Nikon", "NIKON CORPORATION", "NIKON Z6_3", "mid", "mirrorless", "nikon_z", FF, 24.5,
-         (100, 100, 64000), 14.5, (0.95, 0.95), "evf", (S8000, 1 / 16000, 900, 200000, MIRRORLESS, 14, 14, 20, 200, True),
+         (100, 100, 64000), 13.8, (0.95, 0.95), "evf", (S8000, 1 / 16000, 900, 200000, MIRRORLESS, 14, 14, 20, 200, True),
          (1.2, -10, "eye"), 8.0, "en_el15c", ["sd", "cfexpress_b"], 2, "nikon", (0, 1 / 200),
-         look=look(MIRRORLESS, "NIKON", (230, 190, 40), "Z6III")),
+         look=look(MIRRORLESS, "NIKON", (230, 190, 40), "Z6III"), cipa=360),
     body("nikon_zf", "Nikon Zf", "Nikon", "NIKON CORPORATION", "NIKON Z f", "mid", "mirrorless", "nikon_z", FF, 24.5,
          (100, 100, 64000), 14.5, (0.95, 0.95), "evf", (S8000, S8000, 900, 200000, MIRRORLESS, 50, 7.8, 14, 100, True),
          (1.1, -10, "eye"), 8.0, "en_el15c", ["sd"], 1, "nikon", (0, 1 / 200),
-         look=look("retro", "Nikon", (230, 190, 40), "Zf", top=SILVER)),
+         look=look("retro", "Nikon", (230, 190, 40), "Zf", top=SILVER), cipa=360),
     body("nikon_z8", "Nikon Z8", "Nikon", "NIKON CORPORATION", "NIKON Z 8", "pro", "mirrorless", "nikon_z", FF, 45.7,
          (64, 64, 25600), 14.5, (1.0, 1.0), "evf", (0, 1 / 32000, 900, 0, MIRRORLESS, 4, 20, 20, 1000, False),
-         (1.4, -9, "eye"), 6.0, "en_el15c", ["sd", "cfexpress_b"], 2, "nikon", (0, 1 / 200),
-         look=look(MIRRORLESS, "NIKON", (230, 190, 40), "Z8")),
+         (1.4, -9, "vehicle"), 6.0, "en_el15c", ["sd", "cfexpress_b"], 2, "nikon", (0, 1 / 200),
+         look=look(MIRRORLESS, "NIKON", (230, 190, 40), "Z8"), cipa=330),
     body("nikon_z9", "Nikon Z9", "Nikon", "NIKON CORPORATION", "NIKON Z 9", "flagship", "mirrorless", "nikon_z", FF, 45.7,
          (64, 64, 25600), 14.5, (1.0, 1.0), "evf", (0, 1 / 32000, 900, 0, MIRRORLESS, 4, 20, 30, 1000, False),
-         (1.5, -9, "eye"), 6.0, "en_el18d", ["cfexpress_b"], 2, "nikon", (0, 1 / 200),
-         look=look("pro", "NIKON", (230, 190, 40), "Z9")),
+         (1.5, -9, "vehicle"), 6.0, "en_el18d", ["cfexpress_b"], 2, "nikon", (0, 1 / 200),
+         look=look("pro", "NIKON", (230, 190, 40), "Z9"), cipa=740),
     # ---------------------------------------------------------------- Canon
     body("canon_eos_250d", "Canon EOS 250D", "Canon", "Canon", "Canon EOS 250D", "entry", "dslr", "canon_ef", APSC_CANON, 24.1,
          (100, 100, 25600), 12.5, (1.2, 1.15), "ovf", (S4000, S4000, 30, 100000, "dslr", 0, 5, 5, 40, False),
          (0.75, -0.5, "none"), 0, "lp_e17", ["sd"], 0, "canon", (9.8, 1 / 200),
-         look=look("dslr", "Canon", (200, 30, 30), "250D")),
+         look=look("dslr", "Canon", (200, 30, 30), "250D"), cipa=1070),
     body("canon_eos_5d4", "Canon EOS 5D Mark IV", "Canon", "Canon", "Canon EOS 5D Mark IV", "pro", "dslr", "canon_ef", (36.0, 24.0), 30.4,
          (100, 100, 32000), 13.6, (1.0, 1.0), "ovf", (S8000, S8000, 30, 150000, "dslr", 0, 7, 7, 21, False),
-         (1.0, -3, "face"), 0, "lp_e6nh", ["sd"], 2, "canon", (0, 1 / 200),
-         look=look("dslr", "Canon", (200, 30, 30), "5D IV")),
+         (1.0, -3, "face"), 0, "lp_e6nh", ["cf", "sd"], 2, "canon", (0, 1 / 200),
+         look=look("dslr", "Canon", (200, 30, 30), "5D IV"), cipa=900),
     body("canon_eos_r50", "Canon EOS R50", "Canon", "Canon", "Canon EOS R50", "entry", "mirrorless", "canon_rf", APSC_CANON, 24.2,
-         (100, 100, 32000), 12.5, (1.15, 1.1), "evf", (S4000, S4000, 30, 100000, MIRRORLESS, 40, 12, 15, 28, True),
+         (100, 100, 32000), 12.5, (1.15, 1.1), "evf", (S4000, S8000, 30, 100000, MIRRORLESS, 40, 12, 15, 28, True),
          (1.0, -4, "eye"), 0, "lp_e17", ["sd"], 0, "canon", (7, 1 / 200),
-         look=look(MIRRORLESS, "Canon", (200, 30, 30), "R50")),
+         look=look(MIRRORLESS, "Canon", (200, 30, 30), "R50"), cipa=230, shutter_extra={"full_mech": False}),
     body("canon_eos_r8", "Canon EOS R8", "Canon", "Canon", "Canon EOS R8", "mid", "mirrorless", "canon_rf", (35.9, 23.9), 24.2,
-         (100, 100, 102400), 14.0, (0.95, 0.95), "evf", (S4000, S4000, 30, 200000, MIRRORLESS, 25, 6, 40, 56, True),
+         (100, 100, 102400), 14.0, (0.95, 0.95), "evf", (S4000, 1 / 16000, 30, 200000, MIRRORLESS, 25, 6, 40, 56, True),
          (1.1, -6.5, "eye"), 0, "lp_e17", ["sd"], 1, "canon", (0, 1 / 180),
-         look=look(MIRRORLESS, "Canon", (200, 30, 30), "R8")),
+         look=look(MIRRORLESS, "Canon", (200, 30, 30), "R8"), cipa=220, shutter_extra={"full_mech": False}),
     body("canon_eos_r6ii", "Canon EOS R6 Mark II", "Canon", "Canon", "Canon EOS R6m2", "mid", "mirrorless", "canon_rf", (35.9, 23.9), 24.2,
          (100, 100, 102400), 14.5, (0.92, 0.92), "evf", (S8000, 1 / 16000, 30, 300000, MIRRORLESS, 20, 12, 40, 140, True),
          (1.2, -6.5, "eye"), 8.0, "lp_e6nh", ["sd"], 1, "canon", (0, 1 / 250),
-         look=look(MIRRORLESS, "Canon", (200, 30, 30), "R6 II")),
+         look=look(MIRRORLESS, "Canon", (200, 30, 30), "R6 II"), cipa=360),
     body("canon_eos_r5ii", "Canon EOS R5 Mark II", "Canon", "Canon", "Canon EOS R5m2", "pro", "mirrorless", "canon_rf", (36.0, 24.0), 45.0,
          (100, 100, 51200), 14.5, (1.0, 1.0), "evf", (S8000, 1 / 32000, 30, 500000, MIRRORLESS, 6, 12, 30, 230, True),
-         (1.4, -7.5, "eye"), 8.5, "lp_e6nh", ["sd", "cfexpress_b"], 2, "canon", (0, 1 / 250),
-         look=look(MIRRORLESS, "Canon", (200, 30, 30), "R5 II")),
+         (1.4, -7.5, "vehicle"), 8.5, "lp_e6p", ["sd", "cfexpress_b"], 2, "canon", (0, 1 / 250),
+         look=look(MIRRORLESS, "Canon", (200, 30, 30), "R5 II"), cipa=340),
     body("canon_eos_r1", "Canon EOS R1", "Canon", "Canon", "Canon EOS R1", "flagship", "mirrorless", "canon_rf", (36.0, 24.0), 24.2,
          (100, 100, 102400), 15.0, (0.9, 0.9), "evf", (S8000, 1 / 64000, 30, 500000, MIRRORLESS, 5, 12, 40, 1000, True),
-         (1.6, -7.5, "eye"), 8.5, "lp_e19", ["cfexpress_b"], 2, "canon", (0, 1 / 250),
-         look=look("pro", "Canon", (200, 30, 30), "R1")),
+         (1.6, -7.5, "vehicle"), 8.5, "lp_e19", ["cfexpress_b"], 2, "canon", (0, 1 / 250),
+         look=look("pro", "Canon", (200, 30, 30), "R1"), cipa=700),
     # ---------------------------------------------------------------- Fujifilm
     body("fuji_xt30ii", "Fujifilm X-T30 II", "Fujifilm", "FUJIFILM", "X-T30 II", "entry", "mirrorless", "fuji_x", APSC, 26.1,
          (160, 160, 12800), 13.0, (1.1, 1.0), "evf", (S4000, 1 / 32000, 900, 100000, MIRRORLESS, 50, 8, 20, 90, False),
          (0.95, -7, "face"), 0, "np_w126s", ["sd"], 0, "fuji", (7, 1 / 180),
-         look=look("retro", "FUJIFILM", (120, 120, 124), "X-T30", top=SILVER)),
+         look=look("retro", "FUJIFILM", (120, 120, 124), "X-T30", top=SILVER), cipa=390),
     body("fuji_xs20", "Fujifilm X-S20", "Fujifilm", "FUJIFILM", "X-S20", "mid", "mirrorless", "fuji_x", APSC, 26.1,
          (160, 160, 12800), 13.0, (1.05, 1.0), "evf", (S4000, 1 / 32000, 900, 150000, MIRRORLESS, 40, 8, 30, 120, True),
          (1.05, -7, "animal"), 7.0, "np_w235", ["sd"], 0, "fuji", (7, 1 / 180),
-         look=look(MIRRORLESS, "FUJIFILM", (120, 120, 124), "X-S20")),
+         look=look(MIRRORLESS, "FUJIFILM", (120, 120, 124), "X-S20"), cipa=750),
     body("fuji_xt5", "Fujifilm X-T5", "Fujifilm", "FUJIFILM", "X-T5", "mid", "mirrorless", "fuji_x", APSC, 40.2,
          (125, 125, 12800), 13.5, (1.1, 1.0), "evf", (S8000, 1 / 180000, 900, 500000, MIRRORLESS, 60, 15, 20, 110, True),
          (1.05, -7, "animal"), 7.0, "np_w235", ["sd"], 1, "fuji", (0, 1 / 250),
-         look=look("retro", "FUJIFILM", (120, 120, 124), "X-T5", top=SILVER)),
+         look=look("retro", "FUJIFILM", (120, 120, 124), "X-T5", top=SILVER), cipa=580),
     body("fuji_xh2s", "Fujifilm X-H2S", "Fujifilm", "FUJIFILM", "X-H2S", "pro", "mirrorless", "fuji_x", APSC, 26.1,
-         (160, 160, 12800), 13.5, (1.05, 1.0), "evf", (S8000, 1 / 32000, 900, 500000, MIRRORLESS, 6, 15, 40, 1000, True),
-         (1.3, -7, "bird"), 7.0, "np_w235", ["sd", "cfexpress_b"], 2, "fuji", (0, 1 / 250),
-         look=look(MIRRORLESS, "FUJIFILM", (120, 120, 124), "X-H2S")),
+         (160, 160, 12800), 12.5, (1.05, 1.0), "evf", (S8000, 1 / 32000, 900, 500000, MIRRORLESS, 6, 15, 40, 1000, True),
+         (1.3, -7, "vehicle"), 7.0, "np_w235", ["sd", "cfexpress_b"], 2, "fuji", (0, 1 / 250),
+         look=look(MIRRORLESS, "FUJIFILM", (120, 120, 124), "X-H2S"), cipa=580),
     body("fuji_x100vi", "Fujifilm X100VI", "Fujifilm", "FUJIFILM", "X100VI", "pro", "fixed_lens", "fixed", APSC, 40.2,
-         (125, 125, 12800), 13.5, (1.1, 1.0), "evf", (S4000, 1 / 32000, 900, 300000, "leaf", 60, 11, 20, 60, False),
+         (125, 125, 12800), 13.5, (1.1, 1.0), "hybrid", (S4000, 1 / 32000, 900, 300000, "leaf", 60, 11, 20, 60, False),
          (0.95, -5, "animal"), 6.0, "np_w126s", ["sd"], 0, "fuji", (4.4, S4000),
-         fixed_lens="fuji_x100vi_23", look=look("compact", "FUJIFILM", (120, 120, 124), "X100VI", top=SILVER)),
+         fixed_lens="fuji_x100vi_23", look=look("compact", "FUJIFILM", (120, 120, 124), "X100VI", top=SILVER), cipa=310, shutter_extra={"leaf": True}),
     body("fuji_gfx100ii", "Fujifilm GFX100 II", "Fujifilm", "FUJIFILM", "GFX100 II", "flagship", "medium_format", "fuji_g", MF, 102.0,
          (80, 80, 12800), 15.5, (0.95, 0.95), "evf", (S4000, 1 / 16000, 3600, 300000, MIRRORLESS, 120, 8, 8, 300, True),
          (1.0, -5.5, "animal"), 8.0, "np_t125", ["sd", "cfexpress_b"], 2, "fuji", (0, 1 / 125),
-         look=look("big", "FUJIFILM", (120, 120, 124), "GFX")),
+         look=look("big", "FUJIFILM", (120, 120, 124), "GFX"), cipa=540),
     # ---------------------------------------------------------------- others
     body("panasonic_s5ii", "Panasonic Lumix S5II", "Panasonic", "Panasonic", "DC-S5M2", "mid", "mirrorless", "l_mount", FF, 24.2,
          (100, 100, 51200), 14.0, (1.0, 1.0), "evf", (S8000, 1 / 8000, 1800, 200000, MIRRORLESS, 25, 9, 30, 300, True),
          (1.0, -6, "animal"), 6.5, "dmw_blk22", ["sd"], 1, "panasonic", (0, 1 / 250),
-         look=look(MIRRORLESS, "LUMIX", (200, 30, 30), "S5II")),
+         look=look(MIRRORLESS, "LUMIX", (200, 30, 30), "S5II"), cipa=370),
     body("leica_q3", "Leica Q3", "Leica", "LEICA CAMERA AG", "LEICA Q3", "flagship", "fixed_lens", "fixed", FF, 60.3,
          (100, 50, 100000), 15.0, (1.05, 1.0), "evf", (1 / 2000, 1 / 16000, 120, 200000, "leaf", 90, 15, 15, 30, False),
          (1.0, -6, "face"), 0, "bp_scl6", ["sd"], 1, "leica", (0, 1 / 2000),
-         fixed_lens="leica_q3_28", look=look("compact", "LEICA", (210, 30, 30), "Q3", top=BLACK)),
+         fixed_lens="leica_q3_28", look=look("compact", "LEICA", (210, 30, 30), "Q3", top=BLACK), cipa=350, shutter_extra={"leaf": True}),
     body("om_om1ii", "OM System OM-1 Mark II", "OM System", "OM Digital Solutions", "OM-1MarkII", "pro", "mirrorless", "mft", MFT, 20.4,
          (200, 80, 102400), 12.5, (1.25, 1.2), "evf", (S8000, 1 / 32000, 60, 400000, MIRRORLESS, 4, 10, 120, 256, True),
-         (1.3, -5.5, "bird"), 8.5, "blx_1", ["sd"], 2, "om", (0, 1 / 250),
-         look=look(MIRRORLESS, "OM", (40, 120, 200), "OM-1")),
+         (1.3, -5.5, "vehicle"), 8.5, "blx_1", ["sd"], 2, "om", (0, 1 / 250),
+         look=look(MIRRORLESS, "OM", (40, 120, 200), "OM-1"), cipa=500),
     body("hasselblad_x2d", "Hasselblad X2D 100C", "Hasselblad", "Hasselblad", "X2D 100C", "flagship", "medium_format", "hasselblad_xcd", MF, 100.0,
          (64, 64, 25600), 15.0, (0.95, 0.95), "evf", (1 / 2000, 1 / 6000, 3600, 200000, "leaf", 150, 3.3, 3.3, 40, False),
-         (0.8, -4, "none"), 7.0, "hasselblad_x2d_battery", ["cfexpress_b"], 1, "hasselblad", (0, 1 / 2000),
-         look=look("big", "HASSELBLAD", (200, 200, 205), "X2D", top=(120, 120, 124), body_c=(110, 110, 114))),
+         (0.8, -4, "none"), 7.0, "hasselblad_x2d_battery", ["internal_x2d"], 1, "hasselblad", (0, 1 / 2000),
+         look=look("big", "HASSELBLAD", (200, 200, 205), "X2D", top=(120, 120, 124), body_c=(110, 110, 114)), cipa=420, shutter_extra={"leaf": True}),
     # ---------------------------------------------------------------- film
     body("canon_ae1p", "Canon AE-1 Program", "Canon", "Canon", "AE-1 PROGRAM", "entry", "film_slr", "canon_fd", F135, 24.0,
          (100, 12, 3200), 12.0, (0, 0), "ovf", (1 / 1000, 1 / 1000, 2, 100000, "dslr", 0, 1.5, 1.5, 1, False),
          (0, 99, "none"), 0, "px28", [], 0, "", (0, 1 / 60), film=("135", False), drain=0.3,
-         look=look("retro_slr", "Canon", (200, 30, 30), "AE-1", top=SILVER)),
+         look=look("retro_slr", "Canon", (200, 30, 30), "AE-1", top=SILVER), film_extra={"modes": ["p", "s", "m"]}),
     body("pentax_k1000", "Pentax K1000", "Pentax", "ASAHI OPT. CO.", "K1000", "entry", "film_slr", "pentax_k", F135, 24.0,
          (100, 20, 3200), 12.0, (0, 0), "ovf", (1 / 1000, 1 / 1000, 1, 100000, "dslr", 0, 1.5, 1.5, 1, False),
-         (0, 99, "none"), 0, "sr44", [], 0, "", (0, 1 / 60), film=("135", True), drain=0.2,
-         look=look("retro_slr", "ASAHI", (40, 40, 40), "K1000", top=SILVER)),
+         (0, 99, "none"), 0, "sr44_single", [], 0, "", (0, 1 / 60), film=("135", True), drain=0.2,
+         look=look("retro_slr", "ASAHI", (40, 40, 40), "K1000", top=SILVER), film_extra={"modes": ["m"]}),
     body("olympus_om1", "Olympus OM-1", "Olympus", "OLYMPUS", "OM-1", "mid", "film_slr", "olympus_om", F135, 24.0,
          (100, 25, 1600), 12.0, (0, 0), "ovf", (1 / 1000, 1 / 1000, 1, 100000, "dslr", 0, 1.5, 1.5, 1, False),
          (0, 99, "none"), 0, "px625", [], 0, "", (0, 1 / 60), film=("135", True), drain=0.2,
-         look=look("retro_slr", "OLYMPUS", (40, 40, 40), "OM-1", top=SILVER)),
+         look=look("retro_slr", "OLYMPUS", (40, 40, 40), "OM-1", top=SILVER), film_extra={"modes": ["m"]}),
     body("zenit_e", "Zenit-E", "KMZ", "KMZ", "ZENIT-E", "entry", "film_slr", "m42", F135, 24.0,
-         (100, 16, 500), 12.0, (0, 0), "ovf", (1 / 500, 1 / 500, 0.5, 50000, "dslr", 0, 1, 1, 1, False),
+         (100, 16, 500), 12.0, (0, 0), "ovf", (1 / 500, 1 / 500, 1 / 30, 50000, "dslr", 0, 1, 1, 1, False),
          (0, 99, "none"), 0, "sr44", [], 0, "", (0, 1 / 30), film=("135", True), drain=0.0,
-         look=look("retro_slr", "ZENIT", (200, 30, 30), "E", top=SILVER)),
+         look=look("retro_slr", "ZENIT", (200, 30, 30), "E", top=SILVER), film_extra={"modes": ["m"], "meter": "selenium"}),
     body("hasselblad_500cm", "Hasselblad 500C/M", "Hasselblad", "Hasselblad", "500C/M", "flagship", "film_medium_format", "hasselblad_v",
          F120_66, 50.0, (100, 25, 3200), 12.5, (0, 0), "ovf", (1 / 500, 1 / 500, 1, 100000, "leaf", 0, 0.8, 0.8, 1, False),
          (0, 99, "none"), 0, "sr44", [], 0, "", (0, 1 / 500), film=("120", True), drain=0.0,
-         look=look("medium_box", "HASSELBLAD", (200, 200, 205), "500", top=SILVER)),
+         look=look("medium_box", "HASSELBLAD", (200, 200, 205), "500", top=SILVER), shutter_extra={"leaf": True}, film_extra={"modes": ["m"], "meter": "none"}),
     body("contax_t2", "Contax T2", "Contax", "KYOCERA", "CONTAX T2", "pro", "film_compact", "fixed", F135, 24.0,
          (100, 25, 5000), 12.0, (0, 0), "ovf", (1 / 500, 1 / 500, 8, 50000, "leaf", 0, 1.5, 1.5, 1, False),
-         (0.5, 2, "none"), 0, "cr2_lithium", [], 0, "", (0, 1 / 500), film=("135", False), drain=0.5,
-         fixed_lens="contax_t2_sonnar_38", look=look("compact", "CONTAX", (200, 160, 60), "T2", top=TITAN, body_c=TITAN)),
+         (0.5, -12, "none"), 0, "cr2_lithium", [], 0, "", (8, 1 / 500), film=("135", False), drain=0.5,
+         fixed_lens="contax_t2_sonnar_38", look=look("compact", "CONTAX", (200, 160, 60), "T2", top=TITAN, body_c=TITAN), shutter_extra={"leaf": True}, film_extra={"modes": ["p", "a"]}),
 ]
 
 # ----------------------------------------------------------------------------- lenses
@@ -443,7 +461,7 @@ LENSES = [
     lens("fuji_x100vi_23", "Fujinon 23mm F2", "Fujifilm", "23mmF2", "fixed", "apsc", (23, 23), (2.0, 2.0), 16, 0.1,
          L, 0.9, 0, 9, 1.0, 1.0, (-0.01, -0.01), 0.9, 0.45, 49, (24, 52), look="silver"),
     lens("leica_q3_28", "Leica Summilux 28mm f/1.7 ASPH.", "Leica", "SUMMILUX 1:1.7/28 ASPH.", "fixed", "ff", (28, 28), (1.7, 1.7), 16, 0.17,
-         L, 1.0, 0, 9, 1.4, 1.15, (-0.02, -0.02), 0.8, 0.4, 49, (40, 62), look="black"),
+         L, 1.0, 2.0, 9, 1.4, 1.15, (-0.02, -0.02), 0.8, 0.4, 49, (40, 62), look="black"),  # Q3 has OIS
     lens("contax_t2_sonnar_38", "Carl Zeiss Sonnar 38mm f/2.8 T*", "Zeiss", "Sonnar 2.8/38 T*", "fixed", "ff", (38, 38), (2.8, 2.8), 16, 0.7,
          "slow", 0.6, 0, 6, 1.2, 1.05, (-0.01, -0.01), 0.9, 0.45, 0, (16, 40), look="titanium"),
 ]

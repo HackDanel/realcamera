@@ -1,0 +1,70 @@
+# Outside review (2026-11-06): fixes checklist
+
+Four read-only reviewers (exposure/sensor, optics, camera mechanics + catalog, film + gameplay). The owner asked
+to fix everything that is confirmed. `[x]` = done, `[-]` = declined (reason given).
+
+## A. Camera mechanics and catalog
+- [x] A1 Flash with electronic shutter: allowed on fast-readout bodies (readout ≤ 8 ms), sync = max(readout·1.2, 1/250)
+- [x] A2 Leaf shutter is an explicit `leaf` flag (M6/M11 are focal-plane: sync 1/50, 1/180)
+- [x] A3 Battery drain fractional (stochastic rounding); per-body drain = battery capacity / CIPA
+- [x] A4 Film bodies: allowed exposure modes + meter type (battery/selenium/none); meter off when battery flat
+- [x] A5 Allowed shutter types per body (no e-shutter on DSLR/film; efcs flag; R8/R50 no full mechanical)
+- [x] A6 Camera buffer depth + card write speed drive burst slowdown
+- [x] A7 Flash in Auto/P/A caps the shutter at sync speed (no band); band only when forced in S/M
+- [x] A8 Sealing 2 still drowns, just slower
+- [x] A9 Low-light AF threshold rises with slow lenses; DSLR phase AF limit f/8 (entry f/5.6)
+- [x] A10 Jammed shutter blocks all firing; small failure chance before rated life
+- [x] A11 Catalog: Zenit-E slowest 1/30; EOS-1V 3.5 fps; R8 e-shutter 1/16000, R50 1/8000; 5D IV CF+SD;
+      X2D internal 1 TB SSD; XCD flange 18.14; Q3 OIS; bird detection on A1 II/Z8/Z9/R1/R5 II; Canon APS-C crop 1.6;
+      X100VI hybrid finder; T2 flash GN + IR AF; R5 II LP-E6P; K1000 one SR44
+
+## B. Exposure and sensor
+- [x] B1 Correct exposure renders mid-grey: dark game frames are relit by the game light curve (night photos).
+      Global factor from the metered area; per-pixel relighting (sunlit background blown out when metering for
+      shade) is not done: the light grid is too coarse and would leave halos.
+- [x] B2 Noise: gain ISO/100, scaled by sensor area (FF cleaner than APS-C/MFT)
+- [x] B3 Overexposure does not add noise
+- [x] B4 White balance before highlight roll-off, multipliers ≥ 1
+- [x] B5 Contrast as an S-curve with fixed endpoints
+- [x] B6 DR: fixed raw headroom (~1.2 EV), read noise scales with 2^-DR
+- [x] B7 Real night/twilight/rain EV (no brightness toggle: night now needs a tripod or a high ISO, as in reality)
+- [x] B8 Reflected metering: bright/dark subjects fool the meter
+- [x] B9 Scene colour temperature: torch ~1900 K, sun height, overcast, shade
+- [x] B10 Program line depends on ISO
+- [x] B11 Auto ISO floor = base ISO; below-base ISO loses headroom
+- [x] B12 DR values: X-H2S below X-S20/X-T30 II; Z6III below Zf
+- [x] B13 Classic Chrome neutral whites (selective hue instead of global tint)
+- [x] B14 RAW without lens corrections
+
+## C. Optics
+- [ ] C1 Max magnification per lens (catalog), magnification() capped by spec, not 1:1 at 4f
+- [ ] C2 Blur cap w/40 → ~w/8
+- [ ] C3 Macro: FOV narrows with magnification, DoF from lens-to-subject distance, bellows factor
+- [ ] C4 Shifted lens: depth along the level axis (focus plane parallel to sensor)
+- [ ] C5 Vignetting/distortion/CA scaled by sensor diagonal / image circle
+- [ ] C6 Bokeh: round wide open; cat's eye and swirl fade when stopped down
+- [ ] C7 Diffraction blur and corner softness wide open
+- [ ] C8 Residual vignetting for wide lenses when stopped down
+- [ ] C9 (=A11) XCD flange; Canon APS-C 1.6
+- [ ] C10 Fisheye: do not compress the centre
+- [ ] C11 Bokeh discs: subtract gathered highlight energy
+- [ ] C12 Variable-aperture zooms step in 1/3 stops
+- [ ] C13 Hand shake as a short random walk
+
+## D. Film and gameplay
+- [ ] D1 Newspaper orders: no reselling the same photo, author only, no fogged/ink-starved prints
+- [ ] D2 Negative film latitude (C-41/B&W normalised within latitude; slide 1:1); score tolerance per stock
+- [ ] D3 Push/pull: rate film at a different ISO; push compensates
+- [ ] D4 Stars: landscapes need focus; subject scoring only for subjects ≥ ~2% of frame
+- [ ] D5 Telephoto advancement: subjects within the client's entity render distance
+- [ ] D6 Server re-checks client-reported values against camera limits / honest javadoc
+- [ ] D7 Biome at the focus point, not where the photographer stands
+- [ ] D8 Lightning during long exposures counts
+- [ ] D9 Medium-format grain finer
+- [ ] D10 Offline photographer: queue photoStored on development
+- [ ] D11 Reciprocity failure for film
+- [ ] D12 Light leaks fade over the last frames; 120 needs no rewind
+- [ ] D13 RA-4 paper needs full darkness
+- [ ] D14 Printing uses paper chemistry; slides on negative paper
+- [ ] D15 film_developed counted on finish; removing the roll mid-process fogs it
+- [ ] D16 CineStill tint_b

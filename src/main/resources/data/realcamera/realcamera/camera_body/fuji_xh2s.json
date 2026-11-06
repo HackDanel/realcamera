@@ -14,7 +14,7 @@
     "base_iso": 160,
     "iso_min": 160,
     "iso_max": 12800,
-    "dynamic_range_ev": 13.5,
+    "dynamic_range_ev": 12.5,
     "noise_luma": 1.05,
     "noise_chroma": 1.0
   },
@@ -34,7 +34,7 @@
   "af": {
     "speed": 1.3,
     "low_light_ev": -7,
-    "subject_detect": "bird"
+    "subject_detect": "vehicle"
   },
   "ibis_stops": 7.0,
   "battery_type": "realcamera:np_w235",

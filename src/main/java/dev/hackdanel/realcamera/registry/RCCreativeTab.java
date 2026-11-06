@@ -43,6 +43,7 @@ public final class RCCreativeTab {
                 r.lookup(RCRegistries.BATTERY_TYPE).ifPresent(l -> l.listElements()
                         .forEach(h -> out.accept(RCStacks.battery(h.key(), h.value(), true))));
                 r.lookup(RCRegistries.MEMORY_CARD_TYPE).ifPresent(l -> l.listElements()
+                        .filter(h -> !h.value().form().startsWith("internal")) // comes built into its body
                         .forEach(h -> out.accept(RCStacks.card(h.key()))));
                 out.accept(RCItems.ASSEMBLY_STATION.get());
                 out.accept(RCItems.BATTERY_CHARGER.get());

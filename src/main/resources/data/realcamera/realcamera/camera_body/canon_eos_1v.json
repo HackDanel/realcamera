@@ -26,8 +26,8 @@
     "rated_life": 150000,
     "sound": "dslr",
     "readout_ms": 0,
-    "burst_mech": 10.0,
-    "burst_elec": 10.0,
+    "burst_mech": 3.5,
+    "burst_elec": 3.5,
     "buffer_shots": 36,
     "efcs": false
   },
@@ -49,6 +49,12 @@
   },
   "film": {
     "format": "135",
-    "mechanical": false
+    "mechanical": false,
+    "modes": [
+      "p",
+      "a",
+      "s",
+      "m"
+    ]
   }
 }

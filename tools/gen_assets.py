@@ -1334,6 +1334,8 @@ def stage6_assets():
     for key, (_, _, body_c, stripe) in C.BATTERIES.items():
         flat("battery", key, battery_icon(rgba(body_c), rgba(stripe)))
     flat("card", "cfexpress_b", card_icon(rgba("#2a2a2e"), rgba("#30a050")))
+    flat("card", "cf", card_icon(rgba("#3a3a40"), rgba("#c0c0c8")))
+    flat("card", "internal_ssd", card_icon(rgba("#505056"), rgba("#e0e0e4")))
 
 
 def write_ogg(samples, rate, name):

@@ -118,26 +118,31 @@ public final class ImagePipeline {
         img = wear(img, w, h, p);
         flare(img, w, h, p);
         noise(img, w, h, p);
-        float sat = (float) rawSaturation(p.sensor().dynamicRangeEv());
+        float sat = (float) p.sensor().saturation();
         for (int i = 0; i < img.length; i++) {
             if (img[i] > sat) img[i] = sat;
         }
         return img;
     }
 
-    /** The in-camera image processor: highlight roll-off, white balance, colour profile. */
+    /**
+     * The in-camera image processor, in the order a real one works: white balance on the sensor data (clipped
+     * highlights are made neutral, so blown skies stay white), highlight roll-off, colour profile.
+     */
     public static float[] finish(float[] img, ImageParams p) {
+        whiteBalance(img, p.colour(), p.sensor().saturation());
         rollOff(img, p.sensor().dynamicRangeEv());
-        colour(img, p.colour());
+        tone(img, p.colour());
         return img;
     }
 
     /**
-     * Sensor saturation relative to JPEG white: the RAW highlight headroom (about 1 EV for a small
-     * sensor, 3 EV for a modern full frame with 14+ stops).
+     * Sensor saturation relative to JPEG white: the RAW highlight headroom. Real raw files clip about 3-3.5 EV
+     * above middle grey whatever the sensor, i.e. roughly 1 EV above JPEG white; a high-DR sensor gains its
+     * extra stops in the shadows (less read noise), not in the highlights.
      */
     public static double rawSaturation(double dynamicRangeEv) {
-        return Math.max(2, Math.min(8, Math.pow(2, (dynamicRangeEv - 10) * 0.75)));
+        return Math.max(1.7, Math.min(2.6, Math.pow(2, 0.9 + (dynamicRangeEv - 12) * 0.12)));
     }
 
     // ------------------------------------------------------------------ accessories
@@ -936,11 +941,45 @@ public final class ImagePipeline {
         return top + (bot - top) * ty;
     }
 
+    /** Corner light fall-off (EV) at this aperture: strongest wide open, mostly gone two stops down. */
+    static double vignetteEv(ImageParams p) {
+        ImageParams.Lens l = p.lens();
+        double stopsDown = Math.max(0, Math.log(p.focus().fNumber() / l.maxAperture()) / Math.log(2));
+        return l.vignettingEv() * Math.max(0, 1 - stopsDown * 0.45);
+    }
+
+    /**
+     * In-camera lens corrections for the JPEG (the RAW is written before them, uncorrected, as on a real camera):
+     * about 85% of the distortion, 80% of the lateral colour and half the vignetting are taken out.
+     */
+    public static float[] correctLens(float[] src, int w, int h, ImageParams p) {
+        ImageParams.Lens l = p.lens();
+        final float[] img = src;
+        double vig = vignetteEv(p) * 0.5;
+        double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, norm = cx * cx + cy * cy;
+        if (vig > 0.01) {
+            java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+                for (int x = 0; x < w; x++) {
+                    double r2 = ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / norm;
+                    float m = (float) Math.pow(2, vig * r2 * r2 * 0.5 + vig * r2 * 0.5);
+                    int j = (y * w + x) * 3;
+                    img[j] *= m;
+                    img[j + 1] *= m;
+                    img[j + 2] *= m;
+                }
+            });
+        }
+        if (l.projection() == 0 && (Math.abs(l.distortion()) > 1e-4 || Math.abs(l.caPx()) > 0.3)) {
+            ImageParams.Lens inverse = new ImageParams.Lens(l.vignettingEv(), l.maxAperture(), l.sharpness(),
+                    -0.85 * l.distortion(), -0.8 * l.caPx(), 1, l.blades(), l.rounded(), l.flare(), l.bokeh(), 0, 0, 0, 1);
+            return lensGeometry(img, w, h, inverse);
+        }
+        return img;
+    }
+
     static void lens(float[] img, int w, int h, ImageParams p) {
         ImageParams.Lens l = p.lens();
-        // Vignetting: strongest wide open, mostly gone two stops down.
-        double stopsDown = Math.max(0, Math.log(p.focus().fNumber() / l.maxAperture()) / Math.log(2));
-        double vig = l.vignettingEv() * Math.max(0, 1 - stopsDown * 0.45);
+        double vig = vignetteEv(p);
         double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, norm = cx * cx + cy * cy;
         if (vig > 0.01) {
             java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
@@ -1074,10 +1113,12 @@ public final class ImagePipeline {
         if (s.noiseLuma() <= 0 && s.noiseChroma() <= 0) {
             return;
         }
-        double amp = Math.max(1, s.isoGain()) * Math.max(1, Math.pow(2, s.exposureEv()));
-        double avg = Math.sqrt(Math.min(1, s.resolutionScale()));
+        // amplification is the ISO alone: exposing brighter (to the right) gives a cleaner picture, not a noisier one
+        double amp = Math.max(0.25, s.isoGain());
+        // a smaller sensor gathers less light for the same framing; a higher-DR sensor has less read noise
+        double avg = Math.sqrt(Math.min(1, s.resolutionScale())) * s.areaFactor();
         double shotK = 6e-5 * s.noiseLuma();
-        double readK = 1.2e-4 * s.noiseLuma();
+        double readK = 1.2e-4 * s.noiseLuma() * Math.pow(2, Math.max(-2, Math.min(2.5, 13.5 - s.dynamicRangeEv())));
         double chromaK = 0.6 * s.noiseChroma();
         SplittableRandom rnd = new SplittableRandom(p.seed());
         for (int i = 0; i < img.length; i += 3) {
@@ -1104,13 +1145,56 @@ public final class ImagePipeline {
         }
     }
 
+    /** White balance, then profile and tone curve (for callers that have no sensor data to clip). */
     public static void colour(float[] img, ImageParams.Colour c) {
-        float wr = (float) (c.wbR() * c.tintR()), wg = (float) (c.wbG() * c.tintG()), wb = (float) (c.wbB() * c.tintB());
+        whiteBalance(img, c, Double.MAX_VALUE);
+        tone(img, c);
+    }
+
+    /**
+     * White balance multipliers on linear sensor data. Pixels that clipped in the sensor (any channel near
+     * {@code saturation}) lost their colour: like a real camera's highlight reconstruction they go neutral
+     * instead of turning cyan or magenta when one channel is scaled down.
+     */
+    public static void whiteBalance(float[] img, ImageParams.Colour c, double saturation) {
+        float wr = (float) c.wbR(), wg = (float) c.wbG(), wb = (float) c.wbB();
+        float lo = (float) (saturation * 0.8), span = (float) Math.max(1e-6, saturation - lo);
+        for (int i = 0; i < img.length; i += 3) {
+            float pre = Math.max(img[i], Math.max(img[i + 1], img[i + 2]));
+            float r = img[i] * wr, g = img[i + 1] * wg, b = img[i + 2] * wb;
+            if (pre > lo) {
+                float t = clamp01((pre - lo) / span);
+                t = t * t * (3 - 2 * t);
+                float top = Math.max(r, Math.max(g, b));
+                r += (top - r) * t;
+                g += (top - g) * t;
+                b += (top - b) * t;
+            }
+            img[i] = r;
+            img[i + 1] = g;
+            img[i + 2] = b;
+        }
+    }
+
+    /**
+     * Colour profile: tint (fading out towards white, so whites stay neutral), saturation, monochrome, contrast
+     * curve and shadow lift.
+     */
+    public static void tone(float[] img, ImageParams.Colour c) {
+        float tr = (float) c.tintR(), tg = (float) c.tintG(), tb = (float) c.tintB();
+        boolean tinted = tr != 1 || tg != 1 || tb != 1;
         float sat = (float) c.saturation();
         float lift = (float) c.shadowLift();
         double contrast = c.contrast();
         for (int i = 0; i < img.length; i += 3) {
-            float r = img[i] * wr, g = img[i + 1] * wg, b = img[i + 2] * wb;
+            float r = img[i], g = img[i + 1], b = img[i + 2];
+            if (tinted) {
+                float l0 = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                float k = 1 - clamp01((l0 - 0.35f) / 0.6f); // full tint in shadows and mid-tones, none at white
+                r *= 1 + (tr - 1) * k;
+                g *= 1 + (tg - 1) * k;
+                b *= 1 + (tb - 1) * k;
+            }
             float luma = 0.2126f * r + 0.7152f * g + 0.0722f * b;
             if (c.monochrome()) {
                 r = g = b = luma;
@@ -1125,12 +1209,24 @@ public final class ImagePipeline {
         }
     }
 
-    /** Contrast pivoting around middle grey (0.18) in log space, plus a shadow lift. */
-    private static float curve(float v, double contrast, float lift) {
+    /**
+     * Contrast as an S-curve pivoting on middle grey (0.18) in log space, with fixed end points: black stays
+     * black and white stays white (a flat profile still reaches white, a contrasty one keeps its shoulder).
+     */
+    static float curve(float v, double contrast, float lift) {
         v = Math.max(v, 0);
-        if (contrast != 1) {
-            double l = Math.log(Math.max(v, 1e-5) / 0.18);
-            v = (float) Math.min(1, 0.18 * Math.exp(l * contrast));
+        if (contrast != 1 && v > 0) {
+            double x = Math.log(Math.max(v, 1e-6) / 0.18) / Math.log(2), top = Math.log(1 / 0.18) / Math.log(2);
+            double c = Math.max(0.5, Math.min(1.45, contrast));
+            double y;
+            if (x <= 0) {
+                y = x * c;
+            } else {
+                double u = Math.min(x, top) / top;
+                y = x * (c + (1 - c) * u * u); // slope c at grey, reaches white exactly at white
+                if (x > top) y = top + (x - top) * 0.5;
+            }
+            v = (float) Math.min(1, 0.18 * Math.pow(2, y));
         }
         return Math.min(1, v + lift * (1 - v) * (1 - v));
     }

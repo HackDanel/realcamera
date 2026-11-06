@@ -13,7 +13,7 @@
     "motor": "linear",
     "speed": 1.0
   },
-  "ois_stops": 0,
+  "ois_stops": 2.0,
   "optics": {
     "blades": 9,
     "rounded": true,

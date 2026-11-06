@@ -79,12 +79,14 @@ public final class PhotoEditor {
         }
         if (src.raw()) {
             // highlight recovery: the shoulder starts lower when pulling exposure (more headroom used)
-            ImagePipeline.rollOff(img, src.dynamicRangeEv());
+            // white balance on the sensor data first (clipped highlights stay neutral), then roll-off and tone
             ImageParams.Colour c = profileOverride != null ? profileOverride : src.asShot();
             ImageParams.Colour withWb = new ImageParams.Colour(src.asShot().wbR(), src.asShot().wbG(),
                     src.asShot().wbB(), c.contrast(), c.saturation(), c.monochrome(), c.tintR(), c.tintG(), c.tintB(),
                     c.shadowLift());
-            ImagePipeline.colour(img, withWb);
+            ImagePipeline.whiteBalance(img, withWb, ImagePipeline.rawSaturation(src.dynamicRangeEv()));
+            ImagePipeline.rollOff(img, src.dynamicRangeEv());
+            ImagePipeline.tone(img, withWb);
         } else {
             for (int i = 0; i < img.length; i++) {
                 img[i] = Math.min(1, img[i]);

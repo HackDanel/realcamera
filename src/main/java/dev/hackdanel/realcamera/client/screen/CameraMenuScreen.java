@@ -42,8 +42,9 @@ public class CameraMenuScreen extends Screen {
         CameraBodySpec body = Specs.body(minecraft.level.registryAccess(), camera()).orElse(null);
         int profiles = body == null ? 1 : Math.max(1, body.colorProfiles().size());
         rows.clear();
-        rows.add(new Row("mode", s -> Component.translatable("gui.realcamera.mode." + s.mode()),
-                s -> s.withMode((s.mode() + 1) % CameraSettings.MODE_COUNT)));
+        rows.add(new Row("mode", s -> Component.translatable("gui.realcamera.mode." + (body == null ? s.mode() : body.coerceMode(s.mode()))),
+                s -> body == null ? s.withMode((s.mode() + 1) % CameraSettings.MODE_COUNT)
+                        : s.withMode(dev.hackdanel.realcamera.client.camera.Viewfinder.nextMode(body, s.mode()))));
         rows.add(new Row("focus_mode", s -> Component.translatable("gui.realcamera.focus_mode." + s.focusMode()),
                 s -> s.withFocusMode((s.focusMode() + 1) % CameraSettings.FOCUS_COUNT)));
         rows.add(new Row("metering", s -> Component.translatable("gui.realcamera.metering." + s.metering()),
@@ -57,8 +58,9 @@ public class CameraMenuScreen extends Screen {
         rows.add(new Row("profile", s -> profileName(body, s.profile()), s -> s.withProfile((s.profile() + 1) % profiles)));
         rows.add(new Row("disp", s -> Component.translatable("gui.realcamera.disp." + s.disp()),
                 s -> s.withDisp((s.disp() + 1) % CameraSettings.DISP_COUNT)));
-        rows.add(new Row("shutter_type", s -> Component.translatable("gui.realcamera.shutter_type." + s.shutterType()),
-                s -> s.withShutterType((s.shutterType() + 1) % CameraSettings.SHUTTER_TYPE_COUNT)));
+        rows.add(new Row("shutter_type", s -> Component.translatable("gui.realcamera.shutter_type." + (body == null ? s.shutterType() : body.coerceShutterType(s.shutterType()))),
+                s -> body == null ? s.withShutterType((s.shutterType() + 1) % CameraSettings.SHUTTER_TYPE_COUNT)
+                        : s.withShutterType(dev.hackdanel.realcamera.client.camera.Viewfinder.nextShutterType(body, s.shutterType()))));
         rows.add(new Row("drive", s -> Component.translatable("gui.realcamera.drive." + s.drive()),
                 s -> s.withDrive((s.drive() + 1) % CameraSettings.DRIVE_COUNT)));
         rows.add(new Row("file_format", s -> Component.translatable("gui.realcamera.file_format." + s.fileFormat()),

@@ -21,7 +21,7 @@
   "viewfinder": "evf",
   "shutter": {
     "mech_min": 0.00025,
-    "elec_min": 0.00025,
+    "elec_min": 0.000125,
     "max": 30,
     "rated_life": 100000,
     "sound": "mirrorless",
@@ -29,7 +29,8 @@
     "burst_mech": 12,
     "burst_elec": 15,
     "buffer_shots": 28,
-    "efcs": true
+    "efcs": true,
+    "full_mech": false
   },
   "af": {
     "speed": 1.0,
@@ -38,7 +39,7 @@
   },
   "ibis_stops": 0,
   "battery_type": "realcamera:lp_e17",
-  "battery_drain": 1.0,
+  "battery_drain": 1.739,
   "card_forms": [
     "sd"
   ],

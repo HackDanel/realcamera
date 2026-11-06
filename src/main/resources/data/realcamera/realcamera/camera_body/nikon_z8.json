@@ -34,11 +34,11 @@
   "af": {
     "speed": 1.4,
     "low_light_ev": -9,
-    "subject_detect": "eye"
+    "subject_detect": "vehicle"
   },
   "ibis_stops": 6.0,
   "battery_type": "realcamera:en_el15c",
-  "battery_drain": 1.0,
+  "battery_drain": 3.727,
   "card_forms": [
     "sd",
     "cfexpress_b"

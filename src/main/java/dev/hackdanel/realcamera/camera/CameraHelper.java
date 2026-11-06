@@ -65,7 +65,15 @@ public final class CameraHelper {
 
     /** The shutter can be released: powered, or a mechanical film body. */
     public static boolean canFire(HolderLookup.Provider r, ItemStack camera) {
-        return !wear(camera).dead() && (hasPower(camera) || mechanical(r, camera));
+        return !wear(camera).dead() && !wear(camera).shutterJammed() && (hasPower(camera) || mechanical(r, camera));
+    }
+
+    /** The memory card inside a digital camera (read over USB by the computer and printer), or null. */
+    @javax.annotation.Nullable
+    public static ItemStack usbCard(ItemStack stack) {
+        if (!isCamera(stack)) return null;
+        ItemStack card = parts(stack).card();
+        return card.getItem() instanceof dev.hackdanel.realcamera.item.MemoryCardItem ? card : null;
     }
 
     public static boolean hasPower(ItemStack camera) {

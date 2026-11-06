@@ -105,7 +105,7 @@ public final class ServerPhotoService {
             if (viewer == null) return;
             PhotoMeta.Analysis a = dev.hackdanel.realcamera.analysis.FrameAnalyzer.analyze(player.serverLevel(), viewer,
                     player, chain.get(), CameraHelper.settings(camera), msg.info(),
-                    msg.shutterType() == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_ELECTRONIC,
+                    shutterType(player, camera, msg) == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_ELECTRONIC,
                     msg.flash(), msg.ref().isTripod());
             var map = pendingShots.computeIfAbsent(player.getUUID(), k -> new java.util.LinkedHashMap<>());
             long now = Util.getMillis();
@@ -141,11 +141,18 @@ public final class ServerPhotoService {
         handle.get().commit().run();
     }
 
+    /** The shutter type the body really has (a client cannot claim a silent shutter on a DSLR). */
+    private static int shutterType(ServerPlayer player, ItemStack camera, Payloads.Shutter msg) {
+        return Specs.body(player.registryAccess(), camera).map(b -> b.coerceShutterType(msg.shutterType()))
+                .orElse(msg.shutterType());
+    }
+
     private static void shutter(ServerPlayer player, Payloads.Shutter msg, ItemStack camera) {
         analyse(player, msg, camera);
         Optional<CameraBodySpec> body = Specs.body(player.registryAccess(), camera);
-        int drain = Math.max(1, Math.round(body.map(CameraBodySpec::batteryDrain).orElse(1f)));
-        CameraHelper.drain(camera, dev.hackdanel.realcamera.gameplay.WearEvents.coldDrain(player, drain));
+        // battery_drain = battery capacity / the body's CIPA shots: fractional, so shot counts differ per body
+        int drain = dev.hackdanel.realcamera.gameplay.WearEvents.units(player, body.map(CameraBodySpec::batteryDrain).orElse(1f));
+        if (drain > 0) CameraHelper.drain(camera, dev.hackdanel.realcamera.gameplay.WearEvents.coldDrain(player, drain));
         if (msg.flash()) {
             boolean hotShoe = !CameraHelper.parts(camera).flash().isEmpty();
             if (hotShoe) CameraHelper.drainFlash(camera); else CameraHelper.drain(camera, 1);
@@ -153,13 +160,13 @@ public final class ServerPhotoService {
             Vec3 eye = player.getEyePosition().add(player.getLookAngle().scale(0.6));
             player.serverLevel().sendParticles(net.minecraft.core.particles.ParticleTypes.FLASH, eye.x, eye.y, eye.z, 1, 0, 0, 0, 0);
         }
-        if (msg.shutterType() == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_ELECTRONIC) {
+        if (shutterType(player, camera, msg) == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_ELECTRONIC) {
             return; // silent and wear-free
         }
         camera.set(RCComponents.SHUTTER_COUNT.get(), CameraHelper.shutterCount(camera) + 1);
         dev.hackdanel.realcamera.gameplay.PhotoEvents.event(player, "shutter_count", CameraHelper.shutterCount(camera));
         body.ifPresent(b -> dev.hackdanel.realcamera.gameplay.WearEvents.shutterWear(player, camera, b.shutter().ratedLife()));
-        boolean efcs = msg.shutterType() == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_EFCS;
+        boolean efcs = shutterType(player, camera, msg) == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_EFCS;
         // Heard by everyone around except the photographer, who already played it locally.
         player.level().playSound(player, player.getX(), player.getEyeY(), player.getZ(),
                 RCSounds.shutter(body.map(b -> b.shutter().sound()).orElse("mirrorless")), SoundSource.PLAYERS,

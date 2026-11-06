@@ -25,11 +25,24 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
 
     /**
      * @param exposureEv      exposure error: + brightens (over-exposure), - darkens
-     * @param isoGain         ISO / base ISO (>= 1), drives noise
+     * @param isoGain         ISO / 100: the amplification that drives noise
      * @param resolutionScale output pixels / sensor pixels (downsampling averages noise away)
+     * @param areaFactor      sqrt(full-frame area / sensor area): a smaller sensor collects less light per frame
+     * @param headroomLossEv  highlight headroom lost by shooting below the base ISO (extended low ISO)
      */
     public record Sensor(double exposureEv, double isoGain, double noiseLuma, double noiseChroma, double resolutionScale,
-                         double dynamicRangeEv) {}
+                         double dynamicRangeEv, double areaFactor, double headroomLossEv) {
+        public Sensor(double exposureEv, double isoGain, double noiseLuma, double noiseChroma, double resolutionScale,
+                      double dynamicRangeEv) {
+            this(exposureEv, isoGain, noiseLuma, noiseChroma, resolutionScale, dynamicRangeEv, 1, 0);
+        }
+
+        /** Sensor saturation relative to JPEG white for this shot. */
+        public double saturation() {
+            return Math.max(1, dev.hackdanel.realcamera.processing.ImagePipeline.rawSaturation(dynamicRangeEv)
+                    * Math.pow(2, -headroomLossEv));
+        }
+    }
 
     /**
      * Thin-lens focus geometry; sensorWidthMm converts the blur circle to pixels. tiltDeg: lens tilt of a
@@ -113,7 +126,8 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
 
     public ImageParams withExposure(double ev) {
         Sensor s = sensor;
-        return new ImageParams(new Sensor(ev, s.isoGain, s.noiseLuma, s.noiseChroma, s.resolutionScale, s.dynamicRangeEv),
+        return new ImageParams(new Sensor(ev, s.isoGain, s.noiseLuma, s.noiseChroma, s.resolutionScale, s.dynamicRangeEv,
+                s.areaFactor, s.headroomLossEv),
                 focus, lens, motion, sun, colour, extras, seed);
     }
 
@@ -123,7 +137,8 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
 
     public ImageParams withNoise(double iso, double luma, double chroma) {
         Sensor s = sensor;
-        return new ImageParams(new Sensor(s.exposureEv, iso, luma, chroma, s.resolutionScale, s.dynamicRangeEv),
+        return new ImageParams(new Sensor(s.exposureEv, iso, luma, chroma, s.resolutionScale, s.dynamicRangeEv,
+                s.areaFactor, s.headroomLossEv),
                 focus, lens, motion, sun, colour, extras, seed);
     }
 

@@ -102,7 +102,7 @@ public final class ViewfinderHud {
         }
         Frame outer = new Frame((sw - fw) / 2, (sh - fh) / 2, fw, fh);
         String type = Viewfinder.body().viewfinder();
-        boolean evf = "evf".equals(type) || "none".equals(type);
+        boolean evf = "evf".equals(type) || "none".equals(type) || "hybrid".equals(type);
         boolean rangefinder = "rangefinder".equals(type);
         // the photo's frame: equal to the visible area, or smaller inside a rangefinder's wider view
         double scale = rangefinder ? 1 / Viewfinder.viewfinderOverscan() : 1;
@@ -165,7 +165,7 @@ public final class ViewfinderHud {
         } else {
             // optical finder: data strip below the image area, green LCD style
             bottomBar(g, font, outer.x(), outer.y() + outer.h(), outer.w(), s, exp, OVF_GREEN, 0xE0000000);
-            if (exp != null) {
+            if (exp != null && Viewfinder.meterWorks()) {
                 meterScale(g, font, outer.cx(), outer.y() + outer.h() - 26, exp.delta());
             }
         }
@@ -442,7 +442,7 @@ public final class ViewfinderHud {
         String right = (shots >= 0 ? shots : "--") + "   " + (charge == null ? "--" : charge.percent() + "%");
         int batteryColor = charge != null && charge.percent() <= 15 ? RED : baseColor;
         g.drawString(font, right, x + w - 6 - font.width(right), y, batteryColor, true);
-        int buffered = PhotoCapture.buffered();
+        int buffered = Math.max(PhotoCapture.buffered(), (int) Math.ceil(Viewfinder.cameraBuffer() - 0.05));
         if (buffered > 0) {
             String rec = "REC " + buffered;
             g.drawString(font, rec, x + w - 14 - font.width(right) - font.width(rec), y, RED, true);

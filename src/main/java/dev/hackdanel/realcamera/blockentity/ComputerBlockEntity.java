@@ -2,6 +2,7 @@ package dev.hackdanel.realcamera.blockentity;
 
 import dev.hackdanel.realcamera.camera.Specs;
 import dev.hackdanel.realcamera.component.CardData;
+import dev.hackdanel.realcamera.camera.CameraHelper;
 import dev.hackdanel.realcamera.item.MemoryCardItem;
 import dev.hackdanel.realcamera.menu.ComputerMenu;
 import dev.hackdanel.realcamera.network.Payloads;
@@ -44,7 +45,7 @@ public class ComputerBlockEntity extends MachineBlockEntity {
         return switch (slot) {
             case SLOT_READER -> stack.is(RCItems.CFEXPRESS_READER.get());
             case SLOT_SCANNER -> stack.is(RCItems.FILM_SCANNER.get());
-            default -> stack.getItem() instanceof MemoryCardItem || (stack.getItem() instanceof dev.hackdanel.realcamera.item.FilmRollItem
+            default -> stack.getItem() instanceof MemoryCardItem || CameraHelper.usbCard(stack) != null || (stack.getItem() instanceof dev.hackdanel.realcamera.item.FilmRollItem
                     && dev.hackdanel.realcamera.item.FilmRollItem.roll(stack).state() == dev.hackdanel.realcamera.component.FilmRoll.DEVELOPED);
         };
     }
@@ -54,9 +55,27 @@ public class ComputerBlockEntity extends MachineBlockEntity {
         return 1;
     }
 
+    /** The card in a slot: the card itself, or the one inside a camera connected over USB. */
+    private ItemStack card(int slot) {
+        ItemStack stack = items.getStackInSlot(slot);
+        ItemStack inside = CameraHelper.usbCard(stack);
+        return inside != null ? inside : stack;
+    }
+
+    private void setCard(int slot, ItemStack card) {
+        ItemStack stack = items.getStackInSlot(slot);
+        if (CameraHelper.usbCard(stack) != null) {
+            ItemStack camera = stack.copy();
+            CameraHelper.setParts(camera, CameraHelper.parts(camera).with(dev.hackdanel.realcamera.component.CameraParts.SLOT_CARD, card));
+            items.setStackInSlot(slot, camera);
+        } else {
+            items.setStackInSlot(slot, card);
+        }
+    }
+
     @Nullable
     public UUID cardIdOrNull(int slot) {
-        ItemStack stack = items.getStackInSlot(slot);
+        ItemStack stack = card(slot);
         var roll = stack.get(RCComponents.FILM.get());
         if (roll != null) return roll.id().orElse(null);
         CardData d = stack.get(RCComponents.CARD.get());
@@ -71,7 +90,7 @@ public class ComputerBlockEntity extends MachineBlockEntity {
     /** The card's id, giving a never-used card one. Null if the slot holds no card. */
     @Nullable
     public UUID ensureCardId(int slot) {
-        ItemStack card = items.getStackInSlot(slot);
+        ItemStack card = card(slot);
         if (isFilm(slot)) return cardIdOrNull(slot);
         if (!(card.getItem() instanceof MemoryCardItem)) return null;
         CardData d = card.getOrDefault(RCComponents.CARD.get(), CardData.EMPTY);
@@ -79,21 +98,22 @@ public class ComputerBlockEntity extends MachineBlockEntity {
         UUID id = UUID.randomUUID();
         ItemStack copy = card.copy();
         copy.set(RCComponents.CARD.get(), new CardData(Optional.of(id), d.usedBytes(), d.photoCount()));
-        items.setStackInSlot(slot, copy);
+        setCard(slot, copy);
         return id;
     }
 
     /** SD cards always; CFexpress cards only with the reader upgrade. */
     public boolean readable(int slot) {
-        ItemStack card = items.getStackInSlot(slot);
+        ItemStack card = card(slot);
         if (card.isEmpty() || level == null) return false;
         if (isFilm(slot)) return items.getStackInSlot(SLOT_SCANNER).is(RCItems.FILM_SCANNER.get());
+        if (CameraHelper.usbCard(items.getStackInSlot(slot)) != null) return true; // USB: no card reader needed
         String form = Specs.card(level.registryAccess(), card).map(MemoryCardTypeSpec::form).orElse("sd");
         return form.equals("sd") || items.getStackInSlot(SLOT_READER).is(RCItems.CFEXPRESS_READER.get());
     }
 
     public long freeBytes(int slot) {
-        ItemStack card = items.getStackInSlot(slot);
+        ItemStack card = card(slot);
         if (level == null) return 0;
         long cap = Specs.card(level.registryAccess(), card).map(MemoryCardTypeSpec::capacityBytes).orElse(0L);
         return cap - card.getOrDefault(RCComponents.CARD.get(), CardData.EMPTY).usedBytes();
@@ -102,18 +122,18 @@ public class ComputerBlockEntity extends MachineBlockEntity {
     public void adjustCard(int slot, long bytes, int count) {
         UUID id = cardIdOrNull(slot);
         if (id == null) return;
-        ItemStack copy = items.getStackInSlot(slot).copy();
+        ItemStack copy = card(slot).copy();
         if (ServerPhotoService.adjustCard(copy, id, bytes, count)) {
-            items.setStackInSlot(slot, copy);
+            setCard(slot, copy);
         }
     }
 
     private void resetCard(int slot) {
         UUID id = cardIdOrNull(slot);
         if (id == null) return;
-        ItemStack copy = items.getStackInSlot(slot).copy();
+        ItemStack copy = card(slot).copy();
         copy.set(RCComponents.CARD.get(), new CardData(Optional.of(id), 0, 0));
-        items.setStackInSlot(slot, copy);
+        setCard(slot, copy);
     }
 
     // ------------------------------------------------------------------ catalogue actions

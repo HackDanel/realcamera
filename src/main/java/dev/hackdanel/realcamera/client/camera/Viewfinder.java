@@ -20,6 +20,7 @@ import dev.hackdanel.realcamera.spec.SensorSpec;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
@@ -80,6 +81,9 @@ public final class Viewfinder {
 
     // drive
     private static long nextBurstMs;
+    // the camera's own buffer: frames waiting to be written to the card (drains at the card's write speed)
+    private static double bufferFill;
+    private static long bufferAtMs;
     private static long timerFireMs = -1;
     private static long bulbStartMs = -1;
 
@@ -356,10 +360,31 @@ public final class Viewfinder {
         sendSettings();
     }
 
+    /** The next exposure mode the body has (film bodies may only have M, or P/S/M …). */
+    public static int nextMode(CameraBodySpec body, int mode) {
+        var modes = body.exposureModes();
+        int i = modes.indexOf(body.coerceMode(mode));
+        return modes.get((i + 1) % modes.size());
+    }
+
+    /** The next shutter type the body has. */
+    public static int nextShutterType(CameraBodySpec body, int type) {
+        var types = body.shutterTypes();
+        int i = types.indexOf(body.coerceShutterType(type));
+        return types.get((i + 1) % types.size());
+    }
+
     private static void refreshChain() {
         Minecraft mc = Minecraft.getInstance();
         Optional<OpticalChain> c = OpticalChain.resolve(mc.level.registryAccess(), camera());
         chain = c.orElse(null);
+        if (chain != null) {
+            CameraBodySpec b = chain.body();
+            int mode = b.coerceMode(settings.mode()), type = b.coerceShutterType(settings.shutterType());
+            if (mode != settings.mode() || type != settings.shutterType()) {
+                update(settings.withMode(mode).withShutterType(type));
+            }
+        }
     }
 
     private static void tickActive(Minecraft mc, Player player) {
@@ -415,7 +440,53 @@ public final class Viewfinder {
     }
 
     private static boolean electronic() {
-        return settings.shutterType() == CameraSettings.SHUTTER_ELECTRONIC || !body().shutter().hasMechanical();
+        return body().coerceShutterType(settings.shutterType()) == CameraSettings.SHUTTER_ELECTRONIC;
+    }
+
+    /** Whether the light meter works: none on a 500C/M, a battery meter needs charge. */
+    public static boolean meterWorks() {
+        String m = body().meter();
+        if ("none".equals(m)) return false;
+        return !"battery".equals(m) || CameraHelper.hasPower(camera());
+    }
+
+    /** Fastest shutter speed (s) a flash syncs at with the current shutter type, or 0 for "any" (leaf). */
+    private static double flashSyncS() {
+        if (electronic()) return body().shutter().electronicFlashSync();
+        return body().shutter().leaf() ? 0 : body().flash().sync();
+    }
+
+    /** A flash will fire with this exposure: wanted by the flash mode, present, and the shutter type allows it. */
+    private static boolean flashWanted() {
+        int mode = settings.flashMode();
+        boolean wanted = mode == CameraSettings.FLASH_FILL || mode == CameraSettings.FLASH_REAR
+                || (mode == CameraSettings.FLASH_AUTO && meteredEv < 8);
+        return wanted && flashGn() > 0 && (!electronic() || body().shutter().electronicFlashSync() > 0);
+    }
+
+    /** Frames per second the card takes: its write speed over the file size (film: no buffer at all). */
+    private static double writeRate() {
+        if (body().isFilm()) return 1000;
+        var card = dev.hackdanel.realcamera.camera.Specs.card(Minecraft.getInstance().level.registryAccess(),
+                CameraHelper.parts(camera()).card()).orElse(null);
+        double mbS = card == null ? 90 : card.writeMbS();
+        double mp = sensor().megapixels();
+        double mb = switch (settings.fileFormat()) {
+            case CameraSettings.FORMAT_RAW -> mp * 1.2;
+            case CameraSettings.FORMAT_RAW_JPEG -> mp * 1.6;
+            default -> mp * 0.4;
+        };
+        return mbS / Math.max(1, mb);
+    }
+
+    /** Frames in the camera's buffer right now. */
+    public static double cameraBuffer() {
+        long now = System.currentTimeMillis();
+        if (chain != null && bufferFill > 0) {
+            bufferFill = Math.max(0, bufferFill - (now - bufferAtMs) / 1000.0 * writeRate());
+        }
+        bufferAtMs = now;
+        return bufferFill;
     }
 
     /** Frames per second for the current drive mode and shutter type. */
@@ -443,6 +514,11 @@ public final class Viewfinder {
         var sh = body().shutter();
         float fastest = electronic() ? sh.elecMin() : sh.mechMin();
         int fast = ExposureScales.nearestShutter(fastest);
+        if (flashWanted() && settings.mode() != CameraSettings.MODE_S && settings.mode() != CameraSettings.MODE_M
+                && flashSyncS() > 0 && !flashHss()) {
+            // with the flash on, automatic modes never pick a speed above the sync speed
+            fast = Math.max(fast, ExposureScales.nearestShutter((float) flashSyncS()));
+        }
         int slow = ExposureScales.nearestShutter(sh.max());
         int isoMin = ExposureScales.nearestIso(sensor().isoMin());
         int isoMax = ExposureScales.nearestIso(sensor().isoMax());
@@ -453,10 +529,14 @@ public final class Viewfinder {
             isoMin = isoMax = autoMax = ExposureScales.nearestIso(stock.iso());
         }
         double handheld = Optics.handheldLimit(Optics.focal35(f, sensor().cropFactor()), 0);
-        return new Exposure.Limits(wide, narrow, fast, slow, isoMin, isoMax, autoMax, handheld);
+        int autoMin = stock != null ? isoMin : Math.max(isoMin, ExposureScales.nearestIso(sensor().baseIso()));
+        return new Exposure.Limits(wide, narrow, fast, slow, isoMin, isoMax, autoMax, handheld, autoMin);
     }
 
     // ------------------------------------------------------------------ metering
+
+    /** How brightly the game lit the metered area (0..1) and the colour temperature of its light (K). */
+    private static double meteredGameLight = 1, meteredK = 5500;
 
     private static void meter(Minecraft mc) {
         double aspect = sensor().aspect();
@@ -465,8 +545,10 @@ public final class Viewfinder {
         double day = SceneMeter.daylightEv(mc.level, 1f);
         double ambient = SceneMeter.ambientEv(mc.level);
         int gx = 9, gy = 6;
-        double sum = 0, wsum = 0;
+        double sum = 0, wsum = 0, lightSum = 0, miredSum = 0;
         int blockVotes = 0;
+        double skyGame = SceneMeter.gameLight(mc.level, BlockPos.containing(mc.gameRenderer.getMainCamera().getPosition()).atY(
+                mc.level.getMaxBuildHeight()));
         double su = settings.afArea() == CameraSettings.AF_POINT ? settings.afX() : 0;
         double sv = settings.afArea() == CameraSettings.AF_POINT ? settings.afY() : 0;
         for (int y = 0; y < gy; y++) {
@@ -482,11 +564,20 @@ public final class Viewfinder {
                 if (w <= 0) continue;
                 Vec3 dir = rays.direction(u, v);
                 var hit = rays.cast(dir);
-                double ev = SceneMeter.sampleEv(mc.level, hit, dir, day, ambient);
+                // a reflected-light meter: what the surface reflects, not only the light falling on it
+                double ev = SceneMeter.sampleEv(mc.level, hit, dir, day, ambient) + SceneMeter.reflectanceEv(mc.level, hit);
                 sum += ev * w;
                 wsum += w;
-                if (hit.getType() != net.minecraft.world.phys.HitResult.Type.MISS
-                        && SceneMeter.blockLit(mc.level, net.minecraft.core.BlockPos.containing(hit.getLocation()), day)) {
+                boolean miss = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS;
+                BlockPos lit = miss ? null : hit instanceof net.minecraft.world.phys.BlockHitResult bhr
+                        ? bhr.getBlockPos().relative(bhr.getDirection()) : BlockPos.containing(hit.getLocation());
+                lightSum += Math.log(miss ? skyGame : SceneMeter.gameLight(mc.level, lit)) * w;
+                double fire = miss ? 0 : SceneMeter.fireShare(mc.level, lit, day);
+                int skyLevel = miss ? 15 : mc.level.getBrightness(net.minecraft.world.level.LightLayer.SKY, lit);
+                double k = Math.exp(Math.log(SceneMeter.daylightK(mc.level, 1f, skyLevel)) * (1 - fire)
+                        + Math.log(SceneMeter.FIRE_K) * fire);
+                miredSum += 1e6 / k * w;
+                if (fire > 0.5) {
                     blockVotes++;
                 }
             }
@@ -494,9 +585,13 @@ public final class Viewfinder {
         if (wsum == 0) {
             Vec3 dir = rays.direction(su, sv);
             sum = SceneMeter.sampleEv(mc.level, rays.cast(dir), dir, day, ambient);
+            lightSum = Math.log(skyGame);
+            miredSum = 1e6 / 5500;
             wsum = 1;
         }
         meteredEv = Mth.lerp(0.5, meteredEv, sum / wsum);
+        meteredGameLight = Math.exp(lightSum / wsum);
+        meteredK = 1e6 / (miredSum / wsum);
         blockLit = blockVotes > gx * gy / 3;
     }
 
@@ -552,7 +647,7 @@ public final class Viewfinder {
 
     private static void startAf(Minecraft mc) {
         double target = Math.max(chain.lens().minFocusM(), afTargetDistance(mc));
-        if (meteredEv < body().af().lowLightEv()) {
+        if (meteredEv < chain.afLowLightEv(focal())) {
             afState = AF_FAILED;
             afStartMs = System.currentTimeMillis();
             afDurationMs = 600;
@@ -656,7 +751,7 @@ public final class Viewfinder {
             player.displayClientMessage(Component.translatable(film ? "message.realcamera.film_end" : "message.realcamera.card_full"), true);
             return;
         }
-        if (!PhotoCapture.canAccept()) {
+        if (!PhotoCapture.canAccept() || cameraBuffer() > body().shutter().bufferShots() - 1) {
             player.displayClientMessage(Component.translatable("message.realcamera.buffer_busy"), true);
             return;
         }
@@ -724,7 +819,7 @@ public final class Viewfinder {
             return null;
         }
         var wear = CameraHelper.wear(camera());
-        if (wear.shutterJammed() && !electronic()) {
+        if (wear.shutterJammed()) {
             mc.player.displayClientMessage(Component.translatable("message.realcamera.shutter_jammed"), true);
             return null;
         }
@@ -737,7 +832,7 @@ public final class Viewfinder {
                 blockLit, CameraHelper.shutterCount(camera()) + 1, camera().getHoverName().getString(),
                 CameraHelper.parts(camera()).lens().getHoverName().getString(), seconds, motion(seconds),
                 SunTracker.sun(mc.level, mc.getCameraEntity(), cam, sensorVfov(), sensor().aspect()), extras,
-                SHAKE.nextInt());
+                SHAKE.nextInt(), meteredGameLight, meteredK);
         return new Release(shot, type, extras.flashAt1m() > 0, bulb, body().shutter().sound());
     }
 
@@ -753,8 +848,12 @@ public final class Viewfinder {
                 shot.focal(), (float) shot.exposure().fNumber(), (float) shot.seconds(), (int) shot.exposure().iso(),
                 shot.focusDistance(), (float) shot.exposure().delta(),
                 (float) Math.hypot(shot.motion().blurX(), shot.motion().blurY()))));
+        bufferFill = cameraBuffer() + 1;
         if (isBurst()) {
-            nextBurstMs = System.currentTimeMillis() + (long) (1000 / Math.max(0.5, burstFps()));
+            // full speed until the buffer is full, then as fast as the card takes the files
+            double cap = Math.max(1, body().shutter().bufferShots());
+            double waitS = Math.max(1 / Math.max(0.5, burstFps()), bufferFill >= cap ? (bufferFill - cap + 1) / writeRate() : 0);
+            nextBurstMs = System.currentTimeMillis() + (long) (1000 * waitS);
         }
         if (r.bulb()) {
             bulbStartMs = System.currentTimeMillis();
@@ -788,11 +887,8 @@ public final class Viewfinder {
         }
         // flash
         double flashAt1m = 0, flashTop = 1;
-        int mode = settings.flashMode();
-        boolean wanted = mode == CameraSettings.FLASH_FILL || mode == CameraSettings.FLASH_REAR
-                || (mode == CameraSettings.FLASH_AUTO && meteredEv < 8);
         float gn = flashGn();
-        if (wanted && gn > 0 && !electronic() && flashReady()) {
+        if (flashWanted() && flashReady()) {
             double iso = exposure.iso(), n = exposure.fNumber();
             double gnIso = gn * Math.sqrt(iso / 100);
             double d = Math.max(0.5, focusDistance);
@@ -800,8 +896,8 @@ public final class Viewfinder {
             double target = Math.pow(2, settings.flashComp() / 3.0) * (meteredEv > 10 ? 0.5 : 1.0); // fill vs main light
             double power = Math.max(1 / 128.0, Math.min(1, target / full));
             flashAt1m = power * Math.pow(gnIso / n, 2);
-            double sync = body().flash().sync();
-            boolean leaf = "leaf".equals(body().shutter().sound());
+            double sync = flashSyncS();
+            boolean leaf = sync <= 0;
             boolean hss = !parts.flash().isEmpty() && dev.hackdanel.realcamera.camera.Specs.flash(regs, parts.flash())
                     .map(f -> f.hss()).orElse(false);
             if (seconds < sync && !leaf) {
@@ -846,6 +942,12 @@ public final class Viewfinder {
 
     // ------------------------------------------------------------------ dials
 
+    private static boolean flashHss() {
+        var parts = CameraHelper.parts(camera());
+        return !parts.flash().isEmpty() && dev.hackdanel.realcamera.camera.Specs.flash(Minecraft.getInstance().level
+                .registryAccess(), parts.flash()).map(f -> f.hss()).orElse(false);
+    }
+
     private static void handleKeys(Minecraft mc) {
         while (RCKeys.NEXT_PARAM.consumeClick()) {
             update(settings.withSelectedParam(nextParam(settings.selectedParam(), 1)));
@@ -854,7 +956,7 @@ public final class Viewfinder {
             update(settings.withSelectedParam(nextParam(settings.selectedParam(), -1)));
         }
         while (RCKeys.MODE.consumeClick()) {
-            update(settings.withMode((settings.mode() + 1) % CameraSettings.MODE_COUNT));
+            update(settings.withMode(nextMode(body(), settings.mode())));
         }
         while (RCKeys.FOCUS_MODE.consumeClick()) {
             int m = (settings.focusMode() + 1) % CameraSettings.FOCUS_COUNT;

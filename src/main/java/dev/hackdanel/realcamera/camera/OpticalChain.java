@@ -66,13 +66,13 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
         }
         if (apscLensOnFf) {
             if (CameraHelper.settings(camera).cropMode() == CameraSettings.CROP_AUTO) {
-                float k = 1.5f;
+                float k = apscCrop(lens.get());
                 sensor = new SensorSpec(sensor.widthMm() / k, sensor.heightMm() / k, sensor.megapixels() / (k * k),
                         sensor.baseIso(), sensor.isoMin(), sensor.isoMax(), sensor.dynamicRangeEv(),
                         sensor.noiseLuma(), sensor.noiseChroma());
                 crop = true;
             } else {
-                circle = 1 / 1.5f; // the lens only lights the middle of the full-frame sensor
+                circle = 1 / apscCrop(lens.get()); // the lens only lights the middle of the full-frame sensor
             }
         }
         return Optional.of(new OpticalChain(body.get(), lens.get(), adapter, tc, sensor, crop, circle));
@@ -162,8 +162,33 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
         return lens.apertureMin() * tcFactor();
     }
 
+    /** Crop of an APS-C lens's image circle: Canon EF-S / RF-S are made for the 1.6x sensor, the rest for 1.5x. */
+    static float apscCrop(LensSpec lens) {
+        return lens.mount().location().getPath().startsWith("canon") ? 1.6f : 1.5f;
+    }
+
     public boolean afAvailable() {
-        return (adapter == null || adapter.allowsAf()) && !"none".equals(lens.af().motor()) && body.af().speed() > 0;
+        return (adapter == null || adapter.allowsAf()) && !"none".equals(lens.af().motor()) && body.af().speed() > 0
+                && phaseAfReaches();
+    }
+
+    /**
+     * A DSLR's phase-detect AF module needs enough light from the lens: f/5.6 on entry bodies, f/8 on the others
+     * (a slow zoom with a 2x teleconverter goes manual). Mirrorless bodies focus on the sensor at any aperture.
+     */
+    public boolean phaseAfReaches() {
+        if (!"dslr".equals(body.info().type())) return true;
+        float limit = "entry".equals(body.info().tier()) ? 5.6f : 8f;
+        return lens.maxApertureAt(lens.focalMax()) * tcFactor() <= limit * 1.06f;
+    }
+
+    /**
+     * Lowest scene EV the AF still locks at with this lens: body ratings are measured with an f/1.2 lens, a slower
+     * one gives the sensor 2·log2(N/1.2) EV less light.
+     */
+    public double afLowLightEv(float effectiveFocal) {
+        double n = maxApertureAt(effectiveFocal);
+        return body.af().lowLightEv() + 2 * Math.max(0, Math.log(n / 1.2) / Math.log(2));
     }
 
     public double afSpeed() {

@@ -1,0 +1,7 @@
+{
+  "name": "Hasselblad X2D internal SSD 1 TB",
+  "form": "internal_x2d",
+  "capacity_gb": 1024,
+  "write_mb_s": 2000,
+  "model": "realcamera:item/card/internal_ssd"
+}

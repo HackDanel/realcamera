@@ -67,7 +67,8 @@ public class CameraPartsMenu extends AbstractContainerMenu {
                 @Override
                 public boolean mayPickup(Player p) {
                     // a built-in lens stays where it is
-                    return !(part == CameraParts.SLOT_LENS && body().map(b -> b.hasFixedLens()).orElse(false));
+                    return !(part == CameraParts.SLOT_LENS && body().map(b -> b.hasFixedLens()).orElse(false))
+                            && !(part == CameraParts.SLOT_CARD && body().map(b -> b.internalStorage()).orElse(false));
                 }
 
                 @Override

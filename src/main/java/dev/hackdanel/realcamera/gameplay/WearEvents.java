@@ -65,7 +65,8 @@ public final class WearEvents {
             float next = Math.max(0, Math.min(100, m + delta));
             if (next == m) continue;
             CameraWear updated = wear.withMoisture(next);
-            if (next >= 100 && sealing < 2 && !wear.dead()) {
+            // sealing slows water down (above) but no interchangeable-lens camera is submersible
+            if (next >= 100 && !wear.dead()) {
                 updated = updated.withDead(true);
                 player.displayClientMessage(Component.translatable("message.realcamera.water_dead"), true);
                 player.level().playSound(null, player.blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.5f, 1.6f);
@@ -130,6 +131,12 @@ public final class WearEvents {
     }
 
     /** Batteries give less in the cold (snowy biomes, high mountains). */
+    /** Charge units for a fractional drain: rounded up or down at random so the average is exact. */
+    public static int units(Player player, float drain) {
+        int whole = (int) Math.floor(drain);
+        return whole + (player.getRandom().nextFloat() < drain - whole ? 1 : 0);
+    }
+
     public static int coldDrain(Player player, int amount) {
         float temp = player.level().getBiome(player.blockPosition()).value().getBaseTemperature();
         if (temp < 0.15f) {
@@ -139,13 +146,16 @@ public final class WearEvents {
     }
 
     /**
-     * After its rated life a mechanical shutter fails with growing probability.
+     * The rated life is an average: a few shutters (about 5%) fail before it, with a chance rising towards it,
+     * and after it the chance grows quickly.
      * @return true if it just jammed
      */
     public static boolean shutterWear(Player player, ItemStack camera, int ratedLife) {
         int count = CameraHelper.shutterCount(camera);
-        if (count <= ratedLife || ratedLife <= 0) return false;
-        double p = 0.002 * (count - ratedLife) / (double) ratedLife * 10;
+        if (ratedLife <= 0) return false;
+        double x = count / (double) ratedLife;
+        double p = 0.25 / ratedLife * Math.pow(Math.min(x, 1), 4);
+        if (x > 1) p += 0.02 * (x - 1);
         if (player.getRandom().nextDouble() < Math.min(0.2, p)) {
             camera.set(RCComponents.WEAR.get(), CameraHelper.wear(camera).withJammed(true));
             player.displayClientMessage(Component.translatable("message.realcamera.shutter_jammed"), true);
