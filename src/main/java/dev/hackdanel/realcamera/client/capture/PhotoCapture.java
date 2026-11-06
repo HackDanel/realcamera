@@ -205,6 +205,9 @@ public final class PhotoCapture {
             return;
         }
         if (a.warmup-- > 0) {
+            // The frame is about to be shown on screen at its own (sensor) size, so the window would show a
+            // magnified corner of it, a jump of the view. Show the shutter blackout instead.
+            blackout(Minecraft.getInstance().getMainRenderTarget());
             return;
         }
         Minecraft mc = Minecraft.getInstance();
@@ -324,9 +327,7 @@ public final class PhotoCapture {
         a.frameIndex++;
         if (!last) {
             // the electronic viewfinder blacks out while the shutter is open
-            target.bindWrite(true);
-            RenderSystem.clearColor(0, 0, 0, 1);
-            RenderSystem.clear(GL11.GL_COLOR_BUFFER_BIT, Minecraft.ON_OSX);
+            blackout(target);
             return;
         }
         active = null;
@@ -380,6 +381,12 @@ public final class PhotoCapture {
             mc.setCameraEntity(a.savedCamera);
         }
         resize(mc, a.origW, a.origH); // resizing clears the buffer: the screen blacks out like a real EVF
+    }
+
+    private static void blackout(RenderTarget target) {
+        target.bindWrite(true);
+        RenderSystem.clearColor(0, 0, 0, 1);
+        RenderSystem.clear(GL11.GL_COLOR_BUFFER_BIT, Minecraft.ON_OSX);
     }
 
     private static void resize(Minecraft mc, int w, int h) {

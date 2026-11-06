@@ -122,7 +122,12 @@ axis; 1 model unit ≈ 9 mm, shared mount point in `tools/gen_assets.py`).
 - Mod GUI layers still render when `options.hideGui` is set: the viewfinder HUD must skip itself while
   `PhotoCapture.capturing()`, or it ends up in the photo.
 - Resizing the render target needs a warm-up frame; the block selection outline is cancelled in the
-  viewfinder and during capture.
+  viewfinder and during capture. The resized target is blitted to the window at its own size after
+  `RenderFrameEvent.Post` (a magnified corner, looks like the view jumping): capture frames are cleared to black.
+- The camera's use pose (SPYGLASS) has no first-person transform: the hand is cancelled while a camera is being
+  used, not only while the viewfinder is active, or the model is drawn at the eye for a frame.
+- Tripod view angles come from the player's per-frame rotation (`TripodView.onCameraAngles`), not the tripod
+  entity's (tick rate); camera keys are active on a tripod too (`RCKeys.CAMERA_IN_HAND`).
 - `BakedModelWrapper.applyTransform` returns the wrapped model and drops extra render passes — composites
   override it to return `this`.
 - Machine menus must not depend on the client block entity (the open-screen packet can arrive first).

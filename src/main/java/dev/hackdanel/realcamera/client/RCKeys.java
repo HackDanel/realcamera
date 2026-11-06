@@ -17,12 +17,16 @@ import org.lwjgl.glfw.GLFW;
 public final class RCKeys {
     public static final String CATEGORY = "key.categories.realcamera";
 
-    /** Active while a camera is in either hand and no screen is open. Conflicts with nothing. */
+    /**
+     * Active while a camera is in either hand, or the player looks through a tripod-mounted camera, and no screen
+     * is open. Conflicts with nothing.
+     */
     public static final IKeyConflictContext CAMERA_IN_HAND = new IKeyConflictContext() {
         @Override
         public boolean isActive() {
             Minecraft mc = Minecraft.getInstance();
-            return mc.screen == null && mc.player != null && CameraHelper.handHoldingCamera(mc.player).isPresent();
+            return mc.screen == null && mc.player != null && (CameraHelper.handHoldingCamera(mc.player).isPresent()
+                    || dev.hackdanel.realcamera.client.camera.TripodView.tripod() != null);
         }
 
         @Override

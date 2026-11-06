@@ -70,13 +70,32 @@ public final class TripodView {
             return;
         }
         // the head follows the mouse (the player's own rotation is the input)
+        float yaw = t.getYRot(), pitch = t.getXRot();
         t.aim(mc.player.getYRot(), mc.player.getXRot());
-        if (++ticks % 2 == 0) {
+        ticks++;
+        if (yaw != t.getYRot() || pitch != t.getXRot() || ticks % 20 == 0) {
             PacketDistributor.sendToServer(new Payloads.TripodAim(t.getId(), t.getYRot(), t.getXRot()));
         }
         if (mc.getCameraEntity() != t && !dev.hackdanel.realcamera.client.capture.PhotoCapture.capturing()) {
             mc.setCameraEntity(t);
         }
+    }
+
+    /**
+     * The view turns with the mouse every frame, not with the head's rotation (updated 20 times a second, and
+     * overwritten by the server's echo of it): panning on the tripod stays as smooth as looking around. Runs
+     * before the viewfinder's shift-lens pitch, which is added on top.
+     */
+    @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.HIGH)
+    static void onCameraAngles(net.neoforged.neoforge.client.event.ViewportEvent.ComputeCameraAngles event) {
+        Minecraft mc = Minecraft.getInstance();
+        TripodEntity t = tripod;
+        if (t == null || mc.player == null || mc.getCameraEntity() != t) {
+            return;
+        }
+        float pt = (float) event.getPartialTick();
+        event.setYaw(mc.player.getViewYRot(pt));
+        event.setPitch(Math.max(-89, Math.min(89, mc.player.getViewXRot(pt))));
     }
 
     /** Stand still while looking through the tripod (sneak still works, to leave). */

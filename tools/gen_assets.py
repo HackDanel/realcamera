@@ -741,55 +741,85 @@ def shade_rgb(c, f):
 
 
 def lens_elements(cx, cy, z_back, length, radius, R, zoom=True, look="black", kind="prime"):
-    """Lens built from the mount (z_back) forward (towards -z)."""
+    """Lens built from the mount (z_back) forward (towards -z).
+
+    The barrel is a stack of coaxial cylinders of different radii. Where the radius steps up or down the wider
+    cylinder needs a cap on that side, or the ring-shaped step is a hole you can look through (the prism has
+    no inner faces). `close_steps` adds those caps once the stack is known.
+    """
     L = LENS_LOOKS[look]
-    els = []
+    segs = []  # [z_front, z_back, r, side, cap_front, cap_back]
+
+    def seg(z0, z1, r, side, cap_front=None, cap_back=None):
+        segs.append([z0, z1, r, side, cap_front, cap_back])
+
     # mount flange
-    els += cylinder(cx, cy, z_back - 0.6, z_back, radius * 0.72, R["metal"], cap_back=R["rear"])
+    seg(z_back - 0.6, z_back, radius * 0.72, R["metal"], cap_back=R["rear"])
     z = z_back - 0.6
     if L.get("accent_at") == "mount":
-        els += cylinder(cx, cy, z - 0.3, z, radius * 0.93, R["accent"])
+        seg(z - 0.3, z, radius * 0.93, R["accent"])
         z -= 0.3
-    seg = z - (z_back - length)
+    seg_len = z - (z_back - length)
     aperture = L.get("aperture") and not zoom
-    ap_len = min(seg * 0.18, 1.2) if aperture else 0
+    ap_len = min(seg_len * 0.18, 1.2) if aperture else 0
     if aperture:
-        els += cylinder(cx, cy, z - ap_len, z, radius * 0.94, R["aperture"])
+        seg(z - ap_len, z, radius * 0.94, R["aperture"])
         z -= ap_len
-        seg -= ap_len
-    zoom_len = seg * 0.32 if zoom else 0
-    focus_len = seg * (0.22 if zoom else 0.42)
-    barrel_len = seg - zoom_len - focus_len
-    els += cylinder(cx, cy, z - barrel_len * 0.55, z, radius * 0.92, R["label"])
+        seg_len -= ap_len
+    zoom_len = seg_len * 0.32 if zoom else 0
+    focus_len = seg_len * (0.22 if zoom else 0.42)
+    barrel_len = seg_len - zoom_len - focus_len
+    seg(z - barrel_len * 0.55, z, radius * 0.92, R["label"])
     z -= barrel_len * 0.55
     if zoom:
-        els += cylinder(cx, cy, z - zoom_len, z, radius, R["zoom"])
+        seg(z - zoom_len, z, radius, R["zoom"])
         z -= zoom_len
     if L.get("accent_at") == "mid":
-        els += cylinder(cx, cy, z - 0.25, z, radius * 0.96, R["accent"])
+        seg(z - 0.25, z, radius * 0.96, R["accent"])
         z -= 0.25
         barrel_len -= 0.25 / 0.45
     rest = barrel_len * 0.45
-    els += cylinder(cx, cy, z - rest, z, radius * 0.95, R["barrel"])
+    seg(z - rest, z, radius * 0.95, R["barrel"])
     z -= rest
     front_ring = L.get("accent_at") == "front"
     f_len = focus_len - (0.3 if front_ring else 0)
+    extra = []
     if kind == "fisheye":
         # short focus ring, then the bulging front element inside a petal hood
-        els += cylinder(cx, cy, z - f_len, z, radius, R["focus"], cap_front=R["dark"])
+        seg(z - f_len, z, radius, R["focus"], cap_front=R["dark"])
         z -= f_len
-        els += cylinder(cx, cy, z - 0.9, z, radius * 0.62, R["glass"], cap_front=R["glass"])
+        seg(z - 0.9, z, radius * 0.62, R["glass"], cap_front=R["glass"])
         for i in range(4):
             ang = i * math.pi / 2 + math.pi / 4
             px, py = cx + math.cos(ang) * radius * 0.8, cy + math.sin(ang) * radius * 0.8
-            els.append(element([px - radius * 0.28, py - radius * 0.28, z - 0.7], [px + radius * 0.28, py + radius * 0.28, z],
-                               all_faces(R["dark"])))
-        return els
-    els += cylinder(cx, cy, z - f_len, z, radius, R["focus"], cap_front=None if front_ring else R["glass"])
-    z -= f_len
-    if front_ring:
-        els += cylinder(cx, cy, z - 0.3, z, radius * 1.01, R["accent"], cap_front=R["glass"])
-    return els
+            extra.append(element([px - radius * 0.28, py - radius * 0.28, z - 0.7], [px + radius * 0.28, py + radius * 0.28, z],
+                                 all_faces(R["dark"])))
+    else:
+        seg(z - f_len, z, radius, R["focus"], cap_front=None if front_ring else R["glass"])
+        z -= f_len
+        if front_ring:
+            seg(z - 0.3, z, radius * 1.01, R["accent"], cap_front=R["glass"])
+    close_steps(segs, R)
+    els = []
+    for z0, z1, r, side, cf, cb in segs:
+        els += cylinder(cx, cy, z0, z1, r, side, cap_front=cf, cap_back=cb)
+    return els + extra
+
+
+def close_steps(segs, R):
+    """Cap the wider cylinder at every radius step of a coaxial stack (segs ordered back to front)."""
+    def step_cap(side):
+        # ribbed rubber rings would show their ribs as stripes across the cap: give them a plain dark edge
+        return R["dark"] if side in (R["zoom"], R["focus"]) else side
+    for back, front in zip(segs, segs[1:]):
+        if front[2] > back[2] + 1e-6 and front[5] is None:
+            front[5] = step_cap(front[3])
+        elif back[2] > front[2] + 1e-6 and back[4] is None:
+            back[4] = step_cap(back[3])
+    if segs[-1][4] is None:
+        segs[-1][4] = R["glass"]
+    if segs[0][5] is None:
+        segs[0][5] = R["rear"]
 
 
 LENS_DISPLAY = {

@@ -1181,9 +1181,16 @@ public final class Viewfinder {
         }
     }
 
+    /**
+     * No hand while looking through the camera. Also not on the frame between the right click and the
+     * viewfinder switching on: the spyglass use pose has no first-person transform, so the camera model would be
+     * drawn right at the eye (its barrel shows up as big black blocks).
+     */
     @SubscribeEvent
     static void onRenderHand(RenderHandEvent event) {
-        if (isActive() || PhotoCapture.capturing()) {
+        Player p = Minecraft.getInstance().player;
+        boolean raising = p != null && p.isUsingItem() && CameraHelper.isCamera(p.getUseItem());
+        if (isActive() || raising || PhotoCapture.capturing()) {
             event.setCanceled(true);
         }
     }
