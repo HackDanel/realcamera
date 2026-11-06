@@ -69,3 +69,13 @@ to fix everything that is confirmed. `[x]` = done, `[-]` = declined (reason give
 - [x] D14 Printing uses paper chemistry; slides on negative paper
 - [x] D15 film_developed counted on finish; removing the roll mid-process fogs it
 - [x] D16 CineStill tint_b
+
+## Found by the regression run afterwards
+- Real night EV made AF fail in the dark: digital bodies now have an AF-assist lamp (subjects up to 5 m, slower).
+- Auto ISO could drop below a film's box speed / a sensor's base ISO (`Exposure.isoFor` floor).
+- A blurred main subject is capped at 2 stars.
+- A jammed shutter refuses every shutter type, but the camera can still be raised (it shows its error).
+- Development runs in its own pool with half the cores, so the game keeps rendering during a burst.
+- Known limits kept on purpose: relighting is global (no per-pixel shade/sun contrast); with some shader packs at
+  night the GPU depth is unusable and the ray grid (with its halo around mobs) is used; at 1:1 macro the frame
+  shows a few centimetres of a Minecraft-sized bee, i.e. a texel or two.

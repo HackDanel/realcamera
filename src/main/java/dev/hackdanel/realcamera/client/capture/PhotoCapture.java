@@ -80,6 +80,8 @@ public final class PhotoCapture {
         }
     }
 
+    private static final java.util.concurrent.ForkJoinPool DEVELOP_POOL =
+            new java.util.concurrent.ForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
     private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "RealCamera developer");
         t.setDaemon(true);
@@ -409,8 +411,9 @@ public final class PhotoCapture {
         dev.hackdanel.realcamera.spec.FilmStockSpec film = shot.chain().body().isFilm()
                 ? dev.hackdanel.realcamera.client.camera.Viewfinder.filmStock() : null;
         developing++;
-        WORKER.execute(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, entityGrid, gpuDepth, gw, gh, actualSeconds,
-                profile, film, artist, maxUpload));
+        // development uses half the cores: the game keeps rendering smoothly (and a burst keeps its pace)
+        WORKER.execute(() -> DEVELOP_POOL.submit(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, entityGrid, gpuDepth, gw, gh, actualSeconds,
+                profile, film, artist, maxUpload)).join());
     }
 
     // ------------------------------------------------------------------ worker thread

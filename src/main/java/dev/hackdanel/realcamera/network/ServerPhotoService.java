@@ -157,7 +157,9 @@ public final class ServerPhotoService {
 
     public static void shutter(ServerPlayer player, Payloads.Shutter msg) {
         Optional<Handle> handle = resolve(player, msg.ref());
-        if (handle.isEmpty() || !CameraHelper.canFire(player.registryAccess(), handle.get().stack())) {
+        // a jammed shutter fires in no mode (the camera still turns on and shows its error)
+        if (handle.isEmpty() || !CameraHelper.canFire(player.registryAccess(), handle.get().stack())
+                || CameraHelper.wear(handle.get().stack()).shutterJammed()) {
             return;
         }
         shutter(player, msg, handle.get().stack());

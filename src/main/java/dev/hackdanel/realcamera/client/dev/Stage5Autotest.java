@@ -287,6 +287,8 @@ public final class Stage5Autotest {
                     ? "PASS the safelight still fogs film" : "FAIL film safe under the safelight");
             be.items().setStackInSlot(0, p.getInventory().getItem(1).copy());
             be.items().setStackInSlot(1, RCStacks.paper("a4", "rc_bw", 4));
+            be.items().setStackInSlot(dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity.SLOT_CHEMISTRY,
+                    new ItemStack(RCItems.CHEMISTRY_BW.get()));
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity.B_HARDER);
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity.B_HARDER);
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity.B_LIGHTER);

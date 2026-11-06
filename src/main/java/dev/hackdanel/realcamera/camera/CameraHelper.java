@@ -65,7 +65,7 @@ public final class CameraHelper {
 
     /** The shutter can be released: powered, or a mechanical film body. */
     public static boolean canFire(HolderLookup.Provider r, ItemStack camera) {
-        return !wear(camera).dead() && !wear(camera).shutterJammed() && (hasPower(camera) || mechanical(r, camera));
+        return !wear(camera).dead() && (hasPower(camera) || mechanical(r, camera));
     }
 
     /** The memory card inside a digital camera (read over USB by the computer and printer), or null. */

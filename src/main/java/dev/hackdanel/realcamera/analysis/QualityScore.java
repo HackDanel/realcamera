@@ -50,6 +50,7 @@ public final class QualityScore {
             composition = sky > 0.15 && sky < 0.75 ? 0.9 : 0.6;
         }
         double total = 25 * exposure + 25 * sharp + 25 * size + 15 * composition + 10 * noise;
+        if (hasSubject && !inFocus) total = Math.min(total, 70); // a blurred subject is never a three-star picture
         return (int) Math.round(Math.max(0, Math.min(100, total)));
     }
 

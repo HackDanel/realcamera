@@ -129,7 +129,8 @@ public final class Exposure {
         double n = ExposureScales.APERTURE[av];
         double t = ExposureScales.SHUTTER[tv];
         double s = 100 * Math.pow(2, log2(n * n / t) - ev);
-        return clamp(ExposureScales.nearestIso(s), lim.isoMinIdx(), Math.min(lim.isoMaxIdx(), lim.autoIsoMaxIdx()));
+        return clamp(ExposureScales.nearestIso(s), Math.max(lim.isoMinIdx(), lim.autoIsoMinIdx()),
+                Math.min(lim.isoMaxIdx(), lim.autoIsoMaxIdx()));
     }
 
     static int clamp(int v, int lo, int hi) {

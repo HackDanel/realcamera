@@ -280,7 +280,7 @@ public final class Stage3Autotest {
         shoot("s3_04_fog_dust_knocked");
         lower();
 
-        // 4) jammed shutter: mechanical refuses, electronic still works
+        // 4) jammed shutter: refuses in every mode, the electronic shutter too (the camera shows an error)
         look(0, 5);
         camera("sony_a7iv", "sony_fe_28_70_oss", null, null, s -> s.withMode(CameraSettings.MODE_P),
                 c -> wear(c, dev.hackdanel.realcamera.component.CameraWear.NEW.withJammed(true)));
@@ -295,7 +295,12 @@ public final class Stage3Autotest {
                 .withShutterType(CameraSettings.SHUTTER_ELECTRONIC),
                 c -> wear(c, dev.hackdanel.realcamera.component.CameraWear.NEW.withJammed(true)));
         raise();
-        shoot("s3_05_jammed_but_electronic");
+        step("jammed electronic", () -> {
+            photosBefore = exported();
+            Viewfinder.debugPressShutter();
+        }, 40);
+        step("jammed electronic check", () -> log(exported() == photosBefore
+                ? "PASS jammed shutter refused with the electronic shutter too" : "FAIL jammed camera fired electronically"), 1);
         lower();
 
         // 5) repair the jammed camera in the workshop

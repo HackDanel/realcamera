@@ -653,7 +653,10 @@ public final class Viewfinder {
 
     private static void startAf(Minecraft mc) {
         double target = Math.max(chain.lens().minFocusM(), afTargetDistance(mc));
-        if (meteredEv < chain.afLowLightEv(focal())) {
+        // too dark for the AF sensor: digital bodies light close subjects with their AF-assist lamp (slower, up to about 5 m)
+        boolean dark = meteredEv < chain.afLowLightEv(focal());
+        boolean assist = dark && !body().isFilm() && target <= 5.0;
+        if (dark && !assist) {
             afState = AF_FAILED;
             afStartMs = System.currentTimeMillis();
             afDurationMs = 600;
@@ -662,7 +665,7 @@ public final class Viewfinder {
         focusStart = focusDistance;
         focusTarget = (float) target;
         double travel = Math.abs(Math.log(focusTarget / Math.max(0.1f, focusStart)));
-        afDurationMs = (long) ((60 + 90 * Math.min(3, travel)) / Math.max(0.15, chain.afSpeed()));
+        afDurationMs = (long) ((60 + 90 * Math.min(3, travel)) / Math.max(0.15, chain.afSpeed()) * (assist ? 2.5 : 1));
         afStartMs = System.currentTimeMillis();
         afState = AF_SEARCHING;
     }
