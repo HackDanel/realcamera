@@ -300,8 +300,11 @@ public final class Stage4Autotest {
                 p.getInventory().setItem(3 + i, print);
             }
             BlockPos frame = origin.offset(-1, 0, 3), stand = origin.offset(1, 0, 4);
+            // turned between the cardinal directions (drawn by DisplayRenderer), plus an empty one at 45 degrees
             p.serverLevel().setBlockAndUpdate(frame, RCBlocks.TABLE_FRAME.get().defaultBlockState()
-                    .setValue(DisplayBlock.FACING, Direction.NORTH));
+                    .setValue(DisplayBlock.FACING, Direction.NORTH).setValue(TableFrameBlock.TURN, 1));
+            p.serverLevel().setBlockAndUpdate(frame.west(), RCBlocks.TABLE_FRAME.get().defaultBlockState()
+                    .setValue(DisplayBlock.FACING, Direction.NORTH).setValue(TableFrameBlock.TURN, 2));
             p.serverLevel().setBlockAndUpdate(stand, RCBlocks.PHOTO_STAND.get().defaultBlockState()
                     .setValue(DisplayBlock.FACING, Direction.NORTH).setValue(PhotoStandBlock.HALF, DoubleBlockHalf.LOWER));
             p.serverLevel().setBlockAndUpdate(stand.above(), RCBlocks.PHOTO_STAND.get().defaultBlockState()

@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import dev.hackdanel.realcamera.block.DisplayBlock;
 import dev.hackdanel.realcamera.block.PhotoStandBlock;
+import dev.hackdanel.realcamera.block.TableFrameBlock;
 import dev.hackdanel.realcamera.blockentity.DisplayBlockEntity;
 import dev.hackdanel.realcamera.client.photo.PhotoCache;
 import dev.hackdanel.realcamera.component.PrintData;
@@ -29,14 +30,25 @@ public class DisplayRenderer implements BlockEntityRenderer<DisplayBlockEntity> 
     @Override
     public void render(DisplayBlockEntity be, float partialTick, PoseStack pose, MultiBufferSource buffers, int light,
                        int overlay) {
-        PrintData print = be.printData();
-        if (print == null) return;
         BlockState state = be.getBlockState();
         if (!state.hasProperty(DisplayBlock.FACING)) return;
+        boolean turned = state.hasProperty(TableFrameBlock.TURN) && state.getValue(TableFrameBlock.TURN) != 0;
+        float yaw = state.getBlock() instanceof TableFrameBlock ? TableFrameBlock.yaw(state) : state.getValue(DisplayBlock.FACING).toYRot();
         pose.pushPose();
         pose.translate(0.5, 0, 0.5);
-        pose.mulPose(Axis.YP.rotationDegrees(180 - state.getValue(DisplayBlock.FACING).toYRot()));
+        pose.mulPose(Axis.YP.rotationDegrees(180 - yaw));
         pose.translate(-0.5, 0, -0.5);
+        if (turned) {
+            // block models only turn in 90 degree steps: a frame between them has an empty model and is drawn here
+            Minecraft.getInstance().getBlockRenderer().renderSingleBlock(
+                    state.setValue(DisplayBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(TableFrameBlock.TURN, 0),
+                    pose, buffers, light, overlay);
+        }
+        PrintData print = be.printData();
+        if (print == null) {
+            pose.popPose();
+            return;
+        }
         pose.scale(1 / 16f, 1 / 16f, 1 / 16f);
         boolean stand = state.getBlock() instanceof PhotoStandBlock;
         double aspect = print.photo().height() == 0 ? 1.5 : (double) print.photo().width() / print.photo().height();

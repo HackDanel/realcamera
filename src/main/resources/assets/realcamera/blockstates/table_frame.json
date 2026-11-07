@@ -1,34 +1,106 @@
 {
   "variants": {
-    "facing=north,portrait=false": {
+    "facing=north,portrait=false,turn=0": {
       "model": "realcamera:block/table_frame"
     },
-    "facing=east,portrait=false": {
+    "facing=north,portrait=false,turn=1": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=north,portrait=false,turn=2": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=north,portrait=false,turn=3": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=east,portrait=false,turn=0": {
       "model": "realcamera:block/table_frame",
       "y": 90
     },
-    "facing=south,portrait=false": {
+    "facing=east,portrait=false,turn=1": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=east,portrait=false,turn=2": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=east,portrait=false,turn=3": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=south,portrait=false,turn=0": {
       "model": "realcamera:block/table_frame",
       "y": 180
     },
-    "facing=west,portrait=false": {
+    "facing=south,portrait=false,turn=1": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=south,portrait=false,turn=2": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=south,portrait=false,turn=3": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=west,portrait=false,turn=0": {
       "model": "realcamera:block/table_frame",
       "y": 270
     },
-    "facing=north,portrait=true": {
+    "facing=west,portrait=false,turn=1": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=west,portrait=false,turn=2": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=west,portrait=false,turn=3": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=north,portrait=true,turn=0": {
       "model": "realcamera:block/table_frame_portrait"
     },
-    "facing=east,portrait=true": {
+    "facing=north,portrait=true,turn=1": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=north,portrait=true,turn=2": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=north,portrait=true,turn=3": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=east,portrait=true,turn=0": {
       "model": "realcamera:block/table_frame_portrait",
       "y": 90
     },
-    "facing=south,portrait=true": {
+    "facing=east,portrait=true,turn=1": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=east,portrait=true,turn=2": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=east,portrait=true,turn=3": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=south,portrait=true,turn=0": {
       "model": "realcamera:block/table_frame_portrait",
       "y": 180
     },
-    "facing=west,portrait=true": {
+    "facing=south,portrait=true,turn=1": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=south,portrait=true,turn=2": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=south,portrait=true,turn=3": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=west,portrait=true,turn=0": {
       "model": "realcamera:block/table_frame_portrait",
       "y": 270
+    },
+    "facing=west,portrait=true,turn=1": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=west,portrait=true,turn=2": {
+      "model": "realcamera:block/table_frame_turned"
+    },
+    "facing=west,portrait=true,turn=3": {
+      "model": "realcamera:block/table_frame_turned"
     }
   }
 }

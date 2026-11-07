@@ -1089,9 +1089,17 @@ def stage4_assets():
     for f, y in (("north", 0), ("east", 90), ("south", 180), ("west", 270)):
         v[f"facing={f}"] = {"model": f"{NS}:block/computer", **({"y": y} if y else {})}
     save_json({"variants": v}, "blockstates", "computer.json")
+    # 16 directions like a head: turn=0 is the baked model, turned frames (22.5/45/67.5 degrees past the facing)
+    # have an empty model and DisplayRenderer draws them
+    save_json({"parent": "minecraft:block/block", "textures": {"particle": b + "table_frame"}, "elements": []},
+              "models/block", "table_frame_turned.json")
     v = {}
-    facing("portrait", "false", "table_frame", v)
-    facing("portrait", "true", "table_frame_portrait", v)
+    for portrait, model in (("false", "table_frame"), ("true", "table_frame_portrait")):
+        for f, y in (("north", 0), ("east", 90), ("south", 180), ("west", 270)):
+            for turn in range(4):
+                key = f"facing={f},portrait={portrait},turn={turn}"
+                v[key] = {"model": f"{NS}:block/{model}", **({"y": y} if y else {})} if turn == 0 \
+                    else {"model": f"{NS}:block/table_frame_turned"}
     save_json({"variants": v}, "blockstates", "table_frame.json")
     v = {}
     facing("half", "lower", "photo_stand_lower", v)
