@@ -190,14 +190,66 @@ public final class FrameSampler {
 
     /** Histogram of what the photo would look like with the given exposure gain (EV). */
     public static int[] histogram(double exposureEv) {
+        double gain = Math.pow(2, exposureEv);
+        return histogram(v -> v * gain);
+    }
+
+    /**
+     * Histogram of what the photo would look like.
+     *
+     * @param look linear luminance of the game's picture to linear luminance of the photo
+     */
+    public static int[] histogram(java.util.function.DoubleUnaryOperator look) {
         int[] bins = new int[BINS];
-        float gain = (float) Math.pow(2, exposureEv);
+        // the samples take 256 values at most: map each once
+        float[] lut = new float[257];
+        for (int i = 0; i <= 256; i++) lut[i] = (float) look.applyAsDouble(i / 256.0);
         for (float v : samples) {
-            float lin = Math.min(1, v * gain);
+            float x = Math.min(1, Math.max(0, v)) * 256;
+            int i0 = Math.min(255, (int) x);
+            float lin = Math.max(0, Math.min(1, lut[i0] + (lut[i0 + 1] - lut[i0]) * (x - i0)));
             double srgb = lin <= 0.0031308 ? lin * 12.92 : 1.055 * Math.pow(lin, 1 / 2.4) - 0.055;
             bins[Math.min(BINS - 1, (int) (srgb * BINS))]++;
         }
         return bins;
+    }
+
+    /**
+     * Log-average linear luminance of the last frame read over the metering grid (9 x 6 cells, top-down; a patch
+     * in the middle of each cell, as {@link dev.hackdanel.realcamera.client.render.ShaderCompat#packRelight} measures
+     * the photo), the photo's frame being the largest rectangle of the sensor's aspect in the middle of the screen.
+     *
+     * @return the luminance, or -1 when there is no recent frame or no weighted cell
+     */
+    public static double meteredLuminance(float[] weights, double aspect) {
+        if (samples.length == 0 || weights == null || weights.length != 54
+                || System.currentTimeMillis() - sampledAtMs > 1000) {
+            return -1;
+        }
+        int sw = sampleScreenW, sh = sampleScreenH;
+        double fw = sw, fh = sh;
+        if ((double) sw / sh >= aspect) fw = sh * aspect;
+        else fh = sw / aspect;
+        double x0 = (sw - fw) / 2, y0 = (sh - fh) / 2;
+        double sum = 0, wsum = 0;
+        for (int cy = 0; cy < 6; cy++) {
+            for (int cx = 0; cx < 9; cx++) {
+                float wt = weights[cy * 9 + cx];
+                if (wt <= 0) continue;
+                for (int j = 0; j < 4; j++) {
+                    for (int i = 0; i < 4; i++) {
+                        double x = x0 + (cx + 0.3 + 0.4 * (i + 0.5) / 4) * fw / 9;
+                        double yTop = y0 + (cy + 0.3 + 0.4 * (j + 0.5) / 4) * fh / 6;
+                        int sx = Math.min(sampleW - 1, (int) (x / sampleStep));
+                        int sy = Math.min(sampleH - 1, (int) ((sh - 1 - yTop) / sampleStep)); // rows bottom-up
+                        if (sx < 0 || sy < 0) continue;
+                        sum += Math.log(Math.max(samples[sy * sampleW + sx], 1e-4)) * wt;
+                        wsum += wt;
+                    }
+                }
+            }
+        }
+        return wsum > 0 ? Math.exp(sum / wsum) : -1;
     }
 
     private static void release() {

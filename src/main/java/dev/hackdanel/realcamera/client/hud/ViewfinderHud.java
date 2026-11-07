@@ -114,7 +114,8 @@ public final class ViewfinderHud {
         Font font = mc.font;
 
         g.flush();
-        if (evf && exp != null) {
+        if (evf && exp != null && !dev.hackdanel.realcamera.client.render.EvfPreview.applied()) {
+            // fallback when the screen does not already show the photo's look (film body, shader not loaded)
             exposurePreview(g, outer.x(), outer.y(), outer.w(), outer.h(), previewEv(exp, s));
         }
         // mask outside the viewfinder area
@@ -172,7 +173,7 @@ public final class ViewfinderHud {
     }
 
     /** Bulb exposure is unknown until release; preview it as one second. */
-    private static double previewEv(Exposure.Result exp, CameraSettings s) {
+    public static double previewEv(Exposure.Result exp, CameraSettings s) {
         if (s.mode() == CameraSettings.MODE_M && s.shutterIndex() >= ExposureScales.BULB_INDEX) {
             return Viewfinder.meteredEv() - Exposure.cameraEv(exp.fNumber(), 1, exp.iso());
         }
@@ -531,7 +532,8 @@ public final class ViewfinderHud {
     }
 
     private static void histogram(GuiGraphics g, int x, int y, int w, int h, double delta) {
-        int[] bins = FrameSampler.histogram(delta);
+        var look = dev.hackdanel.realcamera.client.render.EvfPreview.look();
+        int[] bins = look != null ? FrameSampler.histogram(look::grey) : FrameSampler.histogram(delta);
         int max = 1;
         for (int b : bins) max = Math.max(max, b);
         g.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0x80000000);

@@ -107,21 +107,20 @@ public final class DofPreview {
         if (!pack) {
             FrameSampler.sample(projection); // the sharp frame, for the histogram and the AF
         }
-        if (!enabled()) {
-            return;
-        }
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
-        if (main.width < 4 || main.height < 4) {
-            return;
-        }
-        try {
-            computeRadii(main);
-            radiiReady = true;
-            if (!pack) {
-                blur(main);
+        if (enabled() && main.width >= 4 && main.height >= 4) {
+            try {
+                computeRadii(main);
+                radiiReady = true;
+                if (!pack) {
+                    blur(main);
+                }
+            } finally {
+                restore(main);
             }
-        } finally {
-            restore(main);
+        }
+        if (!pack) {
+            EvfPreview.apply(main); // the photo's look, on the blurred picture
         }
     }
 
@@ -148,15 +147,15 @@ public final class DofPreview {
             sampledAfterPack = true;
             FrameSampler.sample(projection);
         }
-        if (!radiiReady || !enabled() || radii == null || radii.width != main.width || radii.height != main.height) {
-            return;
+        if (radiiReady && enabled() && radii != null && radii.width == main.width && radii.height == main.height) {
+            radiiReady = false;
+            try {
+                blur(main);
+            } finally {
+                restore(main);
+            }
         }
-        radiiReady = false;
-        try {
-            blur(main);
-        } finally {
-            restore(main);
-        }
+        EvfPreview.apply(main);
     }
 
     @SubscribeEvent

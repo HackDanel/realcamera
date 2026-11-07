@@ -53,7 +53,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public final class Viewfinder {
     public static final int AF_IDLE = 0, AF_SEARCHING = 1, AF_LOCKED = 2, AF_FAILED = 3;
     public static final int PEAK_W = 64, PEAK_H = 36;
-    private static final float MAGNIFY = 5f;
+    public static final float MAGNIFY = 5f;
 
     private static boolean active;
     private static CameraRef ref = CameraRef.hand(InteractionHand.MAIN_HAND);
@@ -618,7 +618,29 @@ public final class Viewfinder {
     private static double meteredGameLight = 1, meteredK = 5500;
     /** Metering weights of the 9 x 6 grid (top-down) and the log-average reflectance of the metered surfaces. */
     private static float[] meterWeights = new float[54];
+    /** The metering weights of the cells that see a surface (0 where the meter looks at the sky). */
+    private static float[] meterSurface = new float[54];
     private static double meteredAlbedo = -1;
+
+    /** How brightly the game lit the metered area (0..1): the photo brightens a dimly drawn scene by its inverse. */
+    public static double meteredGameLight() {
+        return meteredGameLight;
+    }
+
+    /** Colour temperature of the metered light, K. */
+    public static double meteredK() {
+        return meteredK;
+    }
+
+    /** Metering weights of the 9 x 6 grid (top-down) for the cells that see a surface. */
+    public static float[] meterSurfaceWeights() {
+        return meterSurface;
+    }
+
+    /** Log-average reflectance of the metered surfaces (linear), or -1. */
+    public static double meteredAlbedo() {
+        return meteredAlbedo;
+    }
 
     private static void meter(Minecraft mc) {
         double aspect = sensor().aspect();
@@ -628,7 +650,7 @@ public final class Viewfinder {
         double ambient = SceneMeter.ambientEv(mc.level);
         int gx = 9, gy = 6;
         double sum = 0, wsum = 0, lightSum = 0, miredSum = 0, albedoSum = 0, albedoW = 0;
-        float[] weights = new float[gx * gy];
+        float[] weights = new float[gx * gy], surface = new float[gx * gy];
         int blockVotes = 0;
         double skyGame = SceneMeter.gameLight(mc.level, BlockPos.containing(mc.gameRenderer.getMainCamera().getPosition()).atY(
                 mc.level.getMaxBuildHeight()));
@@ -654,6 +676,7 @@ public final class Viewfinder {
                 if (hit.getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
                     albedoSum += Math.log(0.3 * Math.pow(2, refl)) * w;
                     albedoW += w;
+                    surface[y * gx + x] = (float) w;
                 }
                 sum += ev * w;
                 wsum += w;
@@ -682,6 +705,7 @@ public final class Viewfinder {
         meteredGameLight = Math.exp(lightSum / wsum);
         meteredK = 1e6 / (miredSum / wsum);
         meterWeights = weights;
+        meterSurface = surface;
         meteredAlbedo = albedoW > 0 ? Math.exp(albedoSum / albedoW) : -1;
         blockLit = blockVotes > gx * gy / 3;
     }

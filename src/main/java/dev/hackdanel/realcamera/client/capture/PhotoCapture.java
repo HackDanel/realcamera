@@ -751,59 +751,72 @@ public final class PhotoCapture {
                             look.tintR() * drift[0], look.tintG() * drift[1], look.tintB() * drift[2], look.shadowLift()),
                     digital.extras(), digital.seed());
         }
-        OpticalChain chain = s.chain();
+        // dark current integrates for the whole exposure; noise reduction subtracts a dark frame from 1 s on
+        double darkS = seconds < 0 ? 1 : seconds;
+        var dark = new ImageParams.Dark(darkS >= 0.25 ? darkS : 0, s.sensorC(), s.settings().longExposureNr() && darkS >= 1,
+                sensorSeed(s));
+        ImageParams base = digitalParams(s.chain(), s.settings(), s.exposure(), s.focal(), s.focusDistance(),
+                exposureEv(s, seconds), s.sceneK(), s.extras(), profile, w, h);
+        return new ImageParams(base.sensor().withDark(dark), base.focus(), base.lens(), s.motion().scaled(w), s.sun(),
+                base.colour(), base.extras(), base.seed());
+    }
+
+    /**
+     * A digital photo's development parameters, without what only the shot knows (motion, sun, dark current). The
+     * electronic viewfinder builds its preview from the same parameters ({@link dev.hackdanel.realcamera.client.render.EvfPreview}).
+     *
+     * @param exposureEv exposure error (+ brighter than the meter's middle grey)
+     * @param sceneK     colour temperature of the metered light
+     * @param w          frame width in pixels (lateral colour and shift scale with it)
+     */
+    public static ImageParams digitalParams(OpticalChain chain, CameraSettings settings, Exposure.Result exposure, float focal,
+                                            float focusDistance, double exposureEv, double sceneK, ImageParams.Extras extras,
+                                            @javax.annotation.Nullable ColorProfileSpec profile, int w, int h) {
         var sensor = chain.sensor();
-        double isoGain = s.exposure().iso() / 100.0;
+        double isoGain = exposure.iso() / 100.0;
         double areaFactor = Math.sqrt(864.0 / Math.max(1, sensor.widthMm() * sensor.heightMm()));
-        double belowBase = Math.max(0, Math.log(sensor.baseIso() / s.exposure().iso()) / Math.log(2));
-        double sceneK = s.sceneK();
-        double settingK = switch (s.settings().whiteBalance()) {
+        double belowBase = Math.max(0, Math.log(sensor.baseIso() / exposure.iso()) / Math.log(2));
+        double settingK = switch (settings.whiteBalance()) {
             case CameraSettings.WB_DAYLIGHT, CameraSettings.WB_FLASH -> 5500;
             case CameraSettings.WB_CLOUDY -> 6500;
             case CameraSettings.WB_SHADE -> 7500;
             case CameraSettings.WB_TUNGSTEN -> 3200;
             case CameraSettings.WB_FLUORESCENT -> 4000;
-            case CameraSettings.WB_KELVIN -> s.settings().kelvin();
+            case CameraSettings.WB_KELVIN -> settings.kelvin();
             default -> sceneK * 0.7 + 5500 * 0.3; // auto keeps a little of the light's mood
         };
         double[] wb = ImagePipeline.whiteBalance(sceneK, settingK);
-        boolean correct = s.settings().lensCorrection();
         var optics = chain.lens().optics();
         // uncorrected optics: corrections are applied after the RAW is taken (ImagePipeline.correctLens)
         // a lens made for a bigger format only shows the middle of its image on a smaller sensor (a full-frame lens
         // on APS-C): less vignetting, distortion and lateral colour at the frame corner
         double q = Math.min(1, Math.hypot(sensor.widthMm(), sensor.heightMm()) / OpticalChain.circleDiagonalMm(chain.lens().imageCircle()));
-        var lens = new ImageParams.Lens(optics.vignettingEv() * q * q, chain.maxApertureAt(s.focal()),
-                chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(s.focal())) * q * q,
+        var lens = new ImageParams.Lens(optics.vignettingEv() * q * q, chain.maxApertureAt(focal),
+                chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(focal)) * q * q,
                 optics.caPx() * (w / 3840.0) * q, chain.imageCircle(), optics.blades(),
                 optics.rounded(), optics.flare());
-        lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh())).withLoca(chain.locaMm(s.focal()));
+        lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh())).withLoca(chain.locaMm(focal));
         int projection = chain.projection();
         if (projection != Optics.PROJ_RECTILINEAR) {
             double halfDiag = Math.hypot(sensor.widthMm(), sensor.heightMm()) / 2;
-            lens = lens.withProjection(projection, Optics.renderCornerAngle(projection, s.focal(), halfDiag));
+            lens = lens.withProjection(projection, Optics.renderCornerAngle(projection, focal, halfDiag));
         }
-        float shiftMm = chain.shiftMm(s.settings());
+        float shiftMm = chain.shiftMm(settings);
         if (shiftMm != 0) {
             lens = lens.withShift(shiftMm * w / sensor.widthMm(), 1 / OpticalChain.SHIFT_OVERSCAN);
         }
-        var motion = s.motion().scaled(w);
-        // dark current integrates for the whole exposure; noise reduction subtracts a dark frame from 1 s on
-        double darkS = seconds < 0 ? 1 : seconds;
-        var dark = new ImageParams.Dark(darkS >= 0.25 ? darkS : 0, s.sensorC(), s.settings().longExposureNr() && darkS >= 1,
-                sensorSeed(s));
         return new ImageParams(
-                new ImageParams.Sensor(exposureEv(s, seconds), isoGain, sensor.noiseLuma(), sensor.noiseChroma(),
-                        (double) w * h / (sensor.megapixels() * 1e6), sensor.dynamicRangeEv(), areaFactor, belowBase, dark),
-                new ImageParams.Focus(s.focal(), s.exposure().fNumber(), s.focusDistance(), sensor.widthMm(),
-                        chain.tiltDeg(s.settings())),
-                lens, motion, s.sun(),
+                new ImageParams.Sensor(exposureEv, isoGain, sensor.noiseLuma(), sensor.noiseChroma(),
+                        (double) w * h / (sensor.megapixels() * 1e6), sensor.dynamicRangeEv(), areaFactor, belowBase),
+                new ImageParams.Focus(focal, exposure.fNumber(), focusDistance, sensor.widthMm(),
+                        chain.tiltDeg(settings)),
+                lens, ImageParams.STILL, ImageParams.NO_SUN,
                 new ImageParams.Colour(wb[0], wb[1], wb[2],
                         profile == null ? 1 : profile.contrast(), profile == null ? 1 : profile.saturation(),
                         profile != null && profile.monochrome(), profile == null ? 1 : profile.tintR(),
                         profile == null ? 1 : profile.tintG(), profile == null ? 1 : profile.tintB(),
                         profile == null ? 0 : profile.shadowLift()),
-                s.extras(), System.nanoTime());
+                extras, System.nanoTime());
     }
 
     /**

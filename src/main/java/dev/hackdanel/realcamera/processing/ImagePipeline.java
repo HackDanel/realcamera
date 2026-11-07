@@ -1220,7 +1220,7 @@ public final class ImagePipeline {
     }
 
     /** Corner light fall-off (EV) at this aperture: strongest wide open, mostly gone two stops down. */
-    static double vignetteEv(ImageParams p) {
+    public static double vignetteEv(ImageParams p) {
         ImageParams.Lens l = p.lens();
         // the optical part goes away stopping down; the natural cos^4 fall-off of wide angles stays
         double residual = Math.max(0.08, Math.min(0.35, (35 - p.focus().focalMm()) / 20 * 0.35));
@@ -1235,18 +1235,8 @@ public final class ImagePipeline {
         ImageParams.Lens l = p.lens();
         final float[] img = src;
         double vig = vignetteEv(p) * 0.5;
-        double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, norm = cx * cx + cy * cy;
         if (vig > 0.01) {
-            java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
-                for (int x = 0; x < w; x++) {
-                    double r2 = ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / norm;
-                    float m = (float) Math.pow(2, vig * r2 * r2 * 0.5 + vig * r2 * 0.5);
-                    int j = (y * w + x) * 3;
-                    img[j] *= m;
-                    img[j + 1] *= m;
-                    img[j + 2] *= m;
-                }
-            });
+            vignette(img, w, h, -vig);
         }
         if (l.projection() == 0 && (Math.abs(l.distortion()) > 1e-4 || Math.abs(l.caPx()) > 0.3)) {
             ImageParams.Lens inverse = new ImageParams.Lens(l.vignettingEv(), l.maxAperture(), l.sharpness(),
@@ -1256,21 +1246,32 @@ public final class ImagePipeline {
         return img;
     }
 
+    /** Light fall-off towards the corners: {@code ev} lost at the corner (negative: brightened, the correction). */
+    static void vignette(float[] img, int w, int h, double ev) {
+        double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, norm = cx * cx + cy * cy;
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+            for (int x = 0; x < w; x++) {
+                double r2 = ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / norm;
+                float m = (float) vignetteGain(ev, r2);
+                int j = (y * w + x) * 3;
+                img[j] *= m;
+                img[j + 1] *= m;
+                img[j + 2] *= m;
+            }
+        });
+    }
+
+    /** Vignetting gain at r2 = squared distance from the centre over the squared half diagonal. */
+    public static double vignetteGain(double ev, double r2) {
+        return Math.pow(2, -ev * (r2 * r2 * 0.5 + r2 * 0.5));
+    }
+
     static void lens(float[] img, int w, int h, ImageParams p) {
         ImageParams.Lens l = p.lens();
         double vig = vignetteEv(p);
         double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, norm = cx * cx + cy * cy;
         if (vig > 0.01) {
-            java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
-                for (int x = 0; x < w; x++) {
-                    double r2 = ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / norm;
-                    float m = (float) Math.pow(2, -vig * r2 * r2 * 0.5 - vig * r2 * 0.5);
-                    int j = (y * w + x) * 3;
-                    img[j] *= m;
-                    img[j + 1] *= m;
-                    img[j + 2] *= m;
-                }
-            });
+            vignette(img, w, h, vig);
         }
         // Diffraction: the Airy pattern grows with the f-number and the wavelength (red spreads more than blue).
         double pitchMm = p.focus().sensorWidthMm() / w;
@@ -1462,6 +1463,32 @@ public final class ImagePipeline {
         if (s.noiseLuma() <= 0 && s.noiseChroma() <= 0) {
             return;
         }
+        NoiseModel m = noiseModel(s);
+        SplittableRandom rnd = new SplittableRandom(p.seed());
+        float[] row = new float[h];
+        for (int y = 0; y < h; y++) row[y] = (float) (rnd.nextGaussian() * m.rowSigma());
+        for (int i = 0, px = 0; i < img.length; i += 3, px++) {
+            float luma = 0.2126f * img[i] + 0.7152f * img[i + 1] + 0.0722f * img[i + 2];
+            double sigma = m.sigma(luma);
+            double common = rnd.nextGaussian() * sigma + row[px / w];
+            img[i] = (float) Math.max(0, img[i] + common + rnd.nextGaussian() * sigma * m.chroma());
+            img[i + 1] = (float) Math.max(0, img[i + 1] + common + rnd.nextGaussian() * sigma * m.chroma());
+            img[i + 2] = (float) Math.max(0, img[i + 2] + common + rnd.nextGaussian() * sigma * m.chroma());
+        }
+        hotPixels(img, w, h, s, m.amp());
+    }
+
+    /**
+     * Sensor noise of one exposure. sigma(luma) = sqrt(luma * shot + read2) * avg is the noise common to the three
+     * channels, chroma the share added per channel, rowSigma the banding common to a row.
+     */
+    public record NoiseModel(double amp, double shot, double read2, double chroma, double avg, double rowSigma) {
+        public double sigma(double luma) {
+            return Math.sqrt(Math.max(luma, 0) * shot + read2) * avg;
+        }
+    }
+
+    public static NoiseModel noiseModel(ImageParams.Sensor s) {
         // amplification is the ISO alone: exposing brighter (to the right) gives a cleaner picture, not a noisier one
         double amp = Math.max(0.25, s.isoGain());
         // a smaller sensor gathers less light for the same framing; a higher-DR sensor has less read noise
@@ -1474,21 +1501,10 @@ public final class ImagePipeline {
         double darkVar = dark.seconds() > 0
                 ? amp * amp * shotK * DARK_K * dark.seconds() * dark.thermal() * (dark.subtracted() ? 2 : 1) : 0;
         double read2 = amp * readK * amp * readK + darkVar;
-        SplittableRandom rnd = new SplittableRandom(p.seed());
         // row banding: a row averages many sensor rows, so it fades more slowly with downsampling than pixel noise
         double band = Math.max(0.03, Math.min(0.35, (13 - s.dynamicRangeEv()) * 0.12));
         double rowSigma = amp * readK * band * Math.pow(Math.min(1, s.resolutionScale()), 0.25) * s.areaFactor();
-        float[] row = new float[h];
-        for (int y = 0; y < h; y++) row[y] = (float) (rnd.nextGaussian() * rowSigma);
-        for (int i = 0, px = 0; i < img.length; i += 3, px++) {
-            float luma = 0.2126f * img[i] + 0.7152f * img[i + 1] + 0.0722f * img[i + 2];
-            double sigma = Math.sqrt(Math.max(luma, 0) * amp * shotK + read2) * avg;
-            double common = rnd.nextGaussian() * sigma + row[px / w];
-            img[i] = (float) Math.max(0, img[i] + common + rnd.nextGaussian() * sigma * chromaK);
-            img[i + 1] = (float) Math.max(0, img[i + 1] + common + rnd.nextGaussian() * sigma * chromaK);
-            img[i + 2] = (float) Math.max(0, img[i + 2] + common + rnd.nextGaussian() * sigma * chromaK);
-        }
-        hotPixels(img, w, h, s, amp);
+        return new NoiseModel(amp, amp * shotK, read2, chromaK, avg, rowSigma);
     }
 
     /**
@@ -1519,7 +1535,11 @@ public final class ImagePipeline {
 
     /** Highlights compress smoothly towards white instead of clipping hard; more DR = longer shoulder. */
     public static void rollOff(float[] img, double dynamicRangeEv) {
-        float knee = (float) Math.max(0.6, Math.min(0.9, 1.25 - dynamicRangeEv * 0.035));
+        rollOffFrom(img, (float) rollOffKnee(dynamicRangeEv));
+    }
+
+    /** Highlight roll-off starting at {@code knee}. */
+    public static void rollOffFrom(float[] img, float knee) {
         float span = 1 - knee;
         for (int i = 0; i < img.length; i++) {
             float v = img[i];
@@ -1527,6 +1547,11 @@ public final class ImagePipeline {
                 img[i] = knee + span * (1 - (float) Math.exp(-(v - knee) / span));
             }
         }
+    }
+
+    /** Where the highlight shoulder starts (linear, JPEG white = 1). */
+    public static double rollOffKnee(double dynamicRangeEv) {
+        return Math.max(0.6, Math.min(0.9, 1.25 - dynamicRangeEv * 0.035));
     }
 
     /** White balance, then profile and tone curve (for callers that have no sensor data to clip). */

@@ -220,7 +220,15 @@ public final class ShaderCompat {
             }
         }
         if (wsum <= 0) return vanilla; // only sky in the metered area: nothing to compare with
-        double measured = Math.exp(sum / wsum);
+        return packRelight(Math.exp(sum / wsum), albedo, vanilla);
+    }
+
+    /**
+     * {@link #packRelight(float[], float[], int, int, float[], double, double)} from the measured log-average
+     * luminance (linear) of the metered surfaces in the pack's picture.
+     */
+    public static double packRelight(double measured, double albedo, double vanilla) {
+        if (albedo <= 0 || !(measured > 0)) return vanilla;
         // a vanilla frame in full light shows a surface at about its reflectance x 0.85 (side shading)
         double factor = albedo * 0.85 / measured;
         // never more than 3 stops away from what the light curve says: a pack can draw a scene black or white

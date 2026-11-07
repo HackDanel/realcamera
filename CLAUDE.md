@@ -18,6 +18,11 @@ Before any other work, update the local repo from GitHub: `git pull --rebase` on
 have pushed from another machine). If the working tree has uncommitted changes or the pull conflicts, stop and tell
 the owner instead of stashing, resetting or resolving on your own.
 
+## Commits
+
+Commit after every finished task (on the current branch, under the owner's identity, no Claude attribution). Push only
+when the owner explicitly says so.
+
 ## Commands
 
 The system Java may be newer than 21; Gradle downloads JDK 21 itself (foojay toolchain).
@@ -78,6 +83,12 @@ dispatched via `ClientBridge.handlePayload`.
    camera buffer (drains at the card's write speed), shutter. Composes a `PhotoCapture.Shot`. A correct exposure
    renders the metered area at middle grey however dark the game drew it (`PhotoCapture.relight`, global factor
    from the game's light curve at the metered points; not per pixel).
+   Electronic finders (`evf`/`hybrid`/`none`, digital bodies) show the photo's look live: `client/render/EvfPreview`
+   (shader `realcamera_evf`, after the live DoF) applies the per-pixel part of the development — relight of a dim
+   scene (with a pack: `FrameSampler.meteredLuminance` + `ShaderCompat.packRelight`), exposure error, colour filter,
+   GND, vignetting + correction, noise, clipping, WB, roll-off, profile. Parameters come from the same
+   `PhotoCapture.digitalParams` as the photo; `processing/LiveView` is the Java reference of the shader (tested
+   against the pipeline in `LiveViewTest`, also feeds the histogram) — change both together.
    AF rays hit block outlines (grass and flowers count). AF needs local contrast (`hud/FrameSampler.contrastAt`,
    the frame read back before the GUI): too little and the lens hunts and fails; it lands with a random error of
    a fraction of the wide-open depth of focus. AF-ON (R) is back-button focus. `client/render/DofPreview` blurs
