@@ -18,8 +18,34 @@ public record PaperData(String size, String finish) {
             ByteBufCodecs.STRING_UTF8, PaperData::finish,
             PaperData::new);
 
+    /** Paper sizes, smallest first. */
     public static final String[] SIZES = {"10x15", "a5", "a4", "a3"};
     public static final String[] FINISHES = {"glossy", "matte"};
+
+    /**
+     * Largest side (blocks) of a wall frame a print on this paper may hang in: 10x15 and A5 only 1x1, A4 up to 2x2,
+     * A3 any frame. An unknown size (none recorded) is not limited.
+     */
+    public static int maxFrameSide(String size) {
+        return switch (size) {
+            case "10x15", "a5" -> 1;
+            case "a4" -> 2;
+            default -> Integer.MAX_VALUE;
+        };
+    }
+
+    /** Whether a print on this paper may hang in a wall frame of width x height blocks. */
+    public static boolean fitsFrame(String size, int width, int height) {
+        return Math.max(width, height) <= maxFrameSide(size);
+    }
+
+    /** The smallest paper whose print may hang in a wall frame of width x height blocks. */
+    public static String smallestFor(int width, int height) {
+        for (String s : SIZES) {
+            if (fitsFrame(s, width, height)) return s;
+        }
+        return SIZES[SIZES.length - 1];
+    }
 
     /** Ink units a print of this size consumes at 100 % coverage of one channel. */
     public int inkCost() {

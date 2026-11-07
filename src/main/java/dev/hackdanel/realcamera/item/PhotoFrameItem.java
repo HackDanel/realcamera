@@ -1,6 +1,7 @@
 package dev.hackdanel.realcamera.item;
 
 import dev.hackdanel.realcamera.component.FrameData;
+import dev.hackdanel.realcamera.component.PaperData;
 import dev.hackdanel.realcamera.entity.PhotoFrameEntity;
 import dev.hackdanel.realcamera.registry.RCComponents;
 import java.util.List;
@@ -64,5 +65,10 @@ public class PhotoFrameItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> lines, TooltipFlag flag) {
         lines.add(Component.translatable("tooltip.realcamera.frame_hint").withStyle(ChatFormatting.DARK_AQUA));
+        FrameData f = frame(stack);
+        String paper = PaperData.smallestFor(f.width(), f.height());
+        lines.add((paper.equals(PaperData.SIZES[0]) ? Component.translatable("tooltip.realcamera.frame_paper.any")
+                : Component.translatable("tooltip.realcamera.frame_paper", Component.translatable("tooltip.realcamera.paper." + paper)))
+                .withStyle(ChatFormatting.GRAY));
     }
 }

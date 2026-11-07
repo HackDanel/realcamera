@@ -56,6 +56,7 @@ public final class Stage1Autotest {
     private static String pendingScreenshot;
     private static BlockPos origin;
     private static BlockPos printerPos;
+    private static boolean paperRefused;
 
     private Stage1Autotest() {}
 
@@ -186,7 +187,7 @@ public final class Stage1Autotest {
                 printer.items().setStackInSlot(PrinterBlockEntity.SLOT_OUTPUT, ItemStack.EMPTY);
                 ItemStack camera = p.getInventory().getItem(0).copy();
                 // wall and a 2x2 frame facing the player
-                cmd(p, "fill ~-2 ~ ~9 ~2 ~3 ~9 minecraft:stone_bricks");
+                cmd(p, "fill ~-5 ~ ~9 ~6 ~3 ~9 minecraft:stone_bricks");
                 PhotoFrameEntity frame = new PhotoFrameEntity(p.serverLevel(), origin.offset(0, 1, 8), Direction.NORTH,
                         new FrameData(2, 2, "dark_oak"));
                 frame.interact(fakeHolding(p, print), InteractionHand.MAIN_HAND);
@@ -201,6 +202,15 @@ public final class Stage1Autotest {
                         new FrameData(1, 1, "gold"));
                 frame2.interact(fakeHolding(p, small), InteractionHand.MAIN_HAND);
                 if (frame2.survives()) p.serverLevel().addFreshEntity(frame2);
+                // paper size limit (#13): an A3 print fills a 4x3 frame
+                PhotoFrameEntity big = new PhotoFrameEntity(p.serverLevel(), origin.offset(4, 1, 8), Direction.NORTH,
+                        new FrameData(4, 3, "black_metal"));
+                big.interact(fakeHolding(p, onPaper(print, "a3")), InteractionHand.MAIN_HAND);
+                if (big.survives()) p.serverLevel().addFreshEntity(big);
+                log(!big.print().isEmpty() ? "PASS A3 print hangs in a 4x3 frame" : "FAIL A3 print refused by a 4x3 frame");
+                PhotoFrameEntity small2 = new PhotoFrameEntity(p.serverLevel(), origin.offset(-3, 1, 8), Direction.NORTH,
+                        new FrameData(2, 2, "oak"));
+                if (small2.survives()) p.serverLevel().addFreshEntity(small2);
                 p.getInventory().setItem(0, camera);
                 p.getInventory().setItem(1, print.copy());
             });
@@ -209,6 +219,23 @@ public final class Stage1Autotest {
                 wait = 80; // download + texture
             }
             case 12 -> {
+                if (!paperRefused) {
+                    // a 10x15 print into the empty 2x2 frame: refused with a message on the action bar (#13)
+                    paperRefused = true;
+                    server(p -> p.serverLevel().getEntitiesOfClass(PhotoFrameEntity.class,
+                            new net.minecraft.world.phys.AABB(origin.offset(-3, 1, 8)).inflate(0.5),
+                            f -> f.getPos().equals(origin.offset(-3, 1, 8))).forEach(f -> {
+                        ItemStack before = p.getMainHandItem().copy();
+                        f.interact(fakeHolding(p, onPaper(p.getInventory().getItem(1), "10x15")), InteractionHand.MAIN_HAND);
+                        boolean kept = p.getMainHandItem().getCount() == 1;
+                        log(f.print().isEmpty() && kept ? "PASS 10x15 print refused by a 2x2 frame"
+                                : "FAIL 10x15 print in a 2x2 frame: hung={} kept={}", !f.print().isEmpty(), kept);
+                        p.setItemInHand(InteractionHand.MAIN_HAND, before);
+                    }));
+                    step--;
+                    wait = 10;
+                    return;
+                }
                 pendingScreenshot = "2_frame_and_print_in_hand";
                 wait = 5;
             }
@@ -349,6 +376,15 @@ public final class Stage1Autotest {
             }
             default -> finish(mc);
         }
+    }
+
+    /** A copy of the print as if printed on another paper size. */
+    private static ItemStack onPaper(ItemStack print, String size) {
+        ItemStack s = print.copy();
+        var d = s.get(dev.hackdanel.realcamera.registry.RCComponents.PRINT.get());
+        s.set(dev.hackdanel.realcamera.registry.RCComponents.PRINT.get(),
+                new dev.hackdanel.realcamera.component.PrintData(d.photo(), size, d.finish(), d.missingInks(), d.caption()));
+        return s;
     }
 
     /** interact() takes the print from the player's hand; give it a copy to take from. */

@@ -1,6 +1,7 @@
 package dev.hackdanel.realcamera.entity;
 
 import dev.hackdanel.realcamera.component.FrameData;
+import dev.hackdanel.realcamera.component.PaperData;
 import dev.hackdanel.realcamera.item.PhotoPrintItem;
 import dev.hackdanel.realcamera.registry.RCComponents;
 import dev.hackdanel.realcamera.registry.RCEntities;
@@ -9,6 +10,7 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
@@ -32,8 +34,9 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Wall frame of 1x1 to 4x3 blocks holding one print. Placement and bounding box follow vanilla
- * paintings. Right click with a print inserts it; sneak + right click cycles the mat (none / white /
- * black); hitting a filled frame first takes the print out.
+ * paintings. Right click with a print inserts it if its paper is large enough for the frame
+ * ({@link PaperData#fitsFrame}; frames have a fixed size, so only insertion is checked); sneak + right
+ * click cycles the mat (none / white / black); hitting a filled frame first takes the print out.
  */
 public class PhotoFrameEntity extends HangingEntity {
     private static final EntityDataAccessor<Integer> WIDTH = SynchedEntityData.defineId(PhotoFrameEntity.class, EntityDataSerializers.INT);
@@ -114,6 +117,17 @@ public class PhotoFrameEntity extends HangingEntity {
     public InteractionResult interact(Player player, InteractionHand hand) {
         ItemStack held = player.getItemInHand(hand);
         if (print().isEmpty() && held.getItem() instanceof PhotoPrintItem && held.has(RCComponents.PRINT.get())) {
+            String paper = held.get(RCComponents.PRINT.get()).paperSize();
+            if (!PaperData.fitsFrame(paper, frameWidth(), frameHeight())) {
+                // a small print does not fill a big frame: say which paper it needs (CONSUME: no print viewer)
+                if (!level().isClientSide) {
+                    player.displayClientMessage(Component.translatable("message.realcamera.frame.paper_too_small",
+                            Component.translatable("tooltip.realcamera.paper." + paper), frameWidth(), frameHeight(),
+                            Component.translatable("tooltip.realcamera.paper."
+                                    + PaperData.smallestFor(frameWidth(), frameHeight()))), true);
+                }
+                return InteractionResult.CONSUME;
+            }
             if (!level().isClientSide) {
                 entityData.set(PRINT, held.copyWithCount(1));
                 if (player instanceof net.minecraft.server.level.ServerPlayer sp) {

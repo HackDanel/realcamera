@@ -81,5 +81,8 @@ public class PhotoPrintItem extends Item {
         lines.add(Component.translatable("tooltip.realcamera.paper." + print.paperSize())
                 .append(", ").append(Component.translatable("tooltip.realcamera.finish." + print.finish()))
                 .withStyle(ChatFormatting.DARK_GRAY));
+        int side = dev.hackdanel.realcamera.component.PaperData.maxFrameSide(print.paperSize());
+        lines.add((side == Integer.MAX_VALUE ? Component.translatable("tooltip.realcamera.print_frame.any")
+                : Component.translatable("tooltip.realcamera.print_frame.max", side, side)).withStyle(ChatFormatting.DARK_GRAY));
     }
 }
