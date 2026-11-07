@@ -58,6 +58,7 @@ public final class Stage3Autotest {
     private static String pendingScreenshot;
     private static BlockPos origin;
     private static int photosBefore;
+    private static long flashFrom;
 
     private Stage3Autotest() {}
 
@@ -160,12 +161,26 @@ public final class Stage3Autotest {
     }
 
     private static void shoot(String name) {
+        shoot(name, null);
+    }
+
+    /** As above; {@code flashShot} names a screenshot of the view right after the shot's own flash is shown. */
+    private static void shoot(String name, String flashShot) {
         step("shoot " + name, () -> {
             photosBefore = exported();
+            flashFrom = System.nanoTime();
             log("shooting {}", name);
             Viewfinder.debugPressShutter();
         }, 5);
         until("started " + name, PhotoCapture::busy, 80);
+        if (flashShot != null) {
+            until("flash seen " + name, () -> {
+                var s = dev.hackdanel.realcamera.client.render.FlashGlow.debugLastShown();
+                if (s == null || s.nanos() < flashFrom) return false;
+                pendingScreenshot = flashShot;
+                return true;
+            }, 200);
+        }
         until("stored " + name, () -> !PhotoCapture.busy(), 1200);
         step("check " + name, () -> {
             int n = exported();
@@ -384,7 +399,9 @@ public final class Stage3Autotest {
                 .withIsoIndex(ExposureScales.nearestIso(400)).withFocal(35).withFlashMode(CameraSettings.FLASH_FILL),
                 c -> flashOn(c, "godox_v1"));
         raise();
-        shoot("s3_08_flash_night");
+        // the photographer's own flash lights the scene, but leaves neither a glare nor an afterimage (issue #9)
+        shoot("s3_08_flash_night", "s3_08d_own_flash");
+        flashCheck("own", true);
         lower();
         camera("nikon_d750", "nikon_afs_50_f18g", null, null, s -> s.withMode(CameraSettings.MODE_M)
                 .withShutterIndex(ExposureScales.nearestShutter(1 / 1000.0)).withApertureIndex(ExposureScales.nearestAperture(2.8))
@@ -399,10 +416,12 @@ public final class Stage3Autotest {
             var eye = mc.player.getEyePosition();
             var look = mc.player.getLookAngle();
             var pos = eye.add(look.scale(6));
+            flashFrom = System.nanoTime();
             dev.hackdanel.realcamera.client.render.FlashGlow.onPop(new dev.hackdanel.realcamera.network.Payloads.FlashPop(
                     -1, pos.x, pos.y, pos.z, (float) -look.x, (float) -look.y, (float) -look.z, 40));
             pendingScreenshot = "s3_08b_remote_flash";
         }, 30);
+        flashCheck("remote", false);
         screenshot("s3_08c_afterimage");
 
         // 9) water kills an unsealed body
@@ -432,6 +451,16 @@ public final class Stage3Autotest {
             log("done, stopping");
             Minecraft.getInstance().stop();
         }, 100);
+    }
+
+    /** How the last flash looked to this player: their own one only lights the scene, someone else's glares. */
+    private static void flashCheck(String name, boolean own) {
+        step("flash check " + name, () -> {
+            var s = dev.hackdanel.realcamera.client.render.FlashGlow.debugLastShown();
+            boolean ok = s != null && s.nanos() >= flashFrom && s.own() == own
+                    && (own ? s.glare() == 0 && s.afterimage() == 0 : s.glare() > 0 && s.afterimage() > 0);
+            log((ok ? "PASS" : "FAIL") + " {} flash as seen: {}", name, s);
+        }, 2);
     }
 
     /** Look through the tripod, tilt the head to {@code pitch}, shoot (self-timer), then look at it from the side. */

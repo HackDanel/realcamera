@@ -169,7 +169,7 @@ public final class ServerPhotoService {
     /**
      * Everyone around sees the pop: from the camera (in the hand or on a tripod), along its lens axis, with the light
      * the flash really gave (never more than the flash can). The photographer gets it as well: the frame already has
-     * the flash, but their eyes see it light the scene too (and from in front of a tripod, straight into it).
+     * the flash, but their eyes see it light the scene too (without the glare of looking into it, see FlashGlow).
      */
     private static void flashPop(ServerPlayer player, Payloads.Shutter msg, ItemStack camera, Optional<CameraBodySpec> body,
                                  boolean hotShoe) {

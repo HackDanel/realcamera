@@ -167,7 +167,9 @@ counter-rotates the camera while a raised camera is drawn (`CameraPose.raisedNow
 person animates the raise/lower over `Viewfinder.RAISE_TICKS`, and the viewfinder only activates after it. A camera in
 the inventory but not in a hand hangs on the chest (`gameplay/NeckCameras` sends `NeckCamera` to trackers,
 `client/render/NeckCameraLayer`). Own flash: the server sends `FlashPop` to the photographer too; `FlashGlow` defers
-pops while a frame is captured. Glare/afterimage scale continuously with the stops above the eye's adaptation.
+pops while a frame is captured and gives the own flash (shooter = local player, hand or tripod) only the scene
+brightening, no source glare/afterimage (issue #9). Glare/afterimage scale continuously with the stops above the eye's
+adaptation.
 
 **Filters** are generated from `FILTER_KINDS` in `tools/catalog.py` (kind × thread sizes, key `<base>_<size>`):
 gen_catalog writes the JSON + names, gen_assets the icons, gen_recipes the recipes. Kinds: nd, cpl, uv, color

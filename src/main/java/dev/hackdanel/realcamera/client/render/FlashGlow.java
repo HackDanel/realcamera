@@ -38,11 +38,12 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 /**
- * Someone else's flash, as the players around see it. The pop lasts about a millisecond, but the eye integrates
+ * A flash, as the players around see it. The pop lasts about a millisecond, but the eye integrates
  * light for about 0.1 s, so how bright it looks depends on how much light it adds to what the observer sees relative
  * to the light already there: a guide number 36 flash 10 m away lights a moonlit scene like day and is hardly
  * noticed in sunshine. The flash only lights what is in its beam and not in a shadow; looking straight into it
- * leaves a glare and, at night, an afterimage that fades over a few seconds.
+ * leaves a glare and, at night, an afterimage that fades over a few seconds. The photographer's own flash (in the
+ * hand or on a tripod) only lights the scene, without the glare and the afterimage (issue #9).
  *
  * <p>Drawn over the finished picture before the GUI, so it works the same with or without a shader pack.
  */
@@ -66,9 +67,14 @@ public final class FlashGlow {
 
     private static final List<Pop> pops = new ArrayList<>();
     /** Pops that came while a frame was being captured: shown when it is done, so they do not end up in the photo. */
-    private record Deferred(Vec3 pos, Vec3 dir, float gn) {}
+    private record Deferred(Vec3 pos, Vec3 dir, float gn, boolean own) {}
     private static final List<Deferred> deferred = new ArrayList<>();
     private static float projM00 = 1, projM11 = 1;
+
+    /** For the autotest: how the last pop looked (all zero if it was not seen at all). */
+    public record Shown(boolean own, double boost, double glare, double afterimage, long nanos) {}
+    @Nullable
+    private static Shown lastShown;
 
     private FlashGlow() {}
 
@@ -87,15 +93,22 @@ public final class FlashGlow {
             PhotoCapture.remoteFlash(pos, dir, gn);
         }
         if (PhotoCapture.capturing()) {
-            if (deferred.size() < 8) deferred.add(new Deferred(pos, dir, gn));
+            if (deferred.size() < 8) deferred.add(new Deferred(pos, dir, gn, own));
             return;
         }
-        show(mc, pos, dir, gn);
+        show(mc, pos, dir, gn, own);
     }
 
-    private static void show(Minecraft mc, Vec3 pos, Vec3 dir, float gn) {
+    @Nullable
+    public static Shown debugLastShown() {
+        return lastShown;
+    }
+
+    private static void show(Minecraft mc, Vec3 pos, Vec3 dir, float gn, boolean own) {
         try {
-            Pop pop = seen(mc, pos, dir, gn);
+            Pop pop = seen(mc, pos, dir, gn, own);
+            lastShown = pop == null ? new Shown(own, 0, 0, 0, System.nanoTime())
+                    : new Shown(own, pop.boost(), pop.glare(), pop.afterimage(), pop.startNanos());
             if (pop != null) {
                 pops.add(pop);
                 while (pops.size() > 16) pops.removeFirst();
@@ -123,7 +136,7 @@ public final class FlashGlow {
     }
 
     @Nullable
-    private static Pop seen(Minecraft mc, Vec3 flash, Vec3 dir, float gn) {
+    private static Pop seen(Minecraft mc, Vec3 flash, Vec3 dir, float gn, boolean own) {
         ClientLevel level = mc.level;
         Camera cam = mc.gameRenderer.getMainCamera();
         Vec3 eye = cam.getPosition();
@@ -147,10 +160,11 @@ public final class FlashGlow {
         double r = sum / at.length;
         double boost = Math.min(4, 0.6 * Math.log(1 + r) / Math.log(2));
 
-        // Looking into it: the source itself, if nothing is in between.
+        // Looking into it: the source itself, if nothing is in between. Not for the photographer's own flash: in the
+        // hand it sits above the lens, out of the eye's way, and it should not blind them on a tripod either.
         double glare = 0, after = 0;
         float ax = 0, ay = 0;
-        float[] ndc = toScreen(cam, flash);
+        float[] ndc = own ? null : toScreen(cam, flash);
         if (ndc != null && Math.abs(ndc[0]) < 1.3 && Math.abs(ndc[1]) < 1.3 && clear(level, eye, flash)) {
             double direct = ratio(level, flash, dir, gn, eye,
                     SceneMeter.pointEv(level, BlockPos.containing(eye), day, amb));
@@ -195,7 +209,7 @@ public final class FlashGlow {
     static void onGui(RenderGuiEvent.Pre event) {
         Minecraft mc = Minecraft.getInstance();
         if (!deferred.isEmpty() && !PhotoCapture.capturing() && mc.level != null) {
-            for (Deferred d : deferred) show(mc, d.pos(), d.dir(), d.gn());
+            for (Deferred d : deferred) show(mc, d.pos(), d.dir(), d.gn(), d.own());
             deferred.clear();
         }
         if (pops.isEmpty()) return;
