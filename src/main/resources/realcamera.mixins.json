@@ -4,5 +4,6 @@
   "package": "dev.hackdanel.realcamera.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": ["ItemCostMixin", "MerchantContainerMixin", "MerchantResultSlotMixin"],
+  "client": ["client.IrisCenterDepthMixin"],
   "injectors": {"defaultRequire": 1}
 }

@@ -41,11 +41,15 @@ public record LensSpec(
      * bokeh: "smooth", "busy" (onion rings), "swirl" (Helios-style) or "bubble" (Trioplan soap bubbles);
      * projection: "rectilinear" or a fisheye mapping ("equisolid", "stereographic", "equidistant");
      * tiltShift: movements of a tilt-shift lens; maxMagnification: reproduction ratio at the closest focus
-     * (1 = 1:1 macro; 0 = derive from focal length and minimum focus distance).
+     * (1 = 1:1 macro; 0 = derive from focal length and minimum focus distance); loca: axial colour (purple/green
+     * bokeh fringing) relative to a typical lens of its speed (0 = apochromatic, -1 = typical); transmissionLossEv:
+     * light the glass absorbs and reflects, the gap between the f-stop and the T-stop (-1 = typical: more for zooms;
+     * an apodisation filter (STF/APD) loses much more).
      */
     public record Optics(int blades, boolean rounded, float vignettingEv, float sharpness, float distortionWide,
                          float distortionTele, float caPx, float flare, String bokeh, String projection,
-                         java.util.Optional<TiltShift> tiltShift, float maxMagnification) {
+                         java.util.Optional<TiltShift> tiltShift, float maxMagnification, float loca,
+                         float transmissionLossEv) {
         public static final Codec<Optics> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.INT.optionalFieldOf("blades", 7).forGetter(Optics::blades),
                 Codec.BOOL.optionalFieldOf("rounded", true).forGetter(Optics::rounded),
@@ -58,10 +62,12 @@ public record LensSpec(
                 Codec.STRING.optionalFieldOf("bokeh", "smooth").forGetter(Optics::bokeh),
                 Codec.STRING.optionalFieldOf("projection", "rectilinear").forGetter(Optics::projection),
                 TiltShift.CODEC.optionalFieldOf("tilt_shift").forGetter(Optics::tiltShift),
-                Codec.FLOAT.optionalFieldOf("max_magnification", 0f).forGetter(Optics::maxMagnification)
+                Codec.FLOAT.optionalFieldOf("max_magnification", 0f).forGetter(Optics::maxMagnification),
+                Codec.FLOAT.optionalFieldOf("loca", -1f).forGetter(Optics::loca),
+                Codec.FLOAT.optionalFieldOf("transmission_loss_ev", -1f).forGetter(Optics::transmissionLossEv)
         ).apply(i, Optics::new));
         public static final Optics DEFAULT = new Optics(7, true, 1f, 1f, 0f, 0f, 1f, 0.5f, "smooth", "rectilinear",
-                java.util.Optional.empty(), 0f);
+                java.util.Optional.empty(), 0f, -1f, -1f);
 
         public boolean fisheye() {
             return !"rectilinear".equals(projection);
@@ -118,14 +124,45 @@ public record LensSpec(
         return (float) Math.min(0.25, dev.hackdanel.realcamera.optics.Optics.magnification(focalMax, minFocusM));
     }
 
+    /** Reproduction ratio at focal length {@code focal} focused at {@code focusM} (from the sensor). */
+    public double magnificationAt(double focal, double focusM) {
+        double s = Math.max(focusM, minFocusM);
+        return framingAt(focal, s) / (s * 1000);
+    }
+
     /**
-     * Reproduction ratio focused at {@code focusM} (from the sensor): the thin-lens curve, scaled so it reaches the
-     * lens's real maximum at its closest focus.
+     * Focal length (mm) whose angle of view the lens has at focal length {@code focal} focused at {@code focusM}
+     * (from the sensor): the frame covers sensor size x distance / framing at the subject. At infinity it is the
+     * nominal focal length; at the closest focus the lens reaches its spec-sheet magnification, which a zoom is
+     * assumed to state for its long end and to scale with the focal length at its other settings (the minimum focus
+     * distance stays the same). A unit-focusing lens narrows its view close up, an internally focusing one shortens
+     * its focal length and may frame wider than at infinity (focus breathing). Between the two the framing changes
+     * geometrically with the focus distance in dioptres. Closer than the minimum focus the lens stays at its closest.
+     * Real lenses breathe by a quarter at most: wider than that means the catalogue's single minimum focus distance
+     * is the short end's (telephoto zooms focus closer at the wide end).
      */
-    public double magnificationAt(double focusM) {
-        double mt = dev.hackdanel.realcamera.optics.Optics.magnification(focalMax, Math.max(focusM, minFocusM));
-        double mtMin = dev.hackdanel.realcamera.optics.Optics.magnification(focalMax, minFocusM);
-        return mt / Math.max(1e-9, mtMin) * maxMagnification();
+    public double framingAt(double focal, double focusM) {
+        double s = Math.max(focusM, minFocusM);
+        double closest = Math.max(0.75 * focal, minFocusM * 1000 * maxMagnification() * focal / focalMax);
+        double closeness = Math.max(0, Math.min(1, minFocusM / s));
+        return focal * Math.pow(closest / focal, closeness);
+    }
+
+    /**
+     * Axial colour as a focus shift (mm, image space) between green and red/blue at a focal length: an achromat's
+     * secondary spectrum grows with the focal length (here with its square root: long lenses use more special glass)
+     * and fast lenses show more of it.
+     */
+    public double locaMm(float focal) {
+        double k = optics.loca() >= 0 ? optics.loca() : exifLensModel.toUpperCase(java.util.Locale.ROOT).contains("APO") ? 0.2 : 1;
+        double speed = Mth.clamp(2.8 / maxApertureAt(focal), 0.5, 2.5);
+        return k * 0.5 * speed * Math.sqrt(50 * clampFocal(focal)) / 1000;
+    }
+
+    /** Light lost in the glass (EV): T-stop minus f-stop. Typical coated prime 0.15 EV, zoom 0.3 EV. */
+    public double transmissionLossEv() {
+        if (optics.transmissionLossEv() >= 0) return optics.transmissionLossEv();
+        return isZoom() ? 0.3 : 0.15;
     }
 
     public boolean isZoom() {

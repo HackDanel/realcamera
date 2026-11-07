@@ -389,6 +389,18 @@ public final class Stage3Autotest {
         raise();
         shoot("s3_09_builtin_above_sync");
         lower();
+        // 8b) someone else's flash 6 m ahead, pointing back at this player: lit scene, glare, then an afterimage
+        screenshot("s3_08a_before_remote_flash");
+        step("remote flash", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            var eye = mc.player.getEyePosition();
+            var look = mc.player.getLookAngle();
+            var pos = eye.add(look.scale(6));
+            dev.hackdanel.realcamera.client.render.FlashGlow.onPop(new dev.hackdanel.realcamera.network.Payloads.FlashPop(
+                    -1, pos.x, pos.y, pos.z, (float) -look.x, (float) -look.y, (float) -look.z, 40));
+            pendingScreenshot = "s3_08b_remote_flash";
+        }, 30);
+        screenshot("s3_08c_afterimage");
 
         // 9) water kills an unsealed body
         camera("sony_a7iv", "sony_fe_28_70_oss", null, null, s -> s);

@@ -1,5 +1,7 @@
 package dev.hackdanel.realcamera.client.screen;
 
+import dev.hackdanel.realcamera.camera.CameraHelper;
+
 import dev.hackdanel.realcamera.blockentity.ComputerBlockEntity;
 import dev.hackdanel.realcamera.camera.Specs;
 import dev.hackdanel.realcamera.client.editor.EditSession;
@@ -102,6 +104,7 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     private boolean readable(int slot) {
         ItemStack stack = menu.machineItem(slot);
         if (stack.isEmpty() || minecraft == null || minecraft.level == null) return false;
+        if (CameraHelper.usbCard(stack) != null) return true; // USB: no card reader needed
         if (menu.isFilm(slot)) return menu.machineItem(ComputerBlockEntity.SLOT_SCANNER).is(RCItems.FILM_SCANNER.get());
         String form = Specs.card(minecraft.level.registryAccess(), stack).map(MemoryCardTypeSpec::form).orElse("sd");
         return form.equals("sd") || menu.machineItem(ComputerBlockEntity.SLOT_READER).is(RCItems.CFEXPRESS_READER.get());
@@ -242,7 +245,7 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         String pg = (page + 1) + "/" + pages();
         g.drawString(font, pg, 198 - font.width(pg), 17, 0xFF404040, false);
         // card usage
-        ItemStack stack = menu.machineItem(card);
+        ItemStack stack = CameraHelper.slotCard(menu.machineItem(card));
         CardData d = stack.get(RCComponents.CARD.get());
         if (d != null && minecraft != null && minecraft.level != null) {
             long cap = Specs.card(minecraft.level.registryAccess(), stack).map(MemoryCardTypeSpec::capacityBytes).orElse(0L);

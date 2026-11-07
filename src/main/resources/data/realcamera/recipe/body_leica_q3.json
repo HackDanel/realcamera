@@ -19,15 +19,11 @@
     },
     {
       "item": "realcamera:shutter_unit",
-      "count": 1
+      "count": 2
     },
     {
       "item": "realcamera:lens_element",
       "count": 4
-    },
-    {
-      "item": "realcamera:aperture_blades",
-      "count": 1
     }
   ],
   "result": {

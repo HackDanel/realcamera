@@ -94,9 +94,13 @@ public class CameraBodyItem extends Item {
         return InteractionResultHolder.consume(stack);
     }
 
+    /**
+     * No vanilla use animation: the renderer would pick the spyglass pose before asking the item, so the raised camera's
+     * two-handed pose and its first-person raise come from the client item extensions instead.
+     */
     @Override
     public UseAnim getUseAnimation(ItemStack stack) {
-        return UseAnim.SPYGLASS;
+        return UseAnim.NONE;
     }
 
     @Override

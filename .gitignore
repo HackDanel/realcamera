@@ -40,3 +40,6 @@ repo/
 !**/src/**/repo/
 run-client2/
 run-autotest/
+
+### Python ###
+__pycache__/

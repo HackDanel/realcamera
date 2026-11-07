@@ -1564,12 +1564,11 @@ def main():
             d.ellipse([3, 3, 12, 12], fill=tint[:3] + (alpha,))
             d.line([(5, 5), (7, 4)], fill=rgba("#ffffff", 200))
         return f
-    for name, tint, alpha in (("nd8_82", rgba("#555555"), 120), ("nd64_82", rgba("#333333"), 170),
-                              ("nd1000_82", rgba("#111111"), 230), ("cpl_82", rgba("#3a4a66"), 140),
-                              ("uv_82", rgba("#ccd8ff"), 60), ("yellow_82", rgba("#ffd800"), 150),
-                              ("orange_82", rgba("#ff8a00"), 160), ("red_82", rgba("#d01818"), 170),
-                              ("cpl_95", rgba("#3a4a66"), 140)):
-        flat("filter", name, filter_icon(tint, alpha))
+    import sys as _sys
+    _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import catalog as _C
+    for fl in _C.FILTERS:
+        flat("filter", fl["key"], filter_icon(rgba(fl["tint"]), fl["alpha"]))
     icon(draw_flash_icon, "flash")
     icon(filter_generic, "filter")
     icon(draw_grip_icon, "battery_grip")

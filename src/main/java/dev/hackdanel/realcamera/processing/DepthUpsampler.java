@@ -68,7 +68,18 @@ public final class DepthUpsampler {
     public static volatile String lastCheck = "";
 
     public static boolean agrees(float[] full, int w, int h, float[] grid, float[] entity, int gw, int gh) {
+        return agrees(full, w, h, grid, entity, gw, gh, false);
+    }
+
+    /**
+     * @param grassTolerant a sparse probe (the live preview's 5 x 4 points): looking down into a meadow nearly every
+     *                      point sees grass in front of the ground the rays hit, so "much nearer" alone does not reject
+     *                      the buffer unless the depths are also all the same (a pack writing one fixed layer)
+     */
+    public static boolean agrees(float[] full, int w, int h, float[] grid, float[] entity, int gw, int gh,
+                                 boolean grassTolerant) {
         int checked = 0, farther = 0, muchNearer = 0, skyMismatch = 0, sky = 0;
+        float gpuMin = Float.MAX_VALUE, gpuMax = 0;
         float mismatchMin = Float.MAX_VALUE, mismatchMax = 0;
         for (int gy = 0; gy < gh; gy++) {
             int y = Math.min(h - 1, (int) ((gy + 0.5f) * h / gh));
@@ -88,6 +99,8 @@ public final class DepthUpsampler {
                 }
                 if (entity != null && entity[c] > 0) continue;
                 checked++;
+                gpuMin = Math.min(gpuMin, gpu);
+                gpuMax = Math.max(gpuMax, gpu);
                 if (gpu > ray * 1.1f + 0.3f) farther++;
                 if (gpu < ray * 0.5f - 0.3f) muchNearer++;
             }
@@ -99,7 +112,10 @@ public final class DepthUpsampler {
             return skyMismatch <= sky / 4;
         }
         // grass and leaves in front are fine, but not a frame where almost nothing is where the rays found it
-        return farther <= checked / 10 && muchNearer <= checked * 0.7f && skyMismatch <= Math.max(2, sky / 4);
+        boolean nearOk = muchNearer <= checked * 0.7f || (grassTolerant && checked >= 3 && gpuMax > gpuMin * 1.3f);
+        // leaves have holes the GPU looks through but the rays do not: a sparse probe at a tree allows more of those
+        int fartherMax = grassTolerant ? checked / 4 : checked / 10;
+        return farther <= fartherMax && nearOk && skyMismatch <= Math.max(2, sky / 4);
     }
 
     /** Pixels marked unknown (negative) in the GPU depth map take their depth from the fallback map. */

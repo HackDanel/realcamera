@@ -2,28 +2,36 @@
 
 #moj_import <realcamera:dof_common.glsl>
 
-// Half-resolution colour (average of the 2x2 block) and the signed blur radius in alpha.
+// Downscaled colour (average of the Scale x Scale block) and the signed blur radius in alpha. The blur pass runs
+// at 1/2, 1/4 or 1/8 resolution so that wide-open backgrounds blur as much as in the photo at a bounded cost.
 uniform sampler2D DiffuseSampler;
 uniform sampler2D CocSampler;
 uniform vec2 InSize;
 uniform float FullMaxRadius; // full-resolution pixels (the radius texture)
-uniform float MaxRadius;     // half-resolution pixels
+uniform float MaxRadius;     // pixels of the downscaled image
+uniform float Scale;         // 2, 4 or 8
 
 in vec2 texCoord;
 out vec4 fragColor;
 
 void main() {
-    vec2 o = 0.5 / InSize;
-    vec2 t[4] = vec2[](texCoord + vec2(-o.x, -o.y), texCoord + vec2(o.x, -o.y),
-                       texCoord + vec2(-o.x, o.y), texCoord + vec2(o.x, o.y));
+    int n = int(Scale + 0.5);
+    vec2 px = 1.0 / InSize;
+    // top-left full-resolution pixel centre of this block
+    vec2 origin = texCoord - px * (Scale * 0.5 - 0.5);
     vec3 c = vec3(0.0);
     float nearest = FullMaxRadius;
-    for (int i = 0; i < 4; i++) {
-        c += texture(DiffuseSampler, t[i]).rgb;
-        // the signed radius grows with the distance: the nearest of the four decides, so a foreground edge
-        // keeps its blur
-        nearest = min(nearest, rcDecodeRadius(texture(CocSampler, t[i]).rg, FullMaxRadius));
+    for (int y = 0; y < 8; y++) {
+        if (y >= n) break;
+        for (int x = 0; x < 8; x++) {
+            if (x >= n) break;
+            vec2 t = origin + vec2(float(x), float(y)) * px;
+            c += texture(DiffuseSampler, t).rgb;
+            // the signed radius grows with the distance: the nearest of the block decides, so a foreground edge
+            // keeps its blur
+            nearest = min(nearest, rcDecodeRadius(texture(CocSampler, t).rg, FullMaxRadius));
+        }
     }
-    float r = nearest * 0.5;
-    fragColor = vec4(c * 0.25, 0.5 + 0.5 * clamp(r / MaxRadius, -1.0, 1.0));
+    float r = nearest / Scale;
+    fragColor = vec4(c / float(n * n), 0.5 + 0.5 * clamp(r / MaxRadius, -1.0, 1.0));
 }

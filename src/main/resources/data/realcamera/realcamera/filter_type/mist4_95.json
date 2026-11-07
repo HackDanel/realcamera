@@ -1,0 +1,7 @@
+{
+  "name": "Black Mist 1/4 95mm",
+  "kind": "mist",
+  "mist": 0.25,
+  "diameter_mm": 95,
+  "model": "realcamera:item/filter/mist4_95"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "Yellow 8 95mm",
+  "kind": "color",
+  "r": 1,
+  "g": 0.9,
+  "b": 0.35,
+  "diameter_mm": 95,
+  "model": "realcamera:item/filter/yellow_95"
+}

@@ -19,5 +19,10 @@
     "size": 1.3,
     "halation": 0.8
   },
-  "reciprocity": 0.95
+  "reciprocity": 0.95,
+  "reciprocity_tint": [
+    1.0,
+    1.005,
+    0.998
+  ]
 }

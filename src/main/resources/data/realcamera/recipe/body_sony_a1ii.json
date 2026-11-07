@@ -3,7 +3,7 @@
   "ingredients": [
     {
       "item": "realcamera:titanium_alloy",
-      "count": 2
+      "count": 4
     },
     {
       "item": "realcamera:stacked_cmos_sensor",
@@ -24,10 +24,6 @@
     {
       "item": "realcamera:stabilizer",
       "count": 1
-    },
-    {
-      "item": "minecraft:slime_ball",
-      "count": 2
     }
   ],
   "result": {

@@ -6,25 +6,17 @@
       "count": 2
     },
     {
-      "item": "minecraft:slime_ball",
-      "count": 1
-    },
-    {
       "item": "minecraft:bone_meal",
       "count": 1
     },
     {
       "item": "minecraft:red_dye",
       "count": 1
-    },
-    {
-      "item": "minecraft:paper",
-      "count": 1
     }
   ],
   "result": {
     "id": "realcamera:film_roll",
-    "count": 2,
+    "count": 1,
     "components": {
       "realcamera:film_stock": "realcamera:kodak_ektar_100",
       "realcamera:film": {

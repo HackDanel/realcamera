@@ -21,6 +21,15 @@ public final class Optics {
      * focused at {@code focusM}.
      */
     public static double blurCircleMm(double focalMm, double fNumber, double focusM, double objectM) {
+        return Math.abs(signedBlurMm(focalMm, fNumber, focusM, objectM));
+    }
+
+    /**
+     * Blur circle with a sign: + for objects nearer than the focus distance (their image forms behind the sensor),
+     * - for objects beyond it (image in front of the sensor). Axial colour shifts the focus of red and blue by the
+     * same amount for both, so their blur differs from green's in opposite directions on the two sides.
+     */
+    public static double signedBlurMm(double focalMm, double fNumber, double focusM, double objectM) {
         double s = Math.max(focusM * 1000, focalMm * 4.001);
         double d = Math.max(objectM * 1000, 1e-3);
         // distances are measured from the sensor: the lens sits v in front of it (v = f(1+m)), which matters close up
@@ -30,7 +39,27 @@ public final class Optics {
             return focalMm / fNumber; // in front of the focal point: a fully spread disc
         }
         double vd = 1 / (1 / focalMm - 1 / ud);
-        return (focalMm / fNumber) * Math.abs(vd - v) / vd;
+        return (focalMm / fNumber) * (vd - v) / vd;
+    }
+
+    /** Effective wavelengths (mm) of the red, green and blue channels of a camera's colour filter array. */
+    public static final double[] CHANNEL_WAVELENGTH_MM = {0.000600, 0.000530, 0.000460};
+
+    /**
+     * Standard deviation (mm) of the Gaussian that best fits the Airy pattern of a lens at {@code fNumber}:
+     * 0.42 lambda N (the Airy disc to its first dark ring is 2.44 lambda N across).
+     */
+    public static double diffractionSigmaMm(double fNumber, double wavelengthMm) {
+        return 0.42 * wavelengthMm * fNumber;
+    }
+
+    /**
+     * Degree of polarisation of clear skylight at {@code gamma} radians from the sun (single Rayleigh scattering,
+     * sin^2 / (1 + cos^2)), scaled to what a real sky reaches (about 75% at 90°: multiple scattering and haze).
+     */
+    public static double skyPolarization(double gamma) {
+        double c = Math.cos(gamma), s2 = 1 - c * c;
+        return 0.75 * s2 / (1 + c * c);
     }
 
     public static double hyperfocalMm(double focalMm, double fNumber, double cocMm) {

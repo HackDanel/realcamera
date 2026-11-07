@@ -1,0 +1,25 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:optical_glass",
+      "count": 1
+    },
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 2
+    },
+    {
+      "item": "minecraft:black_dye",
+      "count": 4
+    }
+  ],
+  "result": {
+    "id": "realcamera:filter",
+    "count": 1,
+    "components": {
+      "realcamera:filter_type": "realcamera:nd1000_67"
+    }
+  },
+  "time": 60
+}

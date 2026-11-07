@@ -14,5 +14,10 @@
     "amount": 0.08,
     "size": 0.8
   },
-  "reciprocity": 0.93
+  "reciprocity": 0.93,
+  "reciprocity_tint": [
+    1.0,
+    1.0,
+    1.0
+  ]
 }

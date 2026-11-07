@@ -39,7 +39,10 @@ public final class RealCameraClient {
         modBus.addListener(RealCameraClient::renderers);
         modBus.addListener(RealCameraClient::extensions);
         modBus.addListener(RealCameraClient::setup);
+        modBus.addListener(dev.hackdanel.realcamera.client.render.NeckCameraLayer::addLayers);
         NeoForge.EVENT_BUS.addListener(RealCameraClient::onLogout);
+        NeoForge.EVENT_BUS.addListener(dev.hackdanel.realcamera.client.render.CameraPose::onRenderPlayerPre);
+        NeoForge.EVENT_BUS.addListener(dev.hackdanel.realcamera.client.render.CameraPose::onRenderPlayerPost);
     }
 
     private static void setup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {
@@ -85,11 +88,13 @@ public final class RealCameraClient {
                 return renderer;
             }
         }, RCItems.PHOTO_PRINT.get());
+        event.registerItem(dev.hackdanel.realcamera.client.render.CameraItemExtensions.INSTANCE, RCItems.CAMERA_BODY.get());
     }
 
     private static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         PhotoCache.clear();
         CardListings.clear();
         PhotoUploader.clear();
+        dev.hackdanel.realcamera.client.render.NeckCameraLayer.clear();
     }
 }

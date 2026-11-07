@@ -77,12 +77,14 @@ public class CameraMenuScreen extends Screen {
         rows.add(new Row("flash_comp", s -> Component.literal(dev.hackdanel.realcamera.optics.ExposureScales.evCompLabel(s.flashComp())),
                 s -> s.withFlashComp(s.flashComp() >= 6 ? -6 : s.flashComp() + 1)));
         rows.add(new Row("lens_correction", s -> onOff(s.lensCorrection()), s -> s.withLensCorrection(!s.lensCorrection())));
+        rows.add(new Row("long_exposure_nr", s -> onOff(s.longExposureNr()), s -> s.withLongExposureNr(!s.longExposureNr())));
 
         boolean film = body != null && body.isFilm();
         if (film) {
             // nothing digital on a film camera: no file format, picture profiles or white balance
             java.util.Set<String> digital = java.util.Set.of("white_balance", "kelvin", "quality", "profile", "shutter_type",
-                    "file_format", "crop_mode", "subject_detect", "peaking", "lens_correction", "stabilization");
+                    "file_format", "crop_mode", "subject_detect", "peaking", "lens_correction", "stabilization",
+                    "long_exposure_nr");
             rows.removeIf(r -> digital.contains(r.key()));
         }
         // two columns so all settings fit on small screens

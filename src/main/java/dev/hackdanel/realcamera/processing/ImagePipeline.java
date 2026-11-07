@@ -99,24 +99,34 @@ public final class ImagePipeline {
     public static float[] developSensor(float[] img, float[] depth, float[] light, int w, int h, ImageParams p) {
         ImageParams.Extras x = p.extras();
         filterTransmission(img, x);
-        float[] beforeExposure = x.flashAt1m() > 0 && depth != null ? img.clone() : null;
+        float[] beforeExposure = x.anyFlash() && depth != null ? img.clone() : null;
         expose(img, p.sensor().exposureEv());
-        if (beforeExposure != null) {
-            flash(img, beforeExposure, depth, light, w, h, x);
-        }
+        graduatedNd(img, w, h, x.gndStops());
         if (x.cpl() && depth != null) {
-            polariser(img, depth);
+            polariser(img, depth, w, h, p);
+        }
+        // The flash lasts about 1/1000 s: when anything moves during the exposure, its light is kept apart and
+        // placed sharp at the moment it fired, while the ambient light smears.
+        boolean moving = MotionBlur.moves(p.motion());
+        float[] flashLight = null;
+        if (beforeExposure != null) {
+            flashLight = moving ? new float[img.length] : img;
+            flash(flashLight, beforeExposure, depth, light, w, h, x);
+            if (!moving) flashLight = null;
         }
         if (depth != null) {
             img = depthOfField(img, depth, w, h, p);
+            if (flashLight != null) flashLight = depthOfField(flashLight, depth, w, h, p);
         }
-        img = motionBlur(img, w, h, p.motion().blurX(), p.motion().blurY());
-        img = rollingShutter(img, w, h, p.motion().rollingSkewPx());
+        img = MotionBlur.apply(img, flashLight, depth, w, h, p);
+        img = rollingShutter(img, w, h, p.motion().rollingSkewPx(), p.motion().rollingSkewY());
         img = lensShift(img, w, h, p);
         img = p.lens().projection() != 0 ? fisheye(img, w, h, p) : lensGeometry(img, w, h, p.lens());
         lens(img, w, h, p);
         img = wear(img, w, h, p);
         flare(img, w, h, p);
+        img = mist(img, w, h, x.mist());
+        star(img, w, h, x.starPoints());
         noise(img, w, h, p);
         float sat = (float) p.sensor().saturation();
         for (int i = 0; i < img.length; i++) {
@@ -164,18 +174,136 @@ public final class ImagePipeline {
     }
 
     /**
+     * Graduated ND with a soft edge, held level: the top of the frame loses {@code stops}, the bottom nothing, with
+     * the transition over the middle fifth (blurred further by the aperture, as the filter is far out of focus).
+     */
+    static void graduatedNd(float[] img, int w, int h, double stops) {
+        if (stops <= 0) return;
+        for (int y = 0; y < h; y++) {
+            double t = (y + 0.5) / h;
+            double s = Math.max(0, Math.min(1, (0.6 - t) / 0.2));
+            s = s * s * (3 - 2 * s);
+            float k = (float) Math.pow(2, -stops * s);
+            if (k >= 0.9999f) continue;
+            for (int i = y * w * 3, end = i + w * 3; i < end; i++) {
+                img[i] *= k;
+            }
+        }
+    }
+
+    /**
+     * Diffusion filter (Black Mist): a small part of the light is scattered by the particles in the glass, so bright
+     * areas glow into their surroundings and the shadows get a little of that light, lowering contrast. The glow is
+     * wide and soft, strongest around highlights.
+     */
+    static float[] mist(float[] img, int w, int h, double strength) {
+        if (strength <= 0) return img;
+        float[] blur = boxBlur(img, w, h, Math.max(2, w / 90));
+        blur = boxBlur(blur, w, h, Math.max(2, w / 90));
+        float[] wide = boxBlur(blur, w, h, Math.max(3, w / 30));
+        float k = (float) strength;
+        for (int i = 0; i < img.length; i++) {
+            float glow = Math.max(0, blur[i] - 0.5f) * 1.6f + Math.max(0, wide[i] - 0.4f) * 0.8f;
+            img[i] = img[i] * (1 - 0.35f * k) + blur[i] * 0.25f * k + glow * k + wide[i] * 0.06f * k;
+        }
+        return img;
+    }
+
+    /**
+     * Cross-screen (star) filter: fine grooves diffract the light of bright points into rays. Each ray's length grows
+     * with how bright the point is; at most a few hundred of the brightest points get them.
+     */
+    static void star(float[] img, int w, int h, int points) {
+        if (points <= 0) return;
+        float threshold = 1.2f;
+        int cell = Math.max(4, w / 160);
+        java.util.List<float[]> sources = new java.util.ArrayList<>();
+        for (int cy = 0; cy < h; cy += cell) {
+            for (int cx = 0; cx < w; cx += cell) {
+                float best = threshold;
+                int bx = -1, by = -1;
+                for (int y = cy; y < Math.min(h, cy + cell); y++) {
+                    for (int x = cx; x < Math.min(w, cx + cell); x++) {
+                        int j = (y * w + x) * 3;
+                        float l = 0.2126f * img[j] + 0.7152f * img[j + 1] + 0.0722f * img[j + 2];
+                        if (l > best) {
+                            best = l;
+                            bx = x;
+                            by = y;
+                        }
+                    }
+                }
+                if (bx >= 0 && pointLike(img, w, h, bx, by, best, cell)) {
+                    int j = (by * w + bx) * 3;
+                    sources.add(new float[]{bx, by, best, img[j], img[j + 1], img[j + 2]});
+                }
+            }
+        }
+        if (sources.isEmpty()) return;
+        sources.sort((a, b) -> Float.compare(b[2], a[2]));
+        if (sources.size() > 120) sources = sources.subList(0, 120);
+        float[] add = new float[img.length];
+        int dirs = Math.max(2, points);
+        for (float[] s : sources) {
+            float excess = s[2] - threshold;
+            double len = Math.min(w * 0.12, w * 0.012 * (1 + 4 * Math.log1p(excess)));
+            float scale = 0.06f / s[2];
+            for (int d = 0; d < dirs; d++) {
+                double a = Math.PI * 2 * d / dirs + Math.PI / 12;
+                double dx = Math.cos(a), dy = Math.sin(a);
+                for (int step = 2; step < len; step++) {
+                    int x = (int) Math.round(s[0] + dx * step), y = (int) Math.round(s[1] + dy * step);
+                    if (x < 0 || y < 0 || x >= w || y >= h) break;
+                    float fall = (float) Math.pow(1 - step / len, 2);
+                    int j = (y * w + x) * 3;
+                    for (int c = 0; c < 3; c++) {
+                        add[j + c] += s[3 + c] * excess * scale * fall * 4;
+                    }
+                }
+            }
+        }
+        for (int i = 0; i < img.length; i++) img[i] += add[i];
+    }
+
+    /**
+     * A bright point rather than part of a bright area: the ring around it (a few cells out) is much darker. Only
+     * such points make distinct stars; a lit wall or the sky makes no rays of its own.
+     */
+    private static boolean pointLike(float[] img, int w, int h, int x, int y, float lum, int cell) {
+        int r = cell * 3;
+        float sum = 0;
+        int n = 0;
+        for (int k = 0; k < 16; k++) {
+            double a = Math.PI * 2 * k / 16;
+            int px = (int) Math.round(x + Math.cos(a) * r), py = (int) Math.round(y + Math.sin(a) * r);
+            if (px < 0 || py < 0 || px >= w || py >= h) continue;
+            int j = (py * w + px) * 3;
+            sum += 0.2126f * img[j] + 0.7152f * img[j + 1] + 0.0722f * img[j + 2];
+            n++;
+        }
+        return n > 0 && sum / n < lum * 0.35f;
+    }
+
+    /**
      * Flash light: E(d) = flashAt1m / d² relative to a correct exposure, applied to the surface colour
      * (pixel brightness divided by the light the game lit it with). Rows below the curtain edge (when
-     * shooting faster than the sync speed) get no flash.
+     * shooting faster than the sync speed) get no flash. Other photographers' flashes ({@code otherFlash}) come
+     * already computed per pixel and light the whole frame.
      */
     static void flash(float[] img, float[] raw, float[] depth, float[] light, int w, int h, ImageParams.Extras x) {
-        int lastRow = (int) Math.round(h * Math.max(0, Math.min(1, x.flashTop())));
-        for (int y = 0; y < lastRow; y++) {
+        int lastRow = x.flashAt1m() > 0 ? (int) Math.round(h * Math.max(0, Math.min(1, x.flashTop()))) : 0;
+        float[] other = x.otherFlash() != null && x.otherFlash().length == w * h ? x.otherFlash() : null;
+        for (int y = 0; y < h; y++) {
+            if (y >= lastRow && other == null) break;
             for (int px = 0; px < w; px++) {
                 int i = y * w + px;
+                double e = 0;
                 double d = Math.max(0.3, depth[i]);
-                if (d > 200) continue; // sky and far away: the flash does not reach
-                double e = x.flashAt1m() / (d * d);
+                if (y < lastRow && d <= 200) { // sky and far away: the flash does not reach
+                    e = x.flashAt1m() / (d * d);
+                }
+                if (other != null) e += other[i];
+                if (e <= 0) continue;
                 float lit = light == null ? 0.5f : Math.max(0.04f, light[i]);
                 int j = i * 3;
                 for (int c = 0; c < 3; c++) {
@@ -186,16 +314,40 @@ public final class ImagePipeline {
         }
     }
 
-    /** Polariser: deeper, more saturated sky; slightly richer colours elsewhere (less glare). */
-    static void polariser(float[] img, float[] depth) {
-        for (int i = 0, j = 0; i < depth.length; i++, j += 3) {
-            boolean sky = depth[i] > 5000;
-            float l = 0.2126f * img[j] + 0.7152f * img[j + 1] + 0.0722f * img[j + 2];
-            float sat = sky ? 1.35f : 1.08f, dim = sky ? 0.6f : 0.97f;
-            for (int c = 0; c < 3; c++) {
-                img[j + c] = Math.max(0, (l + (img[j + c] - l) * sat) * dim);
+    /**
+     * Circular polariser, turned for the strongest effect. Clear skylight is polarised most 90° from the sun and
+     * hardly at all towards or away from it, so the sky darkens by the polarised fraction (1 - P) in a band across
+     * it (unevenly on a wide angle); an overcast sky barely changes. Elsewhere glare goes: slightly richer colours.
+     */
+    static void polariser(float[] img, float[] depth, int w, int h, ImageParams p) {
+        ImageParams.Sun sun = p.sun();
+        double fpx = p.focus().focalMm() * w / p.focus().sensorWidthMm();
+        double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0;
+        boolean dir = sun.hasDirection();
+        double flatP = 0.3 * sun.clearSky(); // no sun direction known (night, no sky): an average sky
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x, j = i * 3;
+                float sat, dim;
+                if (depth[i] > 5000) {
+                    double pol = flatP;
+                    if (dir) {
+                        double dx = (x - cx) / fpx, dy = -(y - cy) / fpx, n = Math.sqrt(dx * dx + dy * dy + 1);
+                        double cosG = (dx * sun.dirX() + dy * sun.dirY() + sun.dirZ()) / n;
+                        pol = Optics.skyPolarization(Math.acos(Math.max(-1, Math.min(1, cosG)))) * sun.clearSky();
+                    }
+                    dim = (float) (1 - pol);
+                    sat = (float) (1 + 0.6 * pol);
+                } else {
+                    sat = 1.08f;
+                    dim = 0.97f;
+                }
+                float l = 0.2126f * img[j] + 0.7152f * img[j + 1] + 0.0722f * img[j + 2];
+                for (int c = 0; c < 3; c++) {
+                    img[j + c] = Math.max(0, (l + (img[j + c] - l) * sat) * dim);
+                }
             }
-        }
+        });
     }
 
     /** Moisture fog, a knocked (decentred) lens and sensor dust. */
@@ -284,18 +436,34 @@ public final class ImagePipeline {
      * at a different distance (the plane of focus is no longer parallel to the sensor).
      */
     static float[] blurRadius(float[] depth, int w, ImageParams.Focus f, float maxRadius) {
+        return blurRadius(depth, w, f, maxRadius, 0);
+    }
+
+    /**
+     * offsetMm: added to the signed blur circle (+ nearer than focus): red and blue of a lens with axial colour come
+     * to focus behind green, so their discs are larger in front of the focus plane and smaller behind it.
+     */
+    static float[] blurRadius(float[] depth, int w, ImageParams.Focus f, float maxRadius, double offsetMm) {
         float[] r = new float[depth.length];
         int h = depth.length / w;
         double pxPerMm = w / f.sensorWidthMm();
-        for (int y = 0; y < h; y++) {
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
             double focus = rowFocusM(f, y, w, h);
             for (int x = 0; x < w; x++) {
                 int i = y * w + x;
-                double c = Optics.blurCircleMm(f.focalMm(), f.fNumber(), focus, depth[i]);
+                double c = Math.abs(Optics.signedBlurMm(f.focalMm(), f.fNumber(), focus, depth[i]) + offsetMm);
                 r[i] = (float) Math.min(maxRadius, c * pxPerMm * 0.5);
             }
-        }
+        });
         return r;
+    }
+
+    /**
+     * Blur-circle diameter (mm) by which red and blue differ from green: the axial focus shift seen through the
+     * aperture, Δ / N.
+     */
+    static double locaOffsetMm(ImageParams p) {
+        return p.lens().locaMm() / Math.max(0.5, p.focus().fNumber());
     }
 
     /** Focus distance of an image row: a tilted lens focuses every row at a different distance. */
@@ -314,9 +482,24 @@ public final class ImagePipeline {
      * are then drawn as discs in the shape of the aperture (bokeh highlights).
      */
     static float[] depthOfField(float[] img, float[] depth, int w, int h, ImageParams p) {
-        // real backgrounds blur a lot: 85 mm f/1.8 at 2 m gives a disc 6% of the frame wide, a long tele 17%
-        float maxR = Math.max(4, w / 8f);
-        float[] radius = blurRadius(depth, w, p.focus(), maxR);
+        // real backgrounds blur a lot: 85 mm f/1.8 at 2 m gives a disc 6% of the frame wide, 600 mm f/4 at 5 m
+        // (lights at infinity) more than half of it
+        float maxR = Math.max(4, w * 0.3f);
+        double loca = locaOffsetMm(p);
+        if (loca * w / p.focus().sensorWidthMm() * 0.5 < 0.4) {
+            return depthOfField(img, depth, blurRadius(depth, w, p.focus(), maxR), w, h, p);
+        }
+        // axial colour: green and red/blue blur by different amounts (purple fringes in front of the focus,
+        // green ones behind it, a purple halo on contrasty edges wide open)
+        float[] green = depthOfField(img.clone(), depth, blurRadius(depth, w, p.focus(), maxR), w, h, p);
+        float[] out = depthOfField(img, depth, blurRadius(depth, w, p.focus(), maxR, loca), w, h, p);
+        for (int j = 1; j < out.length; j += 3) {
+            out[j] = green[j];
+        }
+        return out;
+    }
+
+    private static float[] depthOfField(float[] img, float[] depth, float[] radius, int w, int h, ImageParams p) {
         float largest = 0;
         for (float r : radius) largest = Math.max(largest, r);
         if (largest < 0.75f) {
@@ -873,14 +1056,23 @@ public final class ImagePipeline {
 
     /** Electronic shutter: rows are read top to bottom, so a pan shears the picture. */
     static float[] rollingShutter(float[] img, int w, int h, double skewPx) {
-        if (Math.abs(skewPx) < 0.5) {
+        return rollingShutter(img, w, h, skewPx, 0);
+    }
+
+    /**
+     * Electronic shutter: rows are read top to bottom, so a pan shears the picture and a tilt stretches (tilting
+     * down: the scene moves up while the lower rows are read) or squeezes it.
+     */
+    static float[] rollingShutter(float[] img, int w, int h, double skewPx, double skewY) {
+        if (Math.abs(skewPx) < 0.5 && Math.abs(skewY) < 0.5) {
             return img;
         }
         float[] out = new float[img.length];
         java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
-            float shift = (float) (skewPx * ((double) y / h - 0.5));
+            double t = (double) y / h - 0.5;
+            float shift = (float) (skewPx * t), shiftY = (float) (skewY * t);
             for (int x = 0; x < w; x++) {
-                bilinearAdd(img, w, h, x + shift, y, out, (y * w + x) * 3, 1f);
+                bilinearAdd(img, w, h, x + shift, y + shiftY, out, (y * w + x) * 3, 1f);
             }
         });
         return out;
@@ -1080,18 +1272,22 @@ public final class ImagePipeline {
                 }
             });
         }
-        // Diffraction: the Airy disc grows with the f-number (sigma ~ 0.42 lambda N); and corners are softer wide open.
+        // Diffraction: the Airy pattern grows with the f-number and the wavelength (red spreads more than blue).
         double pitchMm = p.focus().sensorWidthMm() / w;
-        double sigmaPx = 0.42 * 0.00055 * p.focus().fNumber() / Math.max(1e-6, pitchMm);
+        double[] sigmaPx = new double[3];
+        for (int c = 0; c < 3; c++) {
+            sigmaPx[c] = Optics.diffractionSigmaMm(p.focus().fNumber(), Optics.CHANNEL_WAVELENGTH_MM[c]) / Math.max(1e-6, pitchMm);
+        }
+        diffraction(img, w, h, sigmaPx);
+        // corners are softer wide open (coma, astigmatism, field curvature)
         double corner = Math.max(0, 1 - stopsDown(p) / 2.5) * Math.max(0, 1.05 - l.sharpness()) * 2.5;
-        if (sigmaPx > 0.3 || corner > 0.02) {
+        if (corner > 0.02) {
             float[] soft = box3(img, w, h);
-            float base = (float) Math.min(1, sigmaPx > 0.3 ? (sigmaPx - 0.3) * 1.2 : 0);
             float edge = (float) Math.min(1, corner);
             java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
                 for (int x = 0; x < w; x++) {
                     double r2 = ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / norm;
-                    float t = Math.min(1, base + edge * (float) (r2 * r2));
+                    float t = Math.min(1, edge * (float) (r2 * r2));
                     if (t <= 0) continue;
                     int j = (y * w + x) * 3;
                     for (int c = 0; c < 3; c++) img[j + c] += (soft[j + c] - img[j + c]) * t;
@@ -1106,6 +1302,48 @@ public final class ImagePipeline {
             for (int i = 0; i < img.length; i++) {
                 img[i] = Math.max(0, img[i] + (img[i] - blur[i]) * a);
             }
+        }
+    }
+
+    /**
+     * Gaussian blur per channel (separable), in place. A sigma below ~0.35 px is lost in the pixel itself (the
+     * render already averages that much), so only the part beyond it is applied.
+     */
+    static void diffraction(float[] img, int w, int h, double[] sigmaPx) {
+        for (int c = 0; c < 3; c++) {
+            double s2 = sigmaPx[c] * sigmaPx[c] - 0.35 * 0.35;
+            if (s2 <= 0.01) continue;
+            double sigma = Math.sqrt(s2);
+            int rad = Math.max(1, (int) Math.ceil(sigma * 3));
+            float[] k = new float[rad * 2 + 1];
+            float sum = 0;
+            for (int i = -rad; i <= rad; i++) {
+                k[i + rad] = (float) Math.exp(-i * i / (2 * s2));
+                sum += k[i + rad];
+            }
+            for (int i = 0; i < k.length; i++) k[i] /= sum;
+            final int ch = c;
+            float[] tmp = new float[w * h];
+            java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+                for (int x = 0; x < w; x++) {
+                    float a = 0;
+                    for (int i = -rad; i <= rad; i++) {
+                        int xx = Math.max(0, Math.min(w - 1, x + i));
+                        a += k[i + rad] * img[(y * w + xx) * 3 + ch];
+                    }
+                    tmp[y * w + x] = a;
+                }
+            });
+            java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+                for (int x = 0; x < w; x++) {
+                    float a = 0;
+                    for (int i = -rad; i <= rad; i++) {
+                        int yy = Math.max(0, Math.min(h - 1, y + i));
+                        a += k[i + rad] * tmp[yy * w + x];
+                    }
+                    img[(y * w + x) * 3 + ch] = a;
+                }
+            });
         }
     }
 
@@ -1209,9 +1447,15 @@ public final class ImagePipeline {
 
     // ------------------------------------------------------------------ noise
 
+    /** Dark-current variance relative to the read noise: equal after 30 s at 20 °C. */
+    static final double DARK_K = 8e-6;
+
     /**
-     * Photon (shot) noise grows with sqrt(signal x amplification), read noise with amplification.
-     * Downsampling a high-resolution sensor averages noise, which is why resolutionScale matters.
+     * Sensor noise. Independent sources add in quadrature: photon (shot) noise grows with sqrt(signal x
+     * amplification), read noise and the shot noise of the dark current with the amplification. Some read noise is
+     * common to a whole row (banding in lifted shadows, more on sensors with less dynamic range). Downsampling a
+     * high-resolution sensor averages noise, which is why resolutionScale matters. Long exposures add hot pixels
+     * unless a dark frame was subtracted.
      */
     static void noise(float[] img, int w, int h, ImageParams p) {
         ImageParams.Sensor s = p.sensor();
@@ -1225,14 +1469,49 @@ public final class ImagePipeline {
         double shotK = 6e-5 * s.noiseLuma();
         double readK = 1.2e-4 * s.noiseLuma() * Math.pow(2, Math.max(-2, Math.min(2.5, 13.5 - s.dynamicRangeEv())));
         double chromaK = 0.6 * s.noiseChroma();
+        ImageParams.Dark dark = s.dark();
+        // the dark frame's own noise is subtracted along with its pattern: the random part counts twice
+        double darkVar = dark.seconds() > 0
+                ? amp * amp * shotK * DARK_K * dark.seconds() * dark.thermal() * (dark.subtracted() ? 2 : 1) : 0;
+        double read2 = amp * readK * amp * readK + darkVar;
         SplittableRandom rnd = new SplittableRandom(p.seed());
-        for (int i = 0; i < img.length; i += 3) {
+        // row banding: a row averages many sensor rows, so it fades more slowly with downsampling than pixel noise
+        double band = Math.max(0.03, Math.min(0.35, (13 - s.dynamicRangeEv()) * 0.12));
+        double rowSigma = amp * readK * band * Math.pow(Math.min(1, s.resolutionScale()), 0.25) * s.areaFactor();
+        float[] row = new float[h];
+        for (int y = 0; y < h; y++) row[y] = (float) (rnd.nextGaussian() * rowSigma);
+        for (int i = 0, px = 0; i < img.length; i += 3, px++) {
             float luma = 0.2126f * img[i] + 0.7152f * img[i + 1] + 0.0722f * img[i + 2];
-            double sigma = (Math.sqrt(Math.max(luma, 0) * amp * shotK) + amp * readK) * avg;
-            double common = rnd.nextGaussian() * sigma;
+            double sigma = Math.sqrt(Math.max(luma, 0) * amp * shotK + read2) * avg;
+            double common = rnd.nextGaussian() * sigma + row[px / w];
             img[i] = (float) Math.max(0, img[i] + common + rnd.nextGaussian() * sigma * chromaK);
             img[i + 1] = (float) Math.max(0, img[i + 1] + common + rnd.nextGaussian() * sigma * chromaK);
             img[i + 2] = (float) Math.max(0, img[i + 2] + common + rnd.nextGaussian() * sigma * chromaK);
+        }
+        hotPixels(img, w, h, s, amp);
+    }
+
+    /**
+     * Hot pixels: about one sensor pixel in 100 000 leaks charge far faster than the rest. Their places are fixed
+     * for a sensor (seeded by it), their brightness grows with exposure time, temperature and ISO; each sits under
+     * one colour filter, so it shows as a red, green or blue dot. A dark-frame subtraction removes them. In a
+     * downsampled picture a hot pixel is a fraction of an output pixel, so it shows fainter.
+     */
+    static void hotPixels(float[] img, int w, int h, ImageParams.Sensor s, double amp) {
+        ImageParams.Dark dark = s.dark();
+        if (dark.seconds() < 0.5 || dark.subtracted()) return;
+        double scale = Math.min(1, Math.max(1e-6, s.resolutionScale()));
+        int n = (int) Math.min(20_000, (double) w * h / scale * 1e-5);
+        double k = amp * dark.seconds() * dark.thermal() * scale * 0.004;
+        SplittableRandom hr = new SplittableRandom(dark.sensorSeed());
+        for (int i = 0; i < n; i++) {
+            double fx = hr.nextDouble(), fy = hr.nextDouble(), z = hr.nextGaussian();
+            int filter = hr.nextInt(4); // RGGB
+            double v = k * Math.exp(1.3 * z);
+            if (v < 0.003) continue;
+            int x = (int) (fx * w), y = (int) (fy * h);
+            int c = filter == 0 ? 0 : filter == 3 ? 2 : 1;
+            img[(y * w + x) * 3 + c] += (float) v;
         }
     }
 

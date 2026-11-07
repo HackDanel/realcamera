@@ -11,15 +11,11 @@
     },
     {
       "item": "realcamera:processor",
-      "count": 2
-    },
-    {
-      "item": "realcamera:display_panel",
-      "count": 2
+      "count": 4
     },
     {
       "item": "realcamera:shutter_unit",
-      "count": 1
+      "count": 2
     },
     {
       "item": "realcamera:stabilizer",
@@ -28,10 +24,6 @@
     {
       "item": "realcamera:lens_element",
       "count": 4
-    },
-    {
-      "item": "realcamera:aperture_blades",
-      "count": 1
     }
   ],
   "result": {

@@ -46,7 +46,7 @@ public class PrinterMenu extends MachineMenu<PrinterBlockEntity> {
 
     /** Card in the printer, read from the synced slot (works on both sides). */
     public java.util.UUID cardId() {
-        var d = machineItem(PrinterBlockEntity.SLOT_CARD).get(dev.hackdanel.realcamera.registry.RCComponents.CARD.get());
+        var d = dev.hackdanel.realcamera.camera.CameraHelper.slotCard(machineItem(PrinterBlockEntity.SLOT_CARD)).get(dev.hackdanel.realcamera.registry.RCComponents.CARD.get());
         return d == null ? null : d.id().orElse(null);
     }
 

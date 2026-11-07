@@ -119,13 +119,14 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
     }
 
     /**
-     * Same, focused at {@code focusM}: close up the image moves away from the lens (v = f(1+m)) and the field of
-     * view narrows, a macro lens at 1:1 frames a subject the size of the sensor.
+     * Same, focused at {@code focusM}: the frame covers sensor / m at the subject. A lens that focuses by moving out
+     * (unit focusing) narrows its view close up, a macro lens at 1:1 frames a subject the size of the sensor; an
+     * internally focusing lens shortens its focal length and may frame wider than at infinity (focus breathing).
      */
     public double renderVfovDeg(float focal, CameraSettings s, double focusM) {
         double framing = focal;
         if (projection() == dev.hackdanel.realcamera.optics.Optics.PROJ_RECTILINEAR && focusM < 100) {
-            framing = Math.max(focal, focusM * 1000 * magnification(focusM));
+            framing = Math.max(focal * 0.5, lens.framingAt(lensFocal(focal), focusM) * tcFactor());
         }
         double v = dev.hackdanel.realcamera.optics.Optics.renderVfovDeg(projection(), (float) framing, sensor.widthMm(), sensor.heightMm());
         if (shiftMm(s) != 0) {
@@ -179,14 +180,25 @@ public record OpticalChain(CameraBodySpec body, LensSpec lens, @Nullable Adapter
         return lens.mount().location().getPath().startsWith("canon") ? 1.6f : 1.5f;
     }
 
-    /** Reproduction ratio focused at focusM (a teleconverter multiplies it). */
-    public double magnification(double focusM) {
-        return lens.magnificationAt(focusM) * tcFactor();
+    /** Reproduction ratio at an effective focal length focused at focusM (a teleconverter multiplies it). */
+    public double magnification(float effectiveFocal, double focusM) {
+        return lens.magnificationAt(lensFocal(effectiveFocal), focusM) * tcFactor();
+    }
+
+    /** Light the glass absorbs and reflects (T-stop vs f-stop), EV; a teleconverter adds its own elements. */
+    public double transmissionLossEv() {
+        return lens.transmissionLossEv() + (tc != null ? 0.1 : 0);
+    }
+
+    /** Axial colour focus shift (mm, image space) at an effective focal length; a teleconverter magnifies it by k^2. */
+    public double locaMm(float effectiveFocal) {
+        float k = tcFactor();
+        return lens.locaMm(lensFocal(effectiveFocal)) * k * k;
     }
 
     /** Light lost to the extension at close focus (the bellows factor), EV: 2 at 1:1. */
-    public double bellowsLossEv(double focusM) {
-        double m = lens.magnificationAt(focusM);
+    public double bellowsLossEv(float effectiveFocal, double focusM) {
+        double m = lens.magnificationAt(lensFocal(effectiveFocal), focusM);
         return m < 0.05 ? 0 : 2 * Math.log(1 + m) / Math.log(2);
     }
 

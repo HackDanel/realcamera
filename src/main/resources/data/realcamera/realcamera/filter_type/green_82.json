@@ -1,0 +1,10 @@
+{
+  "name": "Green 11 82mm",
+  "kind": "color",
+  "r": 0.35,
+  "g": 1,
+  "b": 0.3,
+  "nd_stops": 2,
+  "diameter_mm": 82,
+  "model": "realcamera:item/filter/green_82"
+}

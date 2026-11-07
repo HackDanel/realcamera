@@ -57,6 +57,8 @@ final class ClientBridgeImpl implements ClientBridge {
     public void handlePayload(CustomPacketPayload payload) {
         switch (payload) {
             case Payloads.UploadStatus s -> PhotoUploader.onStatus(s);
+            case Payloads.FlashPop f -> dev.hackdanel.realcamera.client.render.FlashGlow.onPop(f);
+            case Payloads.NeckCamera n -> dev.hackdanel.realcamera.client.render.NeckCameraLayer.set(n.entityId(), n.stack());
             case Payloads.PhotoData d -> PhotoCache.onData(d);
             case Payloads.PhotoGone g -> PhotoCache.onGone(g.id());
             case Payloads.CardContents c -> CardListings.onContents(c);

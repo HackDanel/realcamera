@@ -40,6 +40,8 @@ FIELDS = [
     # stage 6: tilt-shift lens movements
     ("tilt", "float", "tilt", "0f"),
     ("shift", "float", "shift", "0f"),
+    # long-exposure noise reduction: a dark frame of the same length after exposures of 1 s and longer
+    ("longExposureNr", "boolean", "long_exposure_nr", "true"),
 ]
 
 CONSTANTS = """    public static final int MODE_AUTO = 0, MODE_P = 1, MODE_A = 2, MODE_S = 3, MODE_M = 4, MODE_COUNT = 5;
@@ -72,7 +74,7 @@ def codec_type(t):
 
 
 def main():
-    half = 14
+    half = 15
     groups = [FIELDS[:half], FIELDS[half:]]
     lines = []
     w = lines.append

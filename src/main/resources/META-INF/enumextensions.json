@@ -1,0 +1,13 @@
+{
+  "entries": [
+    {
+      "enum": "net/minecraft/client/model/HumanoidModel$ArmPose",
+      "name": "REALCAMERA_CAMERA_AT_EYE",
+      "constructor": "(ZLnet/neoforged/neoforge/client/IArmPoseTransformer;)V",
+      "parameters": {
+        "class": "dev/hackdanel/realcamera/client/render/CameraPose",
+        "field": "ARM_POSE"
+      }
+    }
+  ]
+}

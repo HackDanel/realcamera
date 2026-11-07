@@ -166,6 +166,30 @@ public final class ServerPhotoService {
         handle.get().commit().run();
     }
 
+    /**
+     * Everyone around sees the pop: from the camera (in the hand or on a tripod), along its lens axis, with the light
+     * the flash really gave (never more than the flash can). The photographer gets it as well: the frame already has
+     * the flash, but their eyes see it light the scene too (and from in front of a tripod, straight into it).
+     */
+    private static void flashPop(ServerPlayer player, Payloads.Shutter msg, ItemStack camera, Optional<CameraBodySpec> body,
+                                 boolean hotShoe) {
+        net.minecraft.world.entity.Entity viewer = msg.ref().isTripod()
+                ? player.serverLevel().getEntity(msg.ref().tripodId()) : player;
+        if (viewer == null) viewer = player;
+        float maxGn = hotShoe
+                ? Specs.flash(player.registryAccess(), CameraHelper.parts(camera).flash()).map(f -> f.gn()).orElse(0f)
+                : body.map(b -> b.flash().builtInGn()).orElse(0f);
+        if (maxGn <= 0) return;
+        float gn = net.minecraft.util.Mth.clamp(msg.flashGn(), 1, maxGn);
+        Vec3 look = viewer.getLookAngle();
+        // the flash tube sits a few centimetres above the lens
+        Vec3 pos = viewer.getEyePosition().add(look.scale(0.25)).add(0, 0.1, 0);
+        var pop = new Payloads.FlashPop(player.getId(), pos.x, pos.y, pos.z, (float) look.x, (float) look.y, (float) look.z, gn);
+        // the photographer too: they see their own flash light the scene (their client waits until the frame is taken)
+        net.neoforged.neoforge.network.PacketDistributor.sendToPlayersNear(player.serverLevel(),
+                null, pos.x, pos.y, pos.z, 160, pop);
+    }
+
     /** The shutter type the body really has (a client cannot claim a silent shutter on a DSLR). */
     private static int shutterType(ServerPlayer player, ItemStack camera, Payloads.Shutter msg) {
         return Specs.body(player.registryAccess(), camera).map(b -> b.coerceShutterType(msg.shutterType()))
@@ -181,9 +205,7 @@ public final class ServerPhotoService {
         if (msg.flash()) {
             boolean hotShoe = !CameraHelper.parts(camera).flash().isEmpty();
             if (hotShoe) CameraHelper.drainFlash(camera); else CameraHelper.drain(camera, 1);
-            // everyone around sees the pop
-            Vec3 eye = player.getEyePosition().add(player.getLookAngle().scale(0.6));
-            player.serverLevel().sendParticles(net.minecraft.core.particles.ParticleTypes.FLASH, eye.x, eye.y, eye.z, 1, 0, 0, 0, 0);
+            flashPop(player, msg, camera, body, hotShoe);
         }
         if (shutterType(player, camera, msg) == dev.hackdanel.realcamera.component.CameraSettings.SHUTTER_ELECTRONIC) {
             return; // silent and wear-free

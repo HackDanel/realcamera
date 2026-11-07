@@ -2,9 +2,6 @@
   "name": "ND8 82mm",
   "kind": "nd",
   "nd_stops": 3,
-  "r": 1,
-  "g": 1,
-  "b": 1,
   "diameter_mm": 82,
   "model": "realcamera:item/filter/nd8_82"
 }

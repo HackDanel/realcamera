@@ -45,7 +45,7 @@ public class ComputerMenu extends MachineMenu<ComputerBlockEntity> {
     public UUID cardId(int slot) {
         var roll = machineItem(slot).get(RCComponents.FILM.get());
         if (roll != null) return roll.id().orElse(null);
-        CardData d = machineItem(slot).get(RCComponents.CARD.get());
+        CardData d = dev.hackdanel.realcamera.camera.CameraHelper.slotCard(machineItem(slot)).get(RCComponents.CARD.get());
         return d == null ? null : d.id().orElse(null);
     }
 

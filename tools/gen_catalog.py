@@ -65,12 +65,18 @@ def main():
         write("teleconverter", t["key"], t["spec"])
         names[f"realcamera.teleconverter.realcamera.{t['key']}"] = t["name"]
 
+    names_ru = {}
+    for fl in C.FILTERS:
+        write("filter_type", fl["key"], fl["spec"])
+        names[f"realcamera.filter_type.realcamera.{fl['key']}"] = fl["name"]
+        names_ru[f"realcamera.filter_type.realcamera.{fl['key']}"] = fl["name_ru"]
+
     for lang, conv in (("en_us", lambda s: s), ("ru_ru", ru)):
         path = os.path.join(LANG, lang + ".json")
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         for k, v in names.items():
-            data[k] = conv(v)
+            data[k] = names_ru[k] if lang == "ru_ru" and k in names_ru else conv(v)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
             f.write("\n")

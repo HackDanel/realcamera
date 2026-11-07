@@ -99,6 +99,8 @@ public final class Viewfinder {
 
     // flash
     private static long flashReadyMs;
+    /** Guide number (ISO 100) of the light the flash gives at the power TTL chose for the composed exposure. */
+    private static float emittedGn;
 
     // camera motion (deg/s), smoothed, for shake/pan blur and rolling shutter
     private static float lastYaw, lastPitch;
@@ -146,9 +148,17 @@ public final class Viewfinder {
     }
 
     /** The camera meters through the lens, so a filter's light loss is already in the reading. */
-    /** What reaches the sensor: the filter's loss and, close up, the extension's (TTL metering sees both). */
+    /**
+     * What reaches the sensor: the filter's loss, the glass's own (T-stop vs f-stop) and, close up, the extension's
+     * (TTL metering sees them all; without a meter the photographer has to allow for them).
+     */
     public static double meteredThroughFilter() {
-        return meteredEv - filterLossEv() - (chain == null ? 0 : chain.bellowsLossEv(focusDistance));
+        return meteredEv - lightLossEv();
+    }
+
+    /** Light lost between the scene and the sensor, EV. */
+    public static double lightLossEv() {
+        return filterLossEv() + (chain == null ? 0 : chain.bellowsLossEv(focal(), focusDistance) + chain.transmissionLossEv());
     }
 
     public static double filterLossEv() {
@@ -309,12 +319,23 @@ public final class Viewfinder {
         pitchRate = Mth.lerp(0.5, pitchRate, (pitch - lastPitch) * 20);
         lastYaw = yaw;
         lastPitch = pitch;
+        // the sensor warms while it is powered (live view) and during long exposures
+        boolean liveView = active && chain != null && !"ovf".equals(body().viewfinder()) && !"rangefinder".equals(body().viewfinder());
+        SensorHeat.tick(mc.level, player.blockPosition(), liveView, PhotoCapture.capturing());
 
         // Looking through the camera only makes sense from the photographer's eye (first person),
         // or through a tripod-mounted camera.
         var tripod = TripodView.tripod();
-        boolean using = tripod != null || (player.isUsingItem() && CameraHelper.isCamera(player.getUseItem())
-                && mc.options.getCameraType().isFirstPerson());
+        boolean handUse = player.isUsingItem() && CameraHelper.isCamera(player.getUseItem());
+        if (handUse) {
+            lowerFromTick = -1;
+        } else if (lastHandUse && lowerFromTick < 0) {
+            lowerFromTick = player.tickCount; // lowering the camera: the raise animation runs backwards
+        }
+        lastHandUse = handUse;
+        // the camera comes up to the eye first (RAISE_TICKS), then the viewfinder takes over
+        boolean using = tripod != null || (handUse && mc.options.getCameraType().isFirstPerson()
+                && player.getTicksUsingItem() >= RAISE_TICKS);
         CameraRef wanted = tripod != null ? CameraRef.tripod(tripod.getId()) : CameraRef.hand(player.getUsedItemHand());
         if (using && (!active || !wanted.equals(ref))) {
             if (active) deactivate();
@@ -362,6 +383,27 @@ public final class Viewfinder {
         }
     }
 
+    /** Ticks it takes to bring the camera up to the eye (or down again). */
+    public static final int RAISE_TICKS = 5;
+    private static boolean lastHandUse;
+    private static int lowerFromTick = -1;
+
+    /**
+     * How far the hand-held camera is raised to the eye (0 held normally, 1 at the eye), for the first-person
+     * animation: up while the use key is held, down again after it is released.
+     */
+    public static float raiseProgress(Player player, ItemStack stack, float partialTick) {
+        if (player.isUsingItem() && CameraHelper.isCamera(player.getUseItem()) && CameraHelper.isCamera(stack)) {
+            return Math.min(1, (player.getTicksUsingItem() + partialTick) / RAISE_TICKS);
+        }
+        if (lowerFromTick >= 0 && CameraHelper.isCamera(stack)) {
+            float t = 1 - (player.tickCount - lowerFromTick + partialTick) / RAISE_TICKS;
+            if (t > 0) return t;
+            lowerFromTick = -1;
+        }
+        return 0;
+    }
+
     private static void activate(CameraRef r) {
         ref = r;
         settings = CameraHelper.settings(camera());
@@ -378,7 +420,6 @@ public final class Viewfinder {
     }
 
     private static void deactivate() {
-        active = false;
         shootWhenFocused = false;
         afState = AF_IDLE;
         hunting = false;
@@ -387,8 +428,10 @@ public final class Viewfinder {
             PhotoCapture.stopBulb();
             bulbStartMs = -1;
         }
-        settings = settings.withFocusDistance(focusDistance);
+        settings = settings.withFocusDistance(storedFocus());
+        focusDistance = settings.focusDistance();
         sendSettings();
+        active = false;
     }
 
     /** The next exposure mode the body has (film bodies may only have M, or P/S/M …). */
@@ -573,6 +616,9 @@ public final class Viewfinder {
 
     /** How brightly the game lit the metered area (0..1) and the colour temperature of its light (K). */
     private static double meteredGameLight = 1, meteredK = 5500;
+    /** Metering weights of the 9 x 6 grid (top-down) and the log-average reflectance of the metered surfaces. */
+    private static float[] meterWeights = new float[54];
+    private static double meteredAlbedo = -1;
 
     private static void meter(Minecraft mc) {
         double aspect = sensor().aspect();
@@ -581,7 +627,8 @@ public final class Viewfinder {
         double day = SceneMeter.daylightEv(mc.level, 1f);
         double ambient = SceneMeter.ambientEv(mc.level);
         int gx = 9, gy = 6;
-        double sum = 0, wsum = 0, lightSum = 0, miredSum = 0;
+        double sum = 0, wsum = 0, lightSum = 0, miredSum = 0, albedoSum = 0, albedoW = 0;
+        float[] weights = new float[gx * gy];
         int blockVotes = 0;
         double skyGame = SceneMeter.gameLight(mc.level, BlockPos.containing(mc.gameRenderer.getMainCamera().getPosition()).atY(
                 mc.level.getMaxBuildHeight()));
@@ -598,10 +645,16 @@ public final class Viewfinder {
                     default -> 1;
                 };
                 if (w <= 0) continue;
+                weights[y * gx + x] = (float) w;
                 Vec3 dir = rays.direction(u, v);
                 var hit = rays.cast(dir);
                 // a reflected-light meter: what the surface reflects, not only the light falling on it
-                double ev = SceneMeter.sampleEv(mc.level, hit, dir, day, ambient) + SceneMeter.reflectanceEv(mc.level, hit);
+                double refl = SceneMeter.reflectanceEv(mc.level, hit);
+                double ev = SceneMeter.sampleEv(mc.level, hit, dir, day, ambient) + refl;
+                if (hit.getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
+                    albedoSum += Math.log(0.3 * Math.pow(2, refl)) * w;
+                    albedoW += w;
+                }
                 sum += ev * w;
                 wsum += w;
                 boolean miss = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS;
@@ -628,6 +681,8 @@ public final class Viewfinder {
         meteredEv = Mth.lerp(0.5, meteredEv, sum / wsum);
         meteredGameLight = Math.exp(lightSum / wsum);
         meteredK = 1e6 / (miredSum / wsum);
+        meterWeights = weights;
+        meteredAlbedo = albedoW > 0 ? Math.exp(albedoSum / albedoW) : -1;
         blockLit = blockVotes > gx * gy / 3;
     }
 
@@ -905,7 +960,7 @@ public final class Viewfinder {
     }
 
     /** A composed exposure waiting to be released (now, or when the self-timer runs out). */
-    private record Release(PhotoCapture.Shot shot, int shutterType, boolean flash, boolean bulb, String soundSet) {}
+    private record Release(PhotoCapture.Shot shot, int shutterType, float flashGn, boolean bulb, String soundSet) {}
 
     @Nullable
     private static Release armed;
@@ -953,8 +1008,9 @@ public final class Viewfinder {
                 blockLit, CameraHelper.shutterCount(camera()) + 1, camera().getHoverName().getString(),
                 CameraHelper.parts(camera()).lens().getHoverName().getString(), seconds, motion(seconds),
                 SunTracker.sun(mc.level, mc.getCameraEntity(), cam, sensorVfov(), sensor().aspect()), extras,
-                SHAKE.nextInt(), meteredGameLight, meteredK);
-        return new Release(shot, type, extras.flashAt1m() > 0, bulb, body().shutter().sound());
+                SHAKE.nextInt(), meteredGameLight, meteredK, SensorHeat.sensorC(),
+                new PhotoCapture.Metering(meterWeights.clone(), meteredAlbedo));
+        return new Release(shot, type, extras.flashAt1m() > 0 ? emittedGn : 0, bulb, body().shutter().sound());
     }
 
     private static void dispatch(Minecraft mc, Release r) {
@@ -965,10 +1021,10 @@ public final class Viewfinder {
                     type == CameraSettings.SHUTTER_EFCS ? 1.15f : 1f, 0.9f * volume));
         }
         var shot = r.shot();
-        PacketDistributor.sendToServer(new Payloads.Shutter(shot.ref(), type, r.flash(), new Payloads.ShotInfo(shot.nonce(),
+        PacketDistributor.sendToServer(new Payloads.Shutter(shot.ref(), type, r.flashGn(), new Payloads.ShotInfo(shot.nonce(),
                 shot.focal(), (float) shot.exposure().fNumber(), (float) shot.seconds(), (int) shot.exposure().iso(),
                 shot.focusDistance(), (float) printedError(shot),
-                (float) Math.hypot(shot.motion().blurX(), shot.motion().blurY()))));
+                (float) shot.motion().subjectBlur())));
         bufferFill = cameraBuffer() + 1;
         if (isBurst()) {
             // full speed until the buffer is full, then as fast as the card takes the files
@@ -1021,37 +1077,50 @@ public final class Viewfinder {
         // flash
         double flashAt1m = 0, flashTop = 1;
         float gn = flashGn();
+        emittedGn = 0;
         if (flashWanted() && flashReady()) {
             double iso = exposure.iso(), n = exposure.fNumber();
             double gnIso = gn * Math.sqrt(iso / 100);
             double d = Math.max(0.5, focusDistance);
-            double full = Math.pow(gnIso / (n * d), 2); // exposure at the subject at full power
-            double target = Math.pow(2, settings.flashComp() / 3.0) * (meteredEv > 10 ? 0.5 : 1.0); // fill vs main light
-            double power = Math.max(1 / 128.0, Math.min(1, target / full));
-            flashAt1m = power * Math.pow(gnIso / n, 2);
             double sync = flashSyncS();
             boolean leaf = sync <= 0;
             boolean hss = !parts.flash().isEmpty() && dev.hackdanel.realcamera.camera.Specs.flash(regs, parts.flash())
                     .map(f -> f.hss()).orElse(false);
-            if (seconds < sync && !leaf) {
-                if (hss) {
-                    flashAt1m *= seconds / sync; // high-speed sync: pulsed, much weaker
-                } else {
-                    flashTop = seconds / sync; // the second curtain shades the rest of the frame
-                }
+            // The flash light passes the filter and the lens like the ambient light does. High-speed sync pulses the
+            // flash for the whole travel of the slit: entering it costs about 1.7 EV, and every stop faster another.
+            double efficiency = Math.pow(2, -lightLossEv());
+            if (seconds < sync && !leaf && hss) {
+                efficiency *= 0.3 * seconds / sync;
+            }
+            double full = Math.pow(gnIso / (n * d), 2) * efficiency; // exposure at the subject at full power
+            double target = Math.pow(2, settings.flashComp() / 3.0) * (meteredEv > 10 ? 0.5 : 1.0); // fill vs main light
+            // TTL meters the pre-flash through the lens: it raises the power for all of the above, up to full
+            double power = Math.max(1 / 128.0, Math.min(1, target / full));
+            flashAt1m = power * Math.pow(gnIso / n, 2) * efficiency;
+            emittedGn = (float) (gn * Math.sqrt(power));
+            if (seconds < sync && !leaf && !hss) {
+                flashTop = seconds / sync; // the second curtain shades the rest of the frame
             }
             double recycle = dev.hackdanel.realcamera.camera.Specs.flash(regs, parts.flash()).map(f -> f.recycleS()).orElse(3f);
             flashReadyMs = System.currentTimeMillis() + (long) (recycle * 1000 * Math.max(0.1, power));
         }
-        return new ImageParams.Extras(flashAt1m, flashTop, cpl, fr, fg, fb, Math.min(1, fog), decenter, dust);
+        var extras = new ImageParams.Extras(flashAt1m, flashTop, cpl, fr, fg, fb, Math.min(1, fog), decenter, dust,
+                settings.flashMode() == CameraSettings.FLASH_REAR);
+        if (filter != null) {
+            extras = extras.withFilterEffects("mist".equals(filter.kind()) ? filter.mist() : 0,
+                    "gnd".equals(filter.kind()) ? filter.gndStops() : 0, "star".equals(filter.kind()) ? filter.starPoints() : 0);
+        }
+        return extras;
     }
 
     /**
-     * Smear during the exposure as a fraction of the image width: hand shake left over after
-     * stabilisation (1/focal rule), plus the pan the player is making. Long exposures record the pan
-     * for real (frame accumulation), so only the shake is added for them.
+     * Movement during the exposure, as fractions of the image width: hand shake left over after stabilisation
+     * (1/focal rule), the pan the player is making, the camera's own velocity (riding, walking) and, for moving
+     * subjects, the exposure time (the capture finds the movers). Long exposures record the pan, the ride and the
+     * subjects for real (frame accumulation), so only the shake is added for them.
      */
     private static ImageParams.Motion motion(double seconds) {
+        Minecraft mc = Minecraft.getInstance();
         double t = seconds < 0 ? 1 : seconds;
         double hfov = Math.toDegrees(2 * Math.atan(Math.tan(Math.toRadians(sensorVfov()) / 2) * sensor().aspect()));
         double focal35 = Optics.focal35(focal(), sensor().cropFactor());
@@ -1063,14 +1132,44 @@ public final class Viewfinder {
         double bx = shake * Math.cos(angle) * 0.7, by = shake * Math.sin(angle);
         boolean accumulated = seconds < 0 || seconds >= PhotoCapture.LONG_EXPOSURE_S;
         if (!accumulated) {
-            bx += yawRate / hfov * t;
-            by += pitchRate / hfov * t;
+            // the world moves across the frame against the turn: turning right moves it left, tilting down moves it up
+            bx -= yawRate / hfov * t;
+            by -= pitchRate / hfov * t;
         }
-        double skew = 0;
+        double skew = 0, skewY = 0, readout = 0;
         if (electronic()) {
-            skew = yawRate / hfov * body().shutter().readoutMs() / 1000.0;
+            // rows are read top to bottom: a pan shears the frame, a tilt stretches or squeezes it
+            readout = body().shutter().readoutMs() / 1000.0;
+            skew = yawRate / hfov * readout;
+            skewY = pitchRate / hfov * readout;
         }
-        return new ImageParams.Motion(bx, by, skew);
+        // the camera's own velocity along the frame axes (m/s); a tripod stands still
+        var cam = mc.gameRenderer.getMainCamera();
+        Vec3 fw = new Vec3(cam.getLookVector()), up = new Vec3(cam.getUpVector()), right = new Vec3(cam.getLeftVector()).scale(-1);
+        Vec3 vCam = ref.isTripod() || mc.getCameraEntity() == null ? Vec3.ZERO : velocity(mc.getCameraEntity());
+        double localT = accumulated ? 0 : t;
+        // how much the main subject smears: what the photographer judges sharpness by (a pan that follows a runner
+        // keeps it sharp while the background streaks)
+        double subjX = bx, subjY = by;
+        if (subject != null && !accumulated && subject.entity() != null) {
+            var e = subject.entity();
+            Vec3 rel = e.getBoundingBox().getCenter().subtract(cam.getPosition());
+            double z = rel.dot(fw);
+            if (z > 0.1) {
+                Vec3 u = velocity(e).subtract(vCam);
+                double a = 1 / (2 * Math.tan(Math.toRadians(hfov) / 2)); // focal length in image widths
+                double xr = rel.dot(right) / z, yr = rel.dot(up) / z;
+                subjX += a * (u.dot(right) - xr * u.dot(fw)) / z * t;
+                subjY += -a * (u.dot(up) - yr * u.dot(fw)) / z * t;
+            }
+        }
+        return new ImageParams.Motion(bx, by, skew, skewY, localT, vCam.dot(right), vCam.dot(up), vCam.dot(fw), readout,
+                Math.hypot(subjX, subjY), null);
+    }
+
+    /** Velocity of an entity, m/s (from its movement over the last tick: also right for mobs moved by the server). */
+    public static Vec3 velocity(net.minecraft.world.entity.Entity e) {
+        return new Vec3(e.getX() - e.xo, e.getY() - e.yo, e.getZ() - e.zo).scale(20);
     }
 
     // ------------------------------------------------------------------ dials
@@ -1232,13 +1331,23 @@ public final class Viewfinder {
         sendSettings();
     }
 
+    /** The focus distance to store: the ring's in manual focus (ahead of the per-tick copy), else where AF left it. */
+    private static float storedFocus() {
+        boolean mf = chain != null && (settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable());
+        return mf ? settings.focusDistance() : focusDistance;
+    }
+
     private static void sendSettings() {
         settingsDirtyTicks = -1;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
         ItemStack cam = camera();
         if (!CameraHelper.isCamera(cam)) return;
-        CameraSettings toSend = settings.withFocusDistance(focusDistance);
+        // only a raised camera has a live focus distance of its own; the menu edits the stored one
+        CameraSettings toSend = active ? settings.withFocusDistance(storedFocus()) : settings;
+        // predict the server's change on the client copy too: raising the camera again before the server's slot
+        // update arrives would otherwise read the old settings back (the focus point and distance "jumping back")
+        cam.set(dev.hackdanel.realcamera.registry.RCComponents.CAMERA_SETTINGS.get(), toSend);
         PacketDistributor.sendToServer(new Payloads.UpdateSettings(ref, toSend));
     }
 
@@ -1304,15 +1413,13 @@ public final class Viewfinder {
     }
 
     /**
-     * No hand while looking through the camera. Also not on the frame between the right click and the
-     * viewfinder switching on: the spyglass use pose has no first-person transform, so the camera model would be
-     * drawn right at the eye (its barrel shows up as big black blocks).
+     * No hand while looking through the camera. While it is being raised the camera's own first-person transform
+     * ({@code CameraItemExtensions}) brings it up to the eye.
      */
     @SubscribeEvent
     static void onRenderHand(RenderHandEvent event) {
         Player p = Minecraft.getInstance().player;
-        boolean raising = p != null && p.isUsingItem() && CameraHelper.isCamera(p.getUseItem());
-        if (isActive() || raising || PhotoCapture.capturing()) {
+        if (isActive() || PhotoCapture.capturing()) {
             event.setCanceled(true);
         }
     }

@@ -1,0 +1,6 @@
+{
+  "name": "UV 67mm",
+  "kind": "uv",
+  "diameter_mm": 67,
+  "model": "realcamera:item/filter/uv_67"
+}

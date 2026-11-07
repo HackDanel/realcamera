@@ -1,0 +1,7 @@
+{
+  "name": "ND1000 95mm",
+  "kind": "nd",
+  "nd_stops": 10,
+  "diameter_mm": 95,
+  "model": "realcamera:item/filter/nd1000_95"
+}

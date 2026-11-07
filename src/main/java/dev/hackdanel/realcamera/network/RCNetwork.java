@@ -10,7 +10,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 @EventBusSubscriber(modid = RealCamera.MODID)
 public final class RCNetwork {
-    public static final String VERSION = "4";
+    public static final String VERSION = "6";
 
     private RCNetwork() {}
 
@@ -43,6 +43,8 @@ public final class RCNetwork {
         r.playToServer(Payloads.AlbumAction.TYPE, Payloads.AlbumAction.CODEC,
                 (p, ctx) -> dev.hackdanel.realcamera.item.PhotoAlbumItem.handleAction((ServerPlayer) ctx.player(), p));
         r.playToClient(Payloads.OpenLecternAlbum.TYPE, Payloads.OpenLecternAlbum.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
+        r.playToClient(Payloads.FlashPop.TYPE, Payloads.FlashPop.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
+        r.playToClient(Payloads.NeckCamera.TYPE, Payloads.NeckCamera.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.UploadStatus.TYPE, Payloads.UploadStatus.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.PhotoData.TYPE, Payloads.PhotoData.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));
         r.playToClient(Payloads.PhotoGone.TYPE, Payloads.PhotoGone.CODEC, (p, ctx) -> ClientBridge.get().handlePayload(p));

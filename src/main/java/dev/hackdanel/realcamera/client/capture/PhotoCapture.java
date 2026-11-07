@@ -1,5 +1,8 @@
 package dev.hackdanel.realcamera.client.capture;
 
+import dev.hackdanel.realcamera.client.render.ShaderCompat;
+import net.minecraft.world.phys.Vec3;
+
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.Window;
@@ -74,11 +77,23 @@ public final class PhotoCapture {
     public record Shot(dev.hackdanel.realcamera.camera.CameraRef ref, OpticalChain chain, CameraSettings settings, Exposure.Result exposure,
                        float focal, float focusDistance, double sceneEv, boolean blockLit, int frameNumber,
                        String cameraName, String lensName, double seconds, ImageParams.Motion motion,
-                       ImageParams.Sun sun, ImageParams.Extras extras, int nonce, double gameLight, double sceneK) {
+                       ImageParams.Sun sun, ImageParams.Extras extras, int nonce, double gameLight, double sceneK,
+                       double sensorC, Metering metering) {
         boolean longExposure() {
             return seconds < 0 || seconds >= LONG_EXPOSURE_S;
         }
+
+        Shot withField(@javax.annotation.Nullable ImageParams.MotionField f) {
+            return new Shot(ref, chain, settings, exposure, focal, focusDistance, sceneEv, blockLit, frameNumber, cameraName,
+                    lensName, seconds, motion.withField(f), sun, extras, nonce, gameLight, sceneK, sensorC, metering);
+        }
     }
+
+    /**
+     * Where the camera metered (9 x 6 weights, top-down) and the log-average reflectance of the metered surfaces
+     * (-1 = only sky): lets a frame drawn by a shader pack be exposed from what the pack actually drew.
+     */
+    public record Metering(float[] weights, double albedo) {}
 
     private static final java.util.concurrent.ForkJoinPool DEVELOP_POOL =
             new java.util.concurrent.ForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
@@ -93,12 +108,24 @@ public final class PhotoCapture {
     private static Active active;
     private static volatile int developing;
     private static volatile boolean bulbStop;
+    /** Long-exposure noise reduction: the camera takes a dark frame as long as the exposure and is busy until then. */
+    private static long darkFrameUntil;
 
     private static final class Active {
         final Shot shot;
         final boolean savedHideGui;
         final net.minecraft.world.entity.Entity savedCamera;
         final int origW, origH, w, h;
+        /**
+         * Size of the frame the game renders during the capture and where the photo sits in it. Without a shader pack
+         * the window is resized to the sensor's output, so this is the photo itself. A shader pack keeps its state
+         * (auto exposure, temporal accumulation, its title screen timer) in buffers that a resize recreates, so with a
+         * pack the frame stays at the window's size and the photo is the centred crop with the sensor's aspect.
+         */
+        int fw, fh, cx, cy;
+        boolean noResize;
+        /** With no resize the vertical field of view the frame is rendered with (wider when the window is narrower). */
+        double renderVfov = -1;
         int warmup = WARMUP_FRAMES;
         // long exposure
         long startNanos = -1;
@@ -106,10 +133,17 @@ public final class PhotoCapture {
         float[] sum;
         int frameIndex, accumulated;
         float[] depthGrid, lightGrid, entityGrid;
+        ImageParams.MotionField field;
         int gw, gh;
         double savedViewScale = 1;
         /** Per-pixel depth from the GPU of the captured (first) frame, or null. */
         float[] gpuDepth;
+        /** Drawn by a shader pack (exposed from what it drew, see {@link ShaderCompat#packRelight}). */
+        boolean pack;
+        /** Geometry of the open long exposure, for flashes of other photographers that fire meanwhile. */
+        CameraRays rays;
+        /** Light those flashes added, on the ray grid (exposure relative to a correct one), or null. */
+        float[] remote;
 
         Active(Shot shot, boolean savedHideGui, net.minecraft.world.entity.Entity savedCamera, int origW, int origH, int w, int h) {
             this.shot = shot;
@@ -119,6 +153,8 @@ public final class PhotoCapture {
             this.origH = origH;
             this.w = w;
             this.h = h;
+            this.fw = w;
+            this.fh = h;
         }
     }
 
@@ -137,11 +173,13 @@ public final class PhotoCapture {
     /** True if another frame can be taken now: nothing is being captured and the buffer has room. */
     public static boolean canAccept() {
         int buffer = Viewfinder.isActive() ? Math.min(MEMORY_BUFFER, Viewfinder.body().shutter().bufferShots()) : 1;
-        return pending == null && active == null && developing < buffer && PhotoUploader.pending() < 12;
+        return pending == null && active == null && developing < buffer && PhotoUploader.pending() < 12
+                && System.nanoTime() >= darkFrameUntil;
     }
 
     public static boolean busy() {
-        return pending != null || active != null || developing > 0 || PhotoUploader.busy();
+        return pending != null || active != null || developing > 0 || PhotoUploader.busy()
+                || System.nanoTime() < darkFrameUntil;
     }
 
     public static boolean capturing() {
@@ -157,7 +195,8 @@ public final class PhotoCapture {
     static void onFov(net.neoforged.neoforge.client.event.ViewportEvent.ComputeFov event) {
         Active a = active;
         if (a != null && event.usedConfiguredFov()) {
-            event.setFOV(a.shot.chain().renderVfovDeg(a.shot.focal(), a.shot.settings(), a.shot.focusDistance()));
+            event.setFOV(a.renderVfov > 0 ? a.renderVfov
+                    : a.shot.chain().renderVfovDeg(a.shot.focal(), a.shot.settings(), a.shot.focusDistance()));
         }
     }
 
@@ -186,12 +225,44 @@ public final class PhotoCapture {
         float aspect = shot.chain().sensor().aspect();
         int w = aspect >= 1 ? longSide : Math.round(longSide * aspect);
         int h = aspect >= 1 ? Math.round(longSide / aspect) : longSide;
-        active = new Active(shot, mc.options.hideGui, mc.getCameraEntity(), window.getWidth(), window.getHeight(), w, h);
+        boolean pack = ShaderCompat.packInUse();
+        int ww = window.getWidth(), wh = window.getHeight();
+        if (pack && ww >= 16 && wh >= 16) {
+            // the crop of the window with the sensor's aspect
+            float winAspect = (float) ww / wh;
+            if (winAspect >= aspect) {
+                h = wh;
+                w = Math.min(ww, Math.round(wh * aspect));
+            } else {
+                w = ww;
+                h = Math.min(wh, Math.round(ww / aspect));
+            }
+        }
+        active = new Active(shot, mc.options.hideGui, mc.getCameraEntity(), ww, wh, w, h);
+        active.pack = pack;
+        if (pack && ww >= 16 && wh >= 16) {
+            Active a = active;
+            a.noResize = true;
+            a.fw = ww;
+            a.fh = wh;
+            a.cx = (ww - w) / 2;
+            a.cy = (wh - h) / 2;
+            double v = shot.chain().renderVfovDeg(shot.focal(), shot.settings(), shot.focusDistance());
+            float winAspect = (float) ww / wh;
+            if (winAspect < aspect) {
+                // the window is narrower than the frame: render taller so the crop has the sensor's width
+                double t = Math.tan(Math.toRadians(v) / 2) * aspect / winAspect;
+                v = Math.toDegrees(2 * Math.atan(t));
+            }
+            a.renderVfov = v;
+        }
         if (shot.ref().isTripod() && mc.level.getEntity(shot.ref().tripodId()) instanceof net.minecraft.world.entity.Entity tripod) {
             // the tripod's camera takes the picture, wherever the photographer is (self-timer selfies)
             mc.setCameraEntity(tripod);
         }
-        resize(mc, w, h);
+        if (!active.noResize) {
+            resize(mc, w, h);
+        }
         mc.options.hideGui = true;
         // a long lens shows animals far beyond the normal entity draw distance (the server's analysis assumes 4x)
         active.savedViewScale = net.minecraft.world.entity.Entity.getViewScale();
@@ -214,12 +285,28 @@ public final class PhotoCapture {
         if (!a.shot.longExposure()) {
             active = null;
             NativeImage image = Screenshot.takeScreenshot(mc.getMainRenderTarget());
+            if (image.getWidth() != a.fw || image.getHeight() != a.fh) {
+                // the window was resized meanwhile: no usable frame
+                image.close();
+                active = null;
+                finish(mc, a);
+                return;
+            }
             int gw = 192, gh = Math.max(1, Math.round(gw / a.shot.chain().sensor().aspect()));
-            float[][] grids = grids(mc, a.shot, gw, gh);
+            CameraRays rays = rays(mc, a.shot);
+            float[][] grids = rays.grids(gw, gh, true);
+            Shot shot = a.shot.withField(rays.motionField());
+            // other photographers' flashes that fired while this (short) exposure was open
+            long now = System.nanoTime(), open = (long) (Math.max(0, a.shot.seconds()) * 1e9);
+            float[] remote = null;
+            for (RemoteFlash f : recentFlashes) {
+                if (now - f.nanos() <= open) remote = add(remote, flashGrid(rays, grids[0], gw, gh, a.shot, f));
+            }
             finish(mc, a);
-            int[] rgb = toRgb(image);
+            int[] rgb = toRgb(image, a.cx, a.cy, a.w, a.h);
             image.close();
-            submit(mc, a.shot, rgb, null, a.w, a.h, grids[0], grids[1], grids[2], a.gpuDepth, gw, gh, a.shot.seconds());
+            submit(mc, shot, rgb, null, a.w, a.h, grids[0], grids[1], grids[2], a.gpuDepth, gw, gh, a.shot.seconds(),
+                    remote, a.pack);
             return;
         }
         accumulateFrame(mc, a);
@@ -233,15 +320,17 @@ public final class PhotoCapture {
     static void onLevelStage(net.neoforged.neoforge.client.event.RenderLevelStageEvent event) {
         Active a = active;
         if (a == null || a.warmup > 0 || a.gpuDepth != null
-                || event.getStage() != net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+                || event.getStage() != net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage.AFTER_LEVEL
+                || ShaderCompat.shadowPass()) {
             return;
         }
         RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
-        if (target.width != a.w || target.height != a.h) {
+        if (target.width != a.fw || target.height != a.fh) {
             return;
         }
         try {
-            a.gpuDepth = readDepth(target, event.getProjectionMatrix(), a.shot.chain().shiftPitchDeg(a.shot.focal(), a.shot.settings()));
+            float[] full = readDepth(target, event.getProjectionMatrix(), a.shot.chain().shiftPitchDeg(a.shot.focal(), a.shot.settings()));
+            a.gpuDepth = a.noResize ? crop(full, a.fw, a.cx, a.cy, a.w, a.h, 1) : full;
         } catch (RuntimeException e) {
             RealCamera.LOGGER.warn("Could not read the depth buffer", e);
         }
@@ -299,14 +388,15 @@ public final class PhotoCapture {
             a.sum = new float[a.w * a.h * 3];
             a.gw = 192;
             a.gh = Math.max(1, Math.round(a.gw / a.shot.chain().sensor().aspect()));
-            float[][] grids = grids(mc, a.shot, a.gw, a.gh);
+            a.rays = rays(mc, a.shot);
+            float[][] grids = a.rays.grids(a.gw, a.gh, true);
             a.depthGrid = grids[0];
             a.lightGrid = grids[1];
             a.entityGrid = grids[2];
             for (int i = 0; i < 2; i++) {
                 a.pbo[i] = GL15.glGenBuffers();
                 GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, a.pbo[i]);
-                GL15.glBufferData(GL21.GL_PIXEL_PACK_BUFFER, (long) a.w * a.h * 4, GL15.GL_STREAM_READ);
+                GL15.glBufferData(GL21.GL_PIXEL_PACK_BUFFER, (long) a.fw * a.fh * 4, GL15.GL_STREAM_READ);
             }
         }
         double elapsed = (System.nanoTime() - a.startNanos) / 1e9;
@@ -340,7 +430,15 @@ public final class PhotoCapture {
             linear[i] *= inv;
         }
         RealCamera.LOGGER.debug("Long exposure {} s: {} frames", String.format("%.2f", elapsed), a.accumulated);
-        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.entityGrid, a.gpuDepth, a.gw, a.gh, elapsed);
+        if (a.shot.settings().longExposureNr() && elapsed >= 1 && !a.shot.chain().body().isFilm()) {
+            darkFrameUntil = System.nanoTime() + (long) (elapsed * 1e9);
+            if (mc.player != null) {
+                mc.player.displayClientMessage(Component.translatable("message.realcamera.dark_frame",
+                        String.format(java.util.Locale.ROOT, "%.0f", Math.max(1, elapsed))), true);
+            }
+        }
+        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.entityGrid, a.gpuDepth, a.gw, a.gh, elapsed,
+                a.remote, a.pack);
     }
 
     /** Sum one frame (GL rows are bottom-up) into the float buffer in linear light. */
@@ -353,7 +451,7 @@ public final class PhotoCapture {
         float[] sum = a.sum;
         int w = a.w, h = a.h;
         for (int y = 0; y < h; y++) {
-            int src = (h - 1 - y) * w * 4;
+            int src = ((a.fh - 1 - (y + a.cy)) * a.fw + a.cx) * 4;
             int dst = y * w * 3;
             for (int x = 0; x < w; x++, src += 4, dst += 3) {
                 sum[dst] += SRGB_TO_LINEAR[buf.get(src) & 0xFF];
@@ -367,11 +465,84 @@ public final class PhotoCapture {
 
     // ------------------------------------------------------------------ helpers (render thread)
 
-    private static float[][] grids(Minecraft mc, Shot s, int gw, int gh) {
+    // ------------------------------------------------------------------ other photographers' flashes
+
+    private record RemoteFlash(Vec3 pos, Vec3 dir, float gn, long nanos) {}
+
+    private static final java.util.ArrayDeque<RemoteFlash> recentFlashes = new java.util.ArrayDeque<>();
+
+    /**
+     * Someone else's flash fired nearby. If this camera's shutter is open, the flash lights the frame like it lights
+     * the world: from where it is, along its beam, with shadows. A long exposure takes it in at once; a short one
+     * looks back when its frame is captured.
+     */
+    public static void remoteFlash(Vec3 pos, Vec3 dir, float gn) {
+        long now = System.nanoTime();
+        RemoteFlash f = new RemoteFlash(pos, dir, gn, now);
+        recentFlashes.addLast(f);
+        while (!recentFlashes.isEmpty() && now - recentFlashes.peekFirst().nanos() > 2_000_000_000L) {
+            recentFlashes.removeFirst();
+        }
+        Active a = active;
+        if (a != null && a.startNanos >= 0 && a.rays != null && a.depthGrid != null) {
+            a.remote = add(a.remote, flashGrid(a.rays, a.depthGrid, a.gw, a.gh, a.shot, f));
+        }
+    }
+
+    /**
+     * Light share of a flash at an angle from its axis (cosine): a flash head covers about the angle of a normal lens,
+     * full inside ~30°, gone by ~60°, plus a little spill.
+     */
+    public static double flashCone(double cos) {
+        double c = Math.max(0, Math.min(1, (cos - 0.5) / 0.35));
+        return 0.04 + 0.96 * c * c * (3 - 2 * c);
+    }
+
+    @javax.annotation.Nullable
+    private static float[] add(@javax.annotation.Nullable float[] sum, @javax.annotation.Nullable float[] g) {
+        if (g == null) return sum;
+        if (sum == null) return g;
+        for (int i = 0; i < sum.length; i++) sum[i] += g[i];
+        return sum;
+    }
+
+    /** Exposure (relative to a correct one) a flash adds on each cell of the ray grid, or null if it lights nothing. */
+    @javax.annotation.Nullable
+    private static float[] flashGrid(CameraRays rays, float[] depth, int gw, int gh, Shot s, RemoteFlash f) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return null;
+        // what the photographer's own flash would give with this guide number, at 1 m, through this lens and ISO
+        double at1m = Math.pow(f.gn() * Math.sqrt(s.exposure().iso() / 100) / s.exposure().fNumber(), 2);
+        float[] out = new float[gw * gh];
+        boolean any = false;
+        for (int y = 0; y < gh; y++) {
+            double v = 1 - (y + 0.5) * 2 / gh;
+            for (int x = 0; x < gw; x++) {
+                int c = y * gw + x;
+                if (depth[c] >= 9_999) continue;
+                double u = (x + 0.5) * 2 / gw - 1;
+                Vec3 p = rays.point(u, v, depth[c]);
+                Vec3 to = p.subtract(f.pos());
+                double d = Math.max(0.3, to.length());
+                double e = at1m * flashCone(to.dot(f.dir()) / d) / (d * d);
+                if (e < 0.004) continue;
+                // in the shadow of something between the flash and the surface
+                Vec3 end = p.subtract(to.scale(0.3 / d));
+                if (d > 0.4 && mc.level.clip(new net.minecraft.world.level.ClipContext(f.pos(), end,
+                        net.minecraft.world.level.ClipContext.Block.VISUAL, net.minecraft.world.level.ClipContext.Fluid.NONE,
+                        net.minecraft.world.phys.shapes.CollisionContext.empty())).getType()
+                        != net.minecraft.world.phys.HitResult.Type.MISS) continue;
+                out[c] = (float) e;
+                any = true;
+            }
+        }
+        return any ? out : null;
+    }
+
+    private static CameraRays rays(Minecraft mc, Shot s) {
         return new CameraRays(mc.level, mc.getCameraEntity(), mc.gameRenderer.getMainCamera(),
                 s.chain().renderVfovDeg(s.focal(), s.settings(), s.focusDistance()), s.chain().sensor().aspect(), 512)
-                .withLevelAxis(s.chain().shiftPitchDeg(s.focal(), s.settings()))
-                .grids(gw, gh, s.extras().flashAt1m() > 0);
+                .withLevelAxis(s.chain().shiftPitchDeg(s.focal(), s.settings()));
     }
 
     private static void finish(Minecraft mc, Active a) {
@@ -380,7 +551,20 @@ public final class PhotoCapture {
         if (a.savedCamera != null && mc.getCameraEntity() != a.savedCamera) {
             mc.setCameraEntity(a.savedCamera);
         }
-        resize(mc, a.origW, a.origH); // resizing clears the buffer: the screen blacks out like a real EVF
+        if (!a.noResize) {
+            resize(mc, a.origW, a.origH); // resizing clears the buffer: the screen blacks out like a real EVF
+        } else {
+            blackout(mc.getMainRenderTarget());
+        }
+    }
+
+    /** The {@code w} x {@code h} block at ({@code cx}, {@code cy}) of a row-major array {@code fw} wide. */
+    private static float[] crop(float[] full, int fw, int cx, int cy, int w, int h, int channels) {
+        float[] out = new float[w * h * channels];
+        for (int y = 0; y < h; y++) {
+            System.arraycopy(full, ((y + cy) * fw + cx) * channels, out, y * w * channels, w * channels);
+        }
+        return out;
     }
 
     private static void blackout(RenderTarget target) {
@@ -397,12 +581,11 @@ public final class PhotoCapture {
         mc.gameRenderer.resize(w, h);
     }
 
-    private static int[] toRgb(NativeImage image) {
-        int w = image.getWidth(), h = image.getHeight();
+    private static int[] toRgb(NativeImage image, int cx, int cy, int w, int h) {
         int[] rgb = new int[w * h];
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
-                int abgr = image.getPixelRGBA(x, y);
+                int abgr = image.getPixelRGBA(x + cx, y + cy);
                 rgb[y * w + x] = ((abgr & 0xFF) << 16) | (abgr & 0xFF00) | ((abgr >> 16) & 0xFF);
             }
         }
@@ -410,7 +593,8 @@ public final class PhotoCapture {
     }
 
     private static void submit(Minecraft mc, Shot shot, int[] rgb, float[] linear, int w, int h, float[] grid,
-                               float[] lightGrid, float[] entityGrid, float[] gpuDepth, int gw, int gh, double actualSeconds) {
+                               float[] lightGrid, float[] entityGrid, float[] gpuDepth, int gw, int gh, double actualSeconds,
+                               float[] remote, boolean pack) {
         ColorProfileSpec profile = Specs.profile(mc.level.registryAccess(), shot.chain().body(), shot.settings().profile())
                 .orElse(null);
         String artist = mc.getUser().getName();
@@ -420,13 +604,14 @@ public final class PhotoCapture {
         developing++;
         // development uses half the cores: the game keeps rendering smoothly (and a burst keeps its pace)
         WORKER.execute(() -> DEVELOP_POOL.submit(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, entityGrid, gpuDepth, gw, gh, actualSeconds,
-                profile, film, artist, maxUpload)).join());
+                remote, pack, profile, film, artist, maxUpload)).join());
     }
 
     // ------------------------------------------------------------------ worker thread
 
     private static void develop(Shot s, int[] rgb, float[] linear, int w, int h, float[] grid, float[] lightGrid,
-                                float[] entityGrid, float[] gpuDepth, int gw, int gh, double seconds, ColorProfileSpec profile,
+                                float[] entityGrid, float[] gpuDepth, int gw, int gh, double seconds, float[] remote,
+                                boolean pack, ColorProfileSpec profile,
                                 @javax.annotation.Nullable dev.hackdanel.realcamera.spec.FilmStockSpec film, String artist,
                                 int maxUpload) {
         long t0 = System.nanoTime();
@@ -438,21 +623,34 @@ public final class PhotoCapture {
                 if (dropped > 0) RealCamera.LOGGER.debug("Depth map: {} pixels of a fixed-depth layer taken from the rays", dropped);
             }
             boolean gpu = gpuDepth != null && DepthUpsampler.agrees(gpuDepth, w, h, grid, entityGrid, gw, gh);
+            if (pack && gpuDepth != null) {
+                Minecraft.getInstance().execute(() -> ShaderCompat.reportPhotoDepth(gpu));
+            }
             float[] depth = gpu ? DepthUpsampler.fillUnknown(gpuDepth, () -> DepthUpsampler.upsample(grid, gw, gh, guide, w, h))
                     : DepthUpsampler.upsample(grid, gw, gh, guide, w, h);
             RealCamera.LOGGER.debug("Depth map: {}", gpu ? "GPU depth buffer" : gpuDepth == null ? "ray grid" : "ray grid (GPU depth rejected: " + DepthUpsampler.lastCheck + ")");
             float[] light = lightGrid == null ? null : DepthUpsampler.upsample(lightGrid, gw, gh, guide, w, h);
             ImageParams params = params(s, profile, film, w, h, seconds);
+            if (remote != null) {
+                params = params.withExtras(params.extras().withOtherFlash(DepthUpsampler.upsample(remote, gw, gh, guide, w, h)));
+            }
             if (Boolean.getBoolean("realcamera.debugDumps")) {
                 debugDump(guide, depth, w, h);
             }
             float[] img = linear != null ? linear : ImagePipeline.toLinear(rgb);
             // A correct exposure puts the metered area at middle grey, however dimly the game drew it: a moonlit
             // field correctly exposed on a tripod looks almost like day, as on a real camera. Light grid in step.
-            float relight = (float) relight(s);
+            // A shader pack draws the scene as bright as it likes (night brightness, auto exposure): then the
+            // brightening comes from what it drew. The light grid stays on the vanilla curve (surface colour for flash).
+            float lightScale = (float) relight(s);
+            float relight = pack ? (float) ShaderCompat.packRelight(img, depth, w, h, s.metering().weights(),
+                    s.metering().albedo(), lightScale) : lightScale;
+            if (pack) RealCamera.LOGGER.debug("Shader pack exposure: x{} (light curve x{})", relight, lightScale);
             if (relight != 1) {
                 for (int i = 0; i < img.length; i++) img[i] *= relight;
-                if (light != null) for (int i = 0; i < light.length; i++) light[i] *= relight;
+            }
+            if (lightScale != 1 && light != null) {
+                for (int i = 0; i < light.length; i++) light[i] *= lightScale;
             }
             float[] sensor = ImagePipeline.developSensor(img, depth, light, w, h, params);
             int format = film != null ? CameraSettings.FORMAT_JPEG : s.settings().fileFormat();
@@ -545,11 +743,12 @@ public final class PhotoCapture {
             double[] wb = ImagePipeline.whiteBalance(s.sceneK(), film.name().endsWith("T") ? 3200 : 5500);
             var look = film.look();
             var sn = digital.sensor();
+            double[] drift = film.reciprocityTint(seconds < 0 ? 1 : seconds);
             return new ImageParams(new ImageParams.Sensor(shown, 1, 0, 0, sn.resolutionScale(),
                     dev.hackdanel.realcamera.processing.FilmLook.dynamicRange(film.latitudeOver())),
                     digital.focus(), digital.lens(), digital.motion(), digital.sun(),
                     new ImageParams.Colour(wb[0], wb[1], wb[2], look.contrast() * contrastK, look.saturation(), film.monochrome(),
-                            look.tintR(), look.tintG(), look.tintB(), look.shadowLift()),
+                            look.tintR() * drift[0], look.tintG() * drift[1], look.tintB() * drift[2], look.shadowLift()),
                     digital.extras(), digital.seed());
         }
         OpticalChain chain = s.chain();
@@ -578,7 +777,7 @@ public final class PhotoCapture {
                 chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(s.focal())) * q * q,
                 optics.caPx() * (w / 3840.0) * q, chain.imageCircle(), optics.blades(),
                 optics.rounded(), optics.flare());
-        lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh()));
+        lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh())).withLoca(chain.locaMm(s.focal()));
         int projection = chain.projection();
         if (projection != Optics.PROJ_RECTILINEAR) {
             double halfDiag = Math.hypot(sensor.widthMm(), sensor.heightMm()) / 2;
@@ -588,10 +787,14 @@ public final class PhotoCapture {
         if (shiftMm != 0) {
             lens = lens.withShift(shiftMm * w / sensor.widthMm(), 1 / OpticalChain.SHIFT_OVERSCAN);
         }
-        var motion = new ImageParams.Motion(s.motion().blurX() * w, s.motion().blurY() * w, s.motion().rollingSkewPx() * w);
+        var motion = s.motion().scaled(w);
+        // dark current integrates for the whole exposure; noise reduction subtracts a dark frame from 1 s on
+        double darkS = seconds < 0 ? 1 : seconds;
+        var dark = new ImageParams.Dark(darkS >= 0.25 ? darkS : 0, s.sensorC(), s.settings().longExposureNr() && darkS >= 1,
+                sensorSeed(s));
         return new ImageParams(
                 new ImageParams.Sensor(exposureEv(s, seconds), isoGain, sensor.noiseLuma(), sensor.noiseChroma(),
-                        (double) w * h / (sensor.megapixels() * 1e6), sensor.dynamicRangeEv(), areaFactor, belowBase),
+                        (double) w * h / (sensor.megapixels() * 1e6), sensor.dynamicRangeEv(), areaFactor, belowBase, dark),
                 new ImageParams.Focus(s.focal(), s.exposure().fNumber(), s.focusDistance(), sensor.widthMm(),
                         chain.tiltDeg(s.settings())),
                 lens, motion, s.sun(),
@@ -601,6 +804,16 @@ public final class PhotoCapture {
                         profile == null ? 1 : profile.tintG(), profile == null ? 1 : profile.tintB(),
                         profile == null ? 0 : profile.shadowLift()),
                 s.extras(), System.nanoTime());
+    }
+
+    /**
+     * Identifies the sensor (its hot pixels stay in the same places): camera items carry no serial number, so it is
+     * the camera model of this player.
+     */
+    private static long sensorSeed(Shot s) {
+        var info = s.chain().body().info();
+        var player = Minecraft.getInstance().getUser().getProfileId();
+        return (info.exifMake() + "/" + info.exifModel()).hashCode() * 31L + (player == null ? 0 : player.hashCode());
     }
 
     private static double nominalSeconds(Shot s, double seconds) {

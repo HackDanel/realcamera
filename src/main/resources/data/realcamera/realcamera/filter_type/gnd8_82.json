@@ -1,0 +1,7 @@
+{
+  "name": "Soft GND8 82mm",
+  "kind": "gnd",
+  "gnd_stops": 3,
+  "diameter_mm": 82,
+  "model": "realcamera:item/filter/gnd8_82"
+}

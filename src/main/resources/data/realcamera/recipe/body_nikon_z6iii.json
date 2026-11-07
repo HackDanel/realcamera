@@ -3,7 +3,7 @@
   "ingredients": [
     {
       "item": "realcamera:magnesium_alloy",
-      "count": 3
+      "count": 5
     },
     {
       "item": "realcamera:bsi_cmos_sensor",
@@ -24,10 +24,6 @@
     {
       "item": "realcamera:stabilizer",
       "count": 1
-    },
-    {
-      "item": "minecraft:slime_ball",
-      "count": 2
     }
   ],
   "result": {

@@ -1,0 +1,7 @@
+{
+  "name": "ND8 112mm",
+  "kind": "nd",
+  "nd_stops": 3,
+  "diameter_mm": 112,
+  "model": "realcamera:item/filter/nd8_112"
+}

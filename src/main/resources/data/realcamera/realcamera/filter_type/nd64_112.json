@@ -1,0 +1,7 @@
+{
+  "name": "ND64 112mm",
+  "kind": "nd",
+  "nd_stops": 6,
+  "diameter_mm": 112,
+  "model": "realcamera:item/filter/nd64_112"
+}

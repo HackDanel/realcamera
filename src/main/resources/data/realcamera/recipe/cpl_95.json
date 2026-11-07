@@ -3,7 +3,7 @@
   "ingredients": [
     {
       "item": "realcamera:optical_glass",
-      "count": 1
+      "count": 2
     },
     {
       "item": "minecraft:iron_nugget",
@@ -11,7 +11,7 @@
     },
     {
       "item": "minecraft:amethyst_shard",
-      "count": 2
+      "count": 1
     }
   ],
   "result": {

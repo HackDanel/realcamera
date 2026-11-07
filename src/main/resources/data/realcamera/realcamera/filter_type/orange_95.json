@@ -1,0 +1,9 @@
+{
+  "name": "Orange 21 95mm",
+  "kind": "color",
+  "r": 1,
+  "g": 0.6,
+  "b": 0.15,
+  "diameter_mm": 95,
+  "model": "realcamera:item/filter/orange_95"
+}

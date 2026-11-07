@@ -45,7 +45,7 @@ public class LensItem extends Item {
             lines.add(Component.literal(focalLabel(lens) + "  " + apertureLabel(lens)).withStyle(ChatFormatting.GRAY));
             lines.add(Component.translatable("tooltip.realcamera.mount", SpecNames.name("mount", lens.mount()))
                     .withStyle(ChatFormatting.GRAY));
-            lines.add(Component.translatable("tooltip.realcamera.lens_details",
+            lines.add(Component.translatable(lens.filterMm() > 0 ? "tooltip.realcamera.lens_details" : "tooltip.realcamera.lens_details_nofilter",
                     String.format(Locale.ROOT, "%.2f", lens.minFocusM()), lens.blades(), lens.filterMm())
                     .withStyle(ChatFormatting.DARK_GRAY));
             if (lens.oisStops() > 0) {

@@ -71,11 +71,16 @@ public final class Payloads {
         };
     }
 
-    public record Shutter(CameraRef ref, int shutterType, boolean flash, ShotInfo info) implements CustomPacketPayload {
+    /** flashGn: guide number (ISO 100) of the light the flash gave at the power TTL chose, 0 = no flash. */
+    public record Shutter(CameraRef ref, int shutterType, float flashGn, ShotInfo info) implements CustomPacketPayload {
         public static final Type<Shutter> TYPE = Payloads.newType("shutter");
         public static final StreamCodec<ByteBuf, Shutter> CODEC = StreamCodec.composite(
-                CameraRef.STREAM_CODEC, Shutter::ref, ByteBufCodecs.VAR_INT, Shutter::shutterType, ByteBufCodecs.BOOL,
-                Shutter::flash, ShotInfo.CODEC, Shutter::info, Shutter::new);
+                CameraRef.STREAM_CODEC, Shutter::ref, ByteBufCodecs.VAR_INT, Shutter::shutterType, ByteBufCodecs.FLOAT,
+                Shutter::flashGn, ShotInfo.CODEC, Shutter::info, Shutter::new);
+
+        public boolean flash() {
+            return flashGn > 0;
+        }
 
         @Override
         public Type<Shutter> type() {
@@ -246,6 +251,49 @@ public final class Payloads {
     // ---------- server -> client ----------
 
     public static final int UPLOAD_ACCEPTED = 0, UPLOAD_STORED = 1, UPLOAD_REJECTED = 2;
+
+    /**
+     * A flash fired: where, which way (the lens axis) and how much light (guide number at ISO 100 for the power used).
+     * Sent to the players around; shooterId is the photographer (their own camera already has the light in its frame).
+     */
+    public record FlashPop(int shooterId, double x, double y, double z, float dx, float dy, float dz, float gn)
+            implements CustomPacketPayload {
+        public static final Type<FlashPop> TYPE = Payloads.newType("flash_pop");
+        public static final StreamCodec<ByteBuf, FlashPop> CODEC = new StreamCodec<>() {
+            @Override
+            public FlashPop decode(ByteBuf b) {
+                return new FlashPop(b.readInt(), b.readDouble(), b.readDouble(), b.readDouble(), b.readFloat(),
+                        b.readFloat(), b.readFloat(), b.readFloat());
+            }
+
+            @Override
+            public void encode(ByteBuf b, FlashPop p) {
+                b.writeInt(p.shooterId).writeDouble(p.x).writeDouble(p.y).writeDouble(p.z).writeFloat(p.dx)
+                        .writeFloat(p.dy).writeFloat(p.dz).writeFloat(p.gn);
+            }
+        };
+
+        @Override
+        public Type<FlashPop> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * The camera a player carries on its strap (in the inventory, not in a hand), or an empty stack: drawn on their
+     * chest. Sent to the players tracking them and to themselves when it changes.
+     */
+    public record NeckCamera(int entityId, net.minecraft.world.item.ItemStack stack) implements CustomPacketPayload {
+        public static final Type<NeckCamera> TYPE = Payloads.newType("neck_camera");
+        public static final StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, NeckCamera> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, NeckCamera::entityId, net.minecraft.world.item.ItemStack.OPTIONAL_STREAM_CODEC,
+                NeckCamera::stack, NeckCamera::new);
+
+        @Override
+        public Type<NeckCamera> type() {
+            return TYPE;
+        }
+    }
 
     public record UploadStatus(int requestId, int status, Optional<UUID> photoId, String message)
             implements CustomPacketPayload {

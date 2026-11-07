@@ -223,6 +223,21 @@ class ImagePipelineTest {
     }
 
     @Test
+    void otherPhotographersFlashLightsOnlyWhereItReaches() {
+        int w = 40, h = 20;
+        float[] depth = new float[w * h];
+        java.util.Arrays.fill(depth, 3f);
+        float[] light = new float[w * h];
+        java.util.Arrays.fill(light, 0.05f);
+        float[] other = new float[w * h];
+        for (int i = 0; i < other.length; i++) other[i] = (i % w) < w / 2 ? 0.5f : 0f; // right half in shadow
+        var extras = new ImageParams.Extras(0, 1, false, 1, 1, 1, 0, 0, new float[0]).withOtherFlash(other);
+        int[] out = ImagePipeline.develop(flat(w, h, 0x101010), depth, light, w, h, ImageParams.neutral().withExtras(extras));
+        int lit = red(out[10 * w + 5]), dark = red(out[10 * w + 35]);
+        assertTrue(lit > dark + 40, "lit " + lit + " shadow " + dark);
+    }
+
+    @Test
     void curtainShadowAboveSyncSpeed() {
         int w = 20, h = 40;
         float[] depth = new float[w * h];
@@ -287,5 +302,54 @@ class ImagePipelineTest {
         ImagePipeline.downscale(flat(300, 200, 0xFF0000), 300, 200, 150, size);
         assertEquals(150, size[0]);
         assertEquals(100, size[1]);
+    }
+
+    private static float[] grey(int w, int h, float v) {
+        float[] img = new float[w * h * 3];
+        java.util.Arrays.fill(img, v);
+        return img;
+    }
+
+    @Test
+    void graduatedNdDarkensTheTopOnly() {
+        int w = 20, h = 100;
+        float[] img = grey(w, h, 0.5f);
+        ImagePipeline.graduatedNd(img, w, h, 3);
+        assertEquals(0.5f / 8, img[0], 1e-4);                        // top: 3 stops
+        assertEquals(0.5f, img[(h - 1) * w * 3], 1e-6);               // bottom: untouched
+        float mid = img[(h / 2) * w * 3];
+        assertTrue(mid > 0.5f / 8 && mid < 0.5f, "soft edge in the middle: " + mid);
+    }
+
+    @Test
+    void starRaysOnlyFromPoints() {
+        int w = 200, h = 200;
+        float[] img = grey(w, h, 0.05f);
+        int c = (100 * w + 100) * 3;
+        img[c] = img[c + 1] = img[c + 2] = 8f;
+        ImagePipeline.star(img, w, h, 6);
+        // a ray 20 px out along one of the six directions (15 deg + k * 60)
+        double a = Math.PI / 12;
+        int x = (int) Math.round(100 + Math.cos(a) * 20), y = (int) Math.round(100 + Math.sin(a) * 20);
+        assertTrue(img[(y * w + x) * 3] > 0.06f, "ray from a bright point");
+        // a uniformly bright frame (a lit wall) makes no rays
+        float[] wall = grey(w, h, 3f);
+        ImagePipeline.star(wall, w, h, 6);
+        assertEquals(3f, wall[(50 * w + 50) * 3], 1e-6);
+    }
+
+    @Test
+    void mistLowersContrast() {
+        int w = 900, h = 60;
+        float[] img = grey(w, h, 0.02f);
+        for (int y = 0; y < h; y++) {
+            for (int x = 450; x < w; x++) {
+                int j = (y * w + x) * 3;
+                img[j] = img[j + 1] = img[j + 2] = 1.5f;
+            }
+        }
+        float[] out = ImagePipeline.mist(img.clone(), w, h, 0.25);
+        int dark = (30 * w + 440) * 3; // dark side, next to the bright half
+        assertTrue(out[dark] > 0.04f, "highlights glow into the shadows: " + out[dark]);
     }
 }

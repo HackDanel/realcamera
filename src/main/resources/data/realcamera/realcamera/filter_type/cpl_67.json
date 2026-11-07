@@ -1,0 +1,6 @@
+{
+  "name": "Circular Polariser 67mm",
+  "kind": "cpl",
+  "diameter_mm": 67,
+  "model": "realcamera:item/filter/cpl_67"
+}

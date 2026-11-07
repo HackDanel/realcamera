@@ -520,3 +520,34 @@ TELECONVERTERS = [
     tc("fuji_xf14x", "Fujifilm XF1.4X TC WR", "XF1.4X TC WR", "fuji_x", 1.4, 15.0, (30, 30, 32)),
     tc("fuji_xf2x", "Fujifilm XF2X TC WR", "XF2X TC WR", "fuji_x", 2.0, 15.0, (30, 30, 32)),
 ]
+
+
+# --- screw-in filters: one entry per kind, made in the listed thread sizes (key = <base>_<size>).
+# (base, English name, Russian name, spec fields, icon tint, icon alpha, extra recipe ingredient (item, count), sizes)
+_ALL = (67, 77, 82, 95, 112)
+_SMALL = (67, 82, 95)
+FILTER_KINDS = [
+    ("uv", "UV", "UV", {"kind": "uv"}, "#ccd8ff", 60, ("minecraft:quartz", 1), _ALL),
+    ("cpl", "Circular Polariser", "Поляризационный", {"kind": "cpl"}, "#3a4a66", 140, ("minecraft:amethyst_shard", 1), _ALL),
+    ("nd8", "ND8", "ND8", {"kind": "nd", "nd_stops": 3}, "#555555", 120, ("minecraft:black_dye", 1), _ALL),
+    ("nd64", "ND64", "ND64", {"kind": "nd", "nd_stops": 6}, "#333333", 170, ("minecraft:black_dye", 2), _ALL),
+    ("nd1000", "ND1000", "ND1000", {"kind": "nd", "nd_stops": 10}, "#111111", 230, ("minecraft:black_dye", 4), _ALL),
+    ("gnd8", "Soft GND8", "Градиентный GND8", {"kind": "gnd", "gnd_stops": 3}, "#4a4a4a", 150, ("minecraft:gray_dye", 2), _SMALL),
+    ("mist4", "Black Mist 1/4", "Black Mist 1/4", {"kind": "mist", "mist": 0.25}, "#9a9aa4", 110, ("minecraft:bone_meal", 2), _SMALL),
+    ("mist8", "Black Mist 1/8", "Black Mist 1/8", {"kind": "mist", "mist": 0.125}, "#b4b4bc", 90, ("minecraft:bone_meal", 1), _SMALL),
+    ("star6", "Star 6x", "Звёздный 6x", {"kind": "star", "star_points": 6}, "#e8eef8", 70, ("minecraft:glowstone_dust", 1), (67, 82)),
+    ("yellow", "Yellow 8", "Жёлтый 8", {"kind": "color", "r": 1, "g": 0.9, "b": 0.35}, "#ffd800", 150, ("minecraft:yellow_dye", 1), _SMALL),
+    ("orange", "Orange 21", "Оранжевый 21", {"kind": "color", "r": 1, "g": 0.6, "b": 0.15}, "#ff8a00", 160, ("minecraft:orange_dye", 1), _SMALL),
+    ("red", "Red 25", "Красный 25", {"kind": "color", "r": 1, "g": 0.3, "b": 0.08}, "#d01818", 170, ("minecraft:red_dye", 1), _SMALL),
+    ("green", "Green 11", "Зелёный 11", {"kind": "color", "r": 0.35, "g": 1, "b": 0.3, "nd_stops": 2}, "#3aa040", 160, ("minecraft:green_dye", 1), _SMALL),
+    ("blue80a", "Blue 80A", "Синий 80A", {"kind": "color", "r": 0.42, "g": 0.66, "b": 1, "nd_stops": 2}, "#3070e0", 150, ("minecraft:blue_dye", 1), (67, 82)),
+    ("amber85", "Amber 85", "Янтарный 85", {"kind": "color", "r": 1, "g": 0.78, "b": 0.5, "nd_stops": 0.67}, "#e09040", 140, ("minecraft:orange_dye", 1), (67, 82)),
+]
+
+FILTERS = []
+for _base, _en, _ru, _fields, _tint, _alpha, _extra, _sizes in FILTER_KINDS:
+    for _size in _sizes:
+        _key = f"{_base}_{_size}"
+        _spec = {"name": f"{_en} {_size}mm", **_fields, "diameter_mm": _size, "model": rc(f"item/filter/{_key}")}
+        FILTERS.append({"key": _key, "name": f"{_en} {_size} mm", "name_ru": f"{_ru} {_size} мм", "spec": _spec,
+                        "tint": _tint, "alpha": _alpha, "extra": _extra, "size": _size})

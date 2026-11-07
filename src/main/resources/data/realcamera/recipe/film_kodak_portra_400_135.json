@@ -3,10 +3,6 @@
   "ingredients": [
     {
       "item": "minecraft:paper",
-      "count": 2
-    },
-    {
-      "item": "minecraft:slime_ball",
       "count": 1
     },
     {
@@ -24,7 +20,7 @@
   ],
   "result": {
     "id": "realcamera:film_roll",
-    "count": 3,
+    "count": 1,
     "components": {
       "realcamera:film_stock": "realcamera:kodak_portra_400",
       "realcamera:film": {

@@ -1,0 +1,25 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "realcamera:optical_glass",
+      "count": 2
+    },
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 2
+    },
+    {
+      "item": "minecraft:bone_meal",
+      "count": 2
+    }
+  ],
+  "result": {
+    "id": "realcamera:filter",
+    "count": 1,
+    "components": {
+      "realcamera:filter_type": "realcamera:mist4_95"
+    }
+  },
+  "time": 60
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Blue 80A 67mm",
+  "kind": "color",
+  "r": 0.42,
+  "g": 0.66,
+  "b": 1,
+  "nd_stops": 2,
+  "diameter_mm": 67,
+  "model": "realcamera:item/filter/blue80a_67"
+}

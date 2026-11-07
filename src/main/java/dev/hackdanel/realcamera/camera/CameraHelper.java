@@ -76,6 +76,12 @@ public final class CameraHelper {
         return card.getItem() instanceof dev.hackdanel.realcamera.item.MemoryCardItem ? card : null;
     }
 
+    /** The card a machine slot holds: the card itself, or the one inside a camera connected over USB. */
+    public static ItemStack slotCard(ItemStack stack) {
+        ItemStack inside = usbCard(stack);
+        return inside != null ? inside : stack;
+    }
+
     public static boolean hasPower(ItemStack camera) {
         if (wear(camera).dead()) {
             return false;

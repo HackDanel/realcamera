@@ -1,0 +1,6 @@
+{
+  "name": "UV 112mm",
+  "kind": "uv",
+  "diameter_mm": 112,
+  "model": "realcamera:item/filter/uv_112"
+}

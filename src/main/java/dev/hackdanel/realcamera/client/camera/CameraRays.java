@@ -25,6 +25,9 @@ public final class CameraRays {
     private final double maxDist;
     private final List<Entity> entities;
     private ClipContext.Block shape = ClipContext.Block.VISUAL;
+    /** Entity each cell of the last grid hit (null = block or sky). */
+    private Entity[] cellEntity;
+    private int lastGw, lastGh;
 
     public CameraRays(ClientLevel level, Entity viewer, Camera camera, double vfovDeg, double aspect, double maxDist) {
         this.level = level;
@@ -71,6 +74,12 @@ public final class CameraRays {
         return forward.add(right.scale(u * tanH)).add(up.scale(v * tanV)).normalize();
     }
 
+    /** The world point at normalised frame coordinates u,v whose depth along the axis is {@code planeDistance}. */
+    public Vec3 point(double u, double v, double planeDistance) {
+        Vec3 dir = direction(u, v);
+        return origin.add(dir.scale(planeDistance / Math.max(1e-3, dir.dot(axis))));
+    }
+
     public HitResult cast(Vec3 dir) {
         Vec3 end = origin.add(dir.scale(maxDist));
         BlockHitResult block = level.clip(new ClipContext(origin, end, shape, ClipContext.Fluid.ANY, viewer));
@@ -111,6 +120,9 @@ public final class CameraRays {
         float[] depth = new float[gw * gh];
         float[] light = withLight ? new float[gw * gh] : null;
         float[] entity = new float[gw * gh];
+        cellEntity = new Entity[gw * gh];
+        lastGw = gw;
+        lastGh = gh;
         float skyFactor = level.getSkyDarken(1f);
         for (int y = 0; y < gh; y++) {
             double v = 1 - (y + 0.5) * 2 / gh;
@@ -121,12 +133,55 @@ public final class CameraRays {
                 double d = planeDistance(hit, dir);
                 depth[y * gw + x] = (float) (Double.isInfinite(d) ? 10_000 : Math.max(0.05, d));
                 entity[y * gw + x] = hit.getType() == HitResult.Type.ENTITY ? 1 : 0;
+                if (hit instanceof EntityHitResult eh) cellEntity[y * gw + x] = eh.getEntity();
                 if (light != null) {
                     light[y * gw + x] = hit.getType() == HitResult.Type.MISS ? 1f : lightAt(hit, skyFactor);
                 }
             }
         }
         return new float[][]{depth, light, entity};
+    }
+
+    /**
+     * The entities the last grid hit that move relative to the ground, for the motion blur: per cell the index of the
+     * mover (-1 none), per mover its velocity along the frame axes (m/s) and the depth range its box spans. Null if
+     * nothing moves. A rider and its mount move with the camera: their velocity relative to it is zero.
+     */
+    @org.jetbrains.annotations.Nullable
+    public dev.hackdanel.realcamera.processing.ImageParams.MotionField motionField() {
+        if (cellEntity == null) return null;
+        java.util.Map<Entity, Integer> index = new java.util.HashMap<>();
+        java.util.List<dev.hackdanel.realcamera.processing.ImageParams.Mover> movers = new java.util.ArrayList<>();
+        short[] cells = new short[cellEntity.length];
+        java.util.Arrays.fill(cells, (short) -1);
+        Vec3 right = this.right, up = this.up;
+        for (int i = 0; i < cellEntity.length; i++) {
+            Entity e = cellEntity[i];
+            if (e == null) continue;
+            Integer id = index.get(e);
+            if (id == null) {
+                Vec3 v = Viewfinder.velocity(e);
+                if (v.lengthSqr() < 0.05 * 0.05 || movers.size() >= 32) {
+                    id = -1;
+                } else {
+                    AABB box = e.getBoundingBox();
+                    double near = Double.MAX_VALUE, far = -Double.MAX_VALUE;
+                    for (int c = 0; c < 8; c++) {
+                        Vec3 corner = new Vec3((c & 1) == 0 ? box.minX : box.maxX, (c & 2) == 0 ? box.minY : box.maxY,
+                                (c & 4) == 0 ? box.minZ : box.maxZ);
+                        double d = corner.subtract(origin).dot(axis);
+                        near = Math.min(near, d);
+                        far = Math.max(far, d);
+                    }
+                    id = movers.size();
+                    movers.add(new dev.hackdanel.realcamera.processing.ImageParams.Mover(v.dot(right), v.dot(up),
+                            v.dot(forward), (float) near, (float) far));
+                }
+                index.put(e, id);
+            }
+            cells[i] = (short) (int) id;
+        }
+        return movers.isEmpty() ? null : new dev.hackdanel.realcamera.processing.ImageParams.MotionField(lastGw, lastGh, cells, movers);
     }
 
     private float lightAt(HitResult hit, float skyFactor) {

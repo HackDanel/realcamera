@@ -114,6 +114,11 @@ public final class SpecItemModels {
         @Override
         public BakedModel applyTransform(net.minecraft.world.item.ItemDisplayContext ctx,
                                          com.mojang.blaze3d.vertex.PoseStack pose, boolean leftHand) {
+            if (CameraPose.raisedNow() && (ctx == net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_RIGHT_HAND
+                    || ctx == net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_LEFT_HAND)) {
+                // the display transform is made for a hanging arm: turn the camera back by how far the arm is raised
+                CameraPose.counterRotate(pose, leftHand);
+            }
             originalModel.applyTransform(ctx, pose, leftHand);
             return this;
         }

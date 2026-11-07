@@ -1,0 +1,10 @@
+{
+  "name": "Amber 85 67mm",
+  "kind": "color",
+  "r": 1,
+  "g": 0.78,
+  "b": 0.5,
+  "nd_stops": 0.67,
+  "diameter_mm": 67,
+  "model": "realcamera:item/filter/amber85_67"
+}

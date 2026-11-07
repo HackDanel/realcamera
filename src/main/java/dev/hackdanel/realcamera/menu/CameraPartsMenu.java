@@ -120,7 +120,7 @@ public class CameraPartsMenu extends AbstractContainerMenu {
             case CameraParts.SLOT_TC -> stack.is(RCItems.TELECONVERTER.get()) && Specs.teleconverter(r, stack)
                     .map(t -> OpticalChain.incompatibility(body.get(), lens, adapter, t) == null).orElse(false);
             case CameraParts.SLOT_FILTER -> stack.is(RCItems.FILTER.get()) && Specs.filter(r, stack)
-                    .map(f -> lens == null || f.diameterMm() >= lens.filterMm()).orElse(false);
+                    .map(f -> lens == null || f.fits(lens.filterMm())).orElse(false);
             case CameraParts.SLOT_FLASH -> stack.is(RCItems.FLASH.get()) && Specs.flash(r, stack).isPresent();
             case CameraParts.SLOT_GRIP -> stack.is(RCItems.BATTERY_GRIP.get()) && Specs.grip(r, stack)
                     .map(g -> g.bodies().contains(player.getItemInHand(hand).get(RCComponents.BODY.get()))).orElse(false);

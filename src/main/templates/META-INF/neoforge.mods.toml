@@ -11,6 +11,8 @@ description='''
 Realistic photography: digital and film cameras, interchangeable lenses, real exposure and optics, printing, darkroom.
 '''
 
+enumExtensions="META-INF/enumextensions.json"
+
 [[mixins]]
 config="${mod_id}.mixins.json"
 

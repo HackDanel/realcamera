@@ -8,7 +8,28 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
  * Latitude: how many stops of over/under exposure still give a good negative (slide film has little).
  */
 public record FilmStockSpec(String name, String process, int iso, int frames135, int frames120, float latitudeOver,
-                            float latitudeUnder, Look look, Grain grain, float reciprocity) {
+                            float latitudeUnder, Look look, Grain grain, float reciprocity,
+                            java.util.Optional<java.util.List<Float>> reciprocityTint) {
+    public FilmStockSpec(String name, String process, int iso, int frames135, int frames120, float latitudeOver,
+                         float latitudeUnder, Look look, Grain grain, float reciprocity) {
+        this(name, process, iso, frames135, frames120, latitudeOver, latitudeUnder, look, grain, reciprocity,
+                java.util.Optional.empty());
+    }
+
+    /**
+     * Colour shift of a long exposure: the three layers of a colour film fail reciprocity by different amounts, so
+     * beyond 1 s the picture drifts (most stocks towards green, which is why data sheets ask for magenta CC filters:
+     * Velvia 50 needs CC 12.5M at 32 s). Per-channel factor for every stop beyond 1 s; colour negative is partly
+     * corrected in printing. Black-and-white film has none.
+     */
+    public double[] reciprocityTint(double seconds) {
+        if (seconds <= 1 || monochrome()) return new double[]{1, 1, 1};
+        double stops = Math.min(7, Math.log(seconds) / Math.log(2));
+        float[] perStop = reciprocityTint.filter(l -> l.size() == 3)
+                .map(l -> new float[]{l.get(0), l.get(1), l.get(2)})
+                .orElse("e6".equals(process) ? new float[]{1f, 1.02f, 1f} : new float[]{0.995f, 1.012f, 0.99f});
+        return new double[]{Math.pow(perStop[0], stops), Math.pow(perStop[1], stops), Math.pow(perStop[2], stops)};
+    }
     /**
      * Reciprocity failure (Schwarzschild exponent p): beyond 1 s the film acts as if exposed for t^p seconds, i.e.
      * loses (1 - p) * log2(t) EV. Tri-X about 0.6 (10 s metered needs about 50 s), modern colour about 0.9.
@@ -71,7 +92,8 @@ public record FilmStockSpec(String name, String process, int iso, int frames135,
             Codec.FLOAT.optionalFieldOf("latitude_under", 1.5f).forGetter(FilmStockSpec::latitudeUnder),
             Look.CODEC.optionalFieldOf("look", new Look(1, 1, false, 1, 1, 1, 0)).forGetter(FilmStockSpec::look),
             Grain.CODEC.fieldOf("grain").forGetter(FilmStockSpec::grain),
-            Codec.FLOAT.optionalFieldOf("reciprocity", 0.85f).forGetter(FilmStockSpec::reciprocity)
+            Codec.FLOAT.optionalFieldOf("reciprocity", 0.85f).forGetter(FilmStockSpec::reciprocity),
+            Codec.FLOAT.listOf().optionalFieldOf("reciprocity_tint").forGetter(FilmStockSpec::reciprocityTint)
     ).apply(i, FilmStockSpec::new));
 
     public boolean monochrome() {

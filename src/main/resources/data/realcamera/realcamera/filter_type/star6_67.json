@@ -1,0 +1,7 @@
+{
+  "name": "Star 6x 67mm",
+  "kind": "star",
+  "star_points": 6,
+  "diameter_mm": 67,
+  "model": "realcamera:item/filter/star6_67"
+}

@@ -12,8 +12,8 @@ import dev.hackdanel.realcamera.client.camera.Viewfinder;
 import dev.hackdanel.realcamera.client.capture.PhotoCapture;
 import dev.hackdanel.realcamera.client.hud.FrameSampler;
 import dev.hackdanel.realcamera.config.ClientConfig;
+import dev.hackdanel.realcamera.optics.Optics;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -37,15 +37,22 @@ import org.lwjgl.opengl.GL11;
  * a disc blur on it, and a full-resolution mix of the sharp and the blurred picture.
  *
  * <p>Off while a photo is taken (the photo gets its own, exact depth of field), behind a rangefinder (its
- * window shows everything sharp) and when disabled in the config. A shader pack with its own depth of field
- * blurs on top of this one.
+ * window shows everything sharp), when disabled in the config, and with a shader pack that does not leave the scene
+ * depth in the depth buffer ({@link ShaderCompat#depthTrusted}). A shader pack with its own depth of field blurs on
+ * top of this one.
  */
 @EventBusSubscriber(modid = RealCamera.MODID, value = Dist.CLIENT)
 public final class DofPreview {
-    /** Largest blur radius drawn, as a fraction of the screen height (the photo itself has no such cap). */
-    private static final float MAX_RADIUS_OF_HEIGHT = 0.035f;
+    /**
+     * Largest blur radius drawn, as a fraction of the screen height. The photo allows up to 30% of the width; 15% of
+     * the height covers every real portrait/telephoto background (85 mm f/1.8 at 2 m: ~4.5%, 200 mm f/2 at 3 m: ~15%),
+     * so the viewfinder shows the same blur as the photo.
+     */
+    private static final float MAX_RADIUS_OF_HEIGHT = 0.15f;
+    /** Largest radius the blur pass works with, in its own (downscaled) pixels: picks the downscale factor. */
+    private static final float BLUR_PASS_RADIUS = 20f;
     /** Upper bound on the blur pass's samples per pixel. */
-    private static final int MAX_SAMPLES = 160;
+    private static final int MAX_SAMPLES = 200;
 
     @Nullable
     private static ShaderInstance coc, prep, blur, composite;
@@ -56,8 +63,15 @@ public final class DofPreview {
     /** Blur radii of this frame are computed and waiting for the shader pack's picture. */
     private static boolean radiiReady, sampledAfterPack;
     private static float maxFull = 16;
+    /** Largest blur radius this frame can have (background at infinity, or a foreground at 0.3 m), full-res pixels. */
+    private static float maxRadiusNow = 16;
 
     private DofPreview() {}
+
+    /** The level's projection of the last frame (for converting distances to depth-buffer values). */
+    public static Matrix4f levelProjection() {
+        return projection;
+    }
 
     @SubscribeEvent
     static void registerShaders(RegisterShadersEvent event) throws IOException {
@@ -80,12 +94,16 @@ public final class DofPreview {
      */
     @SubscribeEvent
     static void onLevelStage(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL || ShaderCompat.shadowPass()) {
             return;
         }
         radiiReady = false;
         projection.set(event.getProjectionMatrix());
         boolean pack = shaderPackInUse();
+        if (pack && Viewfinder.isActive() && !PhotoCapture.capturing()) {
+            // does this pack leave the real scene depth in the buffer? (if not, no live blur)
+            ShaderCompat.probeDepth(Minecraft.getInstance().getMainRenderTarget(), projection);
+        }
         if (!pack) {
             FrameSampler.sample(projection); // the sharp frame, for the histogram and the AF
         }
@@ -149,7 +167,7 @@ public final class DofPreview {
 
     private static boolean enabled() {
         return Viewfinder.isActive() && !PhotoCapture.capturing() && coc != null && prep != null && blur != null
-                && composite != null && ClientConfig.LIVE_DEPTH_OF_FIELD.get()
+                && composite != null && ClientConfig.LIVE_DEPTH_OF_FIELD.get() && ShaderCompat.depthTrusted()
                 && !"rangefinder".equals(Viewfinder.body().viewfinder()) && Viewfinder.exposure() != null;
     }
 
@@ -168,6 +186,10 @@ public final class DofPreview {
         float tilt = Viewfinder.chain().tiltDeg(Viewfinder.settings());
         float invHinge = (float) (Math.sin(Math.toRadians(tilt)) / focal);
         maxFull = Math.max(2, h * MAX_RADIUS_OF_HEIGHT);
+        double focusM = focusMm / 1000.0;
+        double worst = Math.max(Optics.blurCircleMm(focal, fNumber, focusM, 1e6),
+                Optics.blurCircleMm(focal, fNumber, focusM, Math.min(0.3, focusM)));
+        maxRadiusNow = tilt != 0 ? maxFull : (float) Math.min(maxFull, worst * pxPerMm * 0.5);
 
         prepareState();
         coc.setSampler("DepthSampler", main.getDepthTextureId());
@@ -178,14 +200,20 @@ public final class DofPreview {
         draw(coc, radii);
     }
 
-    /** Passes 2-4: half-resolution colour + radius, disc blur, full-resolution mix; written back to the screen. */
+    /**
+     * Passes 2-4: downscaled colour + radius, disc blur, full-resolution mix; written back to the screen. The blur
+     * runs at 1/2 resolution for small radii and at 1/4 or 1/8 when the background blurs a lot (wide open, long lens):
+     * a heavily blurred picture loses nothing at low resolution and the cost per pixel stays bounded.
+     */
     private static void blur(RenderTarget main) {
         int w = main.width, h = main.height;
-        int hw = Math.max(1, w / 2), hh = Math.max(1, h / 2);
+        int scale = 2;
+        while (scale < 8 && maxRadiusNow / scale > BLUR_PASS_RADIUS) scale *= 2;
+        int hw = Math.max(1, w / scale), hh = Math.max(1, h / scale);
         half = ensure(half, hw, hh, GL11.GL_NEAREST);
         halfBlurred = ensure(halfBlurred, hw, hh, GL11.GL_LINEAR);
         full = ensure(full, w, h, GL11.GL_NEAREST);
-        float maxHalf = maxFull / 2;
+        float maxHalf = maxFull / scale;
         // spiral step: the sample count grows with radius² / (2 · step)
         float radScale = Math.max(0.6f, maxHalf * maxHalf / (2f * MAX_SAMPLES));
 
@@ -195,6 +223,7 @@ public final class DofPreview {
         prep.safeGetUniform("InSize").set((float) w, (float) h);
         prep.safeGetUniform("FullMaxRadius").set(maxFull);
         prep.safeGetUniform("MaxRadius").set(maxHalf);
+        prep.safeGetUniform("Scale").set((float) scale);
         draw(prep, half);
 
         blur.setSampler("DiffuseSampler", half.getColorTextureId());
@@ -248,33 +277,8 @@ public final class DofPreview {
         shader.clear();
     }
 
-    // ------------------------------------------------------------------ Iris
-
-    private static boolean irisChecked;
-    @Nullable
-    private static Object irisApi;
-    @Nullable
-    private static Method irisInUse;
-
     /** An Iris shader pack is active: it finishes the picture after the level render, so the blur waits for the GUI. */
     public static boolean shaderPackInUse() {
-        if (!irisChecked) {
-            irisChecked = true;
-            try {
-                Class<?> c = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-                irisApi = c.getMethod("getInstance").invoke(null);
-                irisInUse = c.getMethod("isShaderPackInUse");
-            } catch (ReflectiveOperationException | LinkageError e) {
-                irisApi = null;
-            }
-        }
-        if (irisApi == null || irisInUse == null) {
-            return false;
-        }
-        try {
-            return (boolean) irisInUse.invoke(irisApi);
-        } catch (ReflectiveOperationException e) {
-            return false;
-        }
+        return ShaderCompat.packInUse();
     }
 }

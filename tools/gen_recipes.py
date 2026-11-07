@@ -31,7 +31,43 @@ def save(name, obj):
         f.write("\n")
 
 
+# Items with a maximum stack size of 1 (RCItems .stacksTo(1)); a recipe cannot make more than one.
+STACKS_TO_ONE = {"realcamera:film_roll", "realcamera:camera_body", "realcamera:lens"}
+
+# The photo workshop has 6 input slots (AssemblyRecipe allows 1..6 ingredients).
+MAX_INGREDIENTS = 6
+# When a recipe needs more kinds of parts than that, cheap extras are folded into a related part, in this order:
+# (item folded away, item that takes its count). Weather sealing and plain iron go into the housing (the first
+# ingredient), a leaf shutter carries its own blades, AF motors sit on the circuit board, screens on the processor.
+FOLDS = [("minecraft:slime_ball", None), ("minecraft:iron_ingot", None),
+         ("realcamera:aperture_blades", "realcamera:shutter_unit"),
+         ("realcamera:af_motor", "realcamera:circuit_board"),
+         ("realcamera:display_panel", "realcamera:processor")]
+
+
+def fit(name, ingredients):
+    """Merge repeated items, then fold extras until the recipe fits the workshop."""
+    merged = {}
+    for item, n in ingredients:
+        merged[item] = merged.get(item, 0) + n
+    for item, into in FOLDS:
+        if len(merged) <= MAX_INGREDIENTS:
+            break
+        if item not in merged:
+            continue
+        target = into if into is not None else next(iter(merged))
+        if target == item or target not in merged:
+            continue
+        merged[target] += merged.pop(item)
+    if len(merged) > MAX_INGREDIENTS:
+        raise SystemExit(f"recipe {name}: {len(merged)} ingredients, the workshop has {MAX_INGREDIENTS} slots: {merged}")
+    return list(merged.items())
+
+
 def assembly(name, ingredients, result, count=1, time=100, components=None):
+    ingredients = fit(name, ingredients)
+    if result in STACKS_TO_ONE and count != 1:
+        raise SystemExit(f"recipe {name}: {result} does not stack, the result count must be 1 (was {count})")
     res = {"id": result, "count": count}
     if components:
         res["components"] = components
@@ -227,11 +263,12 @@ def main():
     for name, gn_items in (("sony_hvl_f46rm", 3), ("nikon_sb700", 2), ("canon_el5", 3), ("fuji_ef60", 3), ("godox_v1", 4)):
         assembly(name, [(rc("plastic"), 2), (rc("circuit_board"), 1), (mc("glowstone_dust"), gn_items), (rc("battery_cell"), 2)],
                  rc("flash"), 1, 160, {f"{NS}:flash_type": f"{NS}:{name}"})
-    for name, extra in (("nd8_82", (mc("black_dye"), 1)), ("nd64_82", (mc("black_dye"), 2)), ("nd1000_82", (mc("black_dye"), 4)),
-                        ("cpl_82", (mc("amethyst_shard"), 1)), ("uv_82", (mc("quartz"), 1)), ("yellow_82", (mc("yellow_dye"), 1)),
-                        ("orange_82", (mc("orange_dye"), 1)), ("red_82", (mc("red_dye"), 1)), ("cpl_95", (mc("amethyst_shard"), 2))):
-        assembly(name, [(rc("optical_glass"), 1), (mc("iron_nugget"), 2), extra], rc("filter"), 1, 60,
-                 {f"{NS}:filter_type": f"{NS}:{name}"})
+    import catalog as _C
+    for fl in _C.FILTERS:
+        # bigger glass takes more of it
+        glass = 1 if fl["size"] <= 82 else 2
+        assembly(fl["key"], [(rc("optical_glass"), glass), (mc("iron_nugget"), 2), fl["extra"]], rc("filter"), 1, 60,
+                 {f"{NS}:filter_type": f"{NS}:{fl['key']}"})
     assembly("sony_vg_c4em", [(rc("magnesium_alloy"), 2), (rc("circuit_board"), 1), (rc("battery_cell"), 2)], rc("battery_grip"), 1,
              160, {f"{NS}:grip_type": f"{NS}:sony_vg_c4em", f"{NS}:charge": {"charge": 290, "capacity": 580}})
     assembly("nikon_mb_d16", [(rc("magnesium_alloy"), 2), (rc("circuit_board"), 1), (rc("battery_cell"), 2)], rc("battery_grip"), 1,
@@ -300,11 +337,13 @@ def main():
               "kodak_tri_x_400": "black_dye", "ilford_hp5_plus_400": "white_dye", "ilford_delta_3200": "gray_dye",
               "fujifilm_velvia_50": "green_dye", "fujifilm_provia_100f": "lime_dye", "cinestill_800t": "blue_dye"}
     for stock, dye in stocks.items():
-        for fmt, count in (("135", 3), ("120", 2)):
+        # A roll does not stack (each carries its own frames), so one roll per craft. The emulsion is gelatine
+        # (bone meal, as real photographic gelatine is made from bones) dyed per stock; 135 is wound on a metal
+        # cassette, 120 on paper backing.
+        for fmt in ("135", "120"):
             spool = (mc("iron_nugget"), 1) if fmt == "135" else (mc("paper"), 1)
-            assembly(f"film_{stock}_{fmt}", [(mc("paper"), 2), (mc("slime_ball"), 1), (mc("bone_meal"), 1),
-                                              (mc(dye), 1), spool],
-                     rc("film_roll"), count, 60,
+            assembly(f"film_{stock}_{fmt}", [(mc("paper"), 1), (mc("bone_meal"), 1), (mc(dye), 1), spool],
+                     rc("film_roll"), 1, 60,
                      {f"{NS}:film_stock": rc(stock), f"{NS}:film": {"format": fmt, "state": 0}})
     for kit, extra in (("c41", "orange_dye"), ("e6", "blue_dye"), ("bw", "charcoal")):
         assembly(f"chemistry_{kit}", [(mc("glass_bottle"), 3), (mc("sugar"), 1), (mc("redstone"), 1), (mc(extra), 1)],

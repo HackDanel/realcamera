@@ -65,9 +65,13 @@ public class AccessoryItem extends Item {
             case "flash_type" -> Specs.flash(r, stack).ifPresent(f -> lines.add(Component.translatable("tooltip.realcamera.flash",
                     String.format(Locale.ROOT, "%.0f", f.gn()), String.format(Locale.ROOT, "%.1f", f.recycleS()))
                     .withStyle(ChatFormatting.GRAY)));
-            case "filter_type" -> Specs.filter(r, stack).ifPresent(f -> lines.add(Component.translatable(
-                    "tooltip.realcamera.filter." + f.kind(), String.format(Locale.ROOT, "%.0f", f.lightLossEv()), f.diameterMm())
-                    .withStyle(ChatFormatting.GRAY)));
+            case "filter_type" -> Specs.filter(r, stack).ifPresent(f -> {
+                lines.add(Component.translatable("tooltip.realcamera.filter." + f.kind(),
+                        String.format(Locale.ROOT, f.lightLossEv() % 1 == 0 ? "%.0f" : "%.1f", f.lightLossEv()), f.diameterMm())
+                        .withStyle(ChatFormatting.GRAY));
+                lines.add(Component.translatable("tooltip.realcamera.filter_fits", f.diameterMm())
+                        .withStyle(ChatFormatting.DARK_GRAY));
+            });
             default -> Specs.grip(r, stack).ifPresent(g -> lines.add(Component.translatable("tooltip.realcamera.grip",
                     SpecNames.name("battery_type", g.batteryType())).withStyle(ChatFormatting.GRAY)));
         }

@@ -3,19 +3,11 @@
   "ingredients": [
     {
       "item": "realcamera:magnesium_alloy",
-      "count": 4
+      "count": 6
     },
     {
       "item": "realcamera:shutter_unit",
-      "count": 1
-    },
-    {
-      "item": "realcamera:aperture_blades",
-      "count": 1
-    },
-    {
-      "item": "minecraft:iron_ingot",
-      "count": 2
+      "count": 3
     },
     {
       "item": "minecraft:diamond",
@@ -32,10 +24,6 @@
     {
       "item": "realcamera:lens_element",
       "count": 4
-    },
-    {
-      "item": "realcamera:aperture_blades",
-      "count": 1
     }
   ],
   "result": {
