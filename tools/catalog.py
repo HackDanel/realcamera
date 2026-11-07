@@ -117,7 +117,7 @@ def body(key, name, brand, make, model, tier, btype, mount, sensor, mp, iso, dr,
     sensor: (w, h); iso: (base, min, max); noise: (luma, chroma); shutter: (mech_min, elec_min, max, life, sound,
     readout_ms, burst_mech, burst_elec, buffer, efcs); af: (speed, low_light_ev, detect); look: model style/colours.
     cipa: CIPA shots per charge (viewfinder use) -> battery_drain = battery capacity / cipa.
-    shutter_extra: e.g. {"leaf": True} or {"full_mech": False}; film_extra: {"modes": [...], "meter": "..."}.
+    shutter_extra: e.g. {"leaf": True} or {"full_mech": False}; film_extra: {"modes": [...], "meter": "...", "iso_dial": "..."}.
     """
     if cipa:
         drain = round((BATTERIES[battery][1] if battery in BATTERIES else OLD_BATTERY_CAPACITY[battery]) / cipa, 3)
@@ -299,11 +299,11 @@ BODIES = [
     body("hasselblad_500cm", "Hasselblad 500C/M", "Hasselblad", "Hasselblad", "500C/M", "flagship", "film_medium_format", "hasselblad_v",
          F120_66, 50.0, (100, 25, 3200), 12.5, (0, 0), "ovf", (1 / 500, 1 / 500, 1, 100000, "leaf", 0, 0.8, 0.8, 1, False),
          (0, 99, "none"), 0, "sr44", [], 0, "", (0, 1 / 500), film=("120", True), drain=0.0,
-         look=look("medium_box", "HASSELBLAD", (200, 200, 205), "500", top=SILVER), shutter_extra={"leaf": True}, film_extra={"modes": ["m"], "meter": "none"}),
+         look=look("medium_box", "HASSELBLAD", (200, 200, 205), "500", top=SILVER), shutter_extra={"leaf": True}, film_extra={"modes": ["m"], "meter": "none", "iso_dial": "none"}),
     body("contax_t2", "Contax T2", "Contax", "KYOCERA", "CONTAX T2", "pro", "film_compact", "fixed", F135, 24.0,
          (100, 25, 5000), 12.0, (0, 0), "ovf", (1 / 500, 1 / 500, 8, 50000, "leaf", 0, 1.5, 1.5, 1, False),
          (0.5, -12, "none"), 0, "cr2_lithium", [], 0, "", (8, 1 / 500), film=("135", False), drain=0.5,
-         fixed_lens="contax_t2_sonnar_38", look=look("compact", "CONTAX", (200, 160, 60), "T2", top=TITAN, body_c=TITAN), shutter_extra={"leaf": True}, film_extra={"modes": ["p", "a"]}),
+         fixed_lens="contax_t2_sonnar_38", look=look("compact", "CONTAX", (200, 160, 60), "T2", top=TITAN, body_c=TITAN), shutter_extra={"leaf": True}, film_extra={"modes": ["p", "a"], "iso_dial": "dx"}),
 ]
 
 # ----------------------------------------------------------------------------- lenses

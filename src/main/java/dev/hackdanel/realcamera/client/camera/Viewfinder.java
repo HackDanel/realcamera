@@ -269,13 +269,15 @@ public final class Viewfinder {
         return chain.renderVfovDeg(focal(), settings, focusDistance);
     }
 
-    /** Parameters the dials can select: tilt and shift only on a tilt-shift lens. */
+    /** Parameters the dials can select: tilt and shift only on a tilt-shift lens, ISO only where it can be set. */
     private static int nextParam(int from, int dir) {
         int p = from;
         for (int i = 0; i < CameraSettings.PARAM_COUNT; i++) {
             p = Math.floorMod(p + dir, CameraSettings.PARAM_COUNT);
             boolean movement = p == CameraSettings.PARAM_TILT || p == CameraSettings.PARAM_SHIFT;
-            if (!movement || chain.tiltShift().isPresent()) return p;
+            if (movement && chain.tiltShift().isEmpty()) continue;
+            if (p == CameraSettings.PARAM_ISO && !isoAdjustable()) continue;
+            return p;
         }
         return CameraSettings.PARAM_SHUTTER;
     }
@@ -475,7 +477,7 @@ public final class Viewfinder {
             meter(mc);
         }
         exposure = Exposure.solve(settings.mode(), meteredThroughFilter(), settings.evComp() / 3.0, settings.apertureIndex(),
-                Math.min(settings.shutterIndex(), ExposureScales.BULB_INDEX - 1), settings.isoIndex(), limits());
+                Math.min(settings.shutterIndex(), ExposureScales.BULB_INDEX - 1), effectiveIsoIndex(), limits());
         updateFocus(mc);
         boolean manual = settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable();
         if (manual && settings.peaking() && tick % 4 == 0) {
@@ -579,6 +581,34 @@ public final class Viewfinder {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || !body().isFilm()) return null;
         return dev.hackdanel.realcamera.camera.Specs.film(mc.level.registryAccess(), CameraHelper.parts(camera()).card()).orElse(null);
+    }
+
+    /** How a film body takes the film speed ({@code CameraBodySpec.Film.DIAL_*}); null on a digital body. */
+    @javax.annotation.Nullable
+    public static String isoDial() {
+        return body().film().map(dev.hackdanel.realcamera.spec.CameraBodySpec.Film::isoDial).orElse(null);
+    }
+
+    /** The ISO can be set: always on a digital body; on film only with a manual dial or a DX override. */
+    public static boolean isoAdjustable() {
+        return body().film().map(dev.hackdanel.realcamera.spec.CameraBodySpec.Film::isoAdjustable).orElse(true);
+    }
+
+    /**
+     * The ISO index the exposure is solved with (-1 = Auto ISO; on film that is the DX-coded box speed). A manual
+     * film dial has no automatic: an unset dial stands at the box speed of the loaded film, a set one stays where
+     * it is when the roll changes (clamped to the push/pull range). A DX-only body and one without a meter always
+     * rate the film at box speed.
+     */
+    public static int effectiveIsoIndex() {
+        String dial = isoDial();
+        int iso = settings.isoIndex();
+        if (dial == null || dial.equals(dev.hackdanel.realcamera.spec.CameraBodySpec.Film.DIAL_DX_OVERRIDE)) return iso;
+        if (!dial.equals(dev.hackdanel.realcamera.spec.CameraBodySpec.Film.DIAL_MANUAL)) return -1;
+        var stock = filmStock();
+        if (stock == null) return iso;
+        Exposure.Limits lim = limits();
+        return iso < 0 ? lim.autoIsoMinIdx() : Mth.clamp(iso, lim.isoMinIdx(), lim.isoMaxIdx());
     }
 
     public static Exposure.Limits limits() {
@@ -1305,7 +1335,12 @@ public final class Viewfinder {
                 }
             }
             case CameraSettings.PARAM_ISO -> {
-                if (mode != CameraSettings.MODE_AUTO) {
+                if (!isoAdjustable()) {
+                    // DX-only or no meter: nothing to set
+                } else if (dev.hackdanel.realcamera.spec.CameraBodySpec.Film.DIAL_MANUAL.equals(isoDial()) && filmStock() != null) {
+                    // a film speed dial has no Auto position
+                    update(settings.withIso(Mth.clamp(effectiveIsoIndex() + steps, lim.isoMinIdx(), lim.isoMaxIdx())));
+                } else if (mode != CameraSettings.MODE_AUTO) {
                     int iso = settings.isoIndex();
                     int next;
                     if (iso < 0) {
@@ -1318,7 +1353,7 @@ public final class Viewfinder {
                 }
             }
             case CameraSettings.PARAM_EV -> {
-                if (mode != CameraSettings.MODE_AUTO && (mode != CameraSettings.MODE_M || settings.isoIndex() < 0)) {
+                if (mode != CameraSettings.MODE_AUTO && (mode != CameraSettings.MODE_M || effectiveIsoIndex() < 0)) {
                     update(settings.withEvComp(Mth.clamp(settings.evComp() + steps,
                             ExposureScales.EV_COMP_MIN, ExposureScales.EV_COMP_MAX)));
                 }

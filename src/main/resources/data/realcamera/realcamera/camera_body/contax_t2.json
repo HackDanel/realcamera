@@ -54,7 +54,8 @@
     "modes": [
       "p",
       "a"
-    ]
+    ],
+    "iso_dial": "dx"
   },
   "fixed_lens": "realcamera:contax_t2_sonnar_38"
 }

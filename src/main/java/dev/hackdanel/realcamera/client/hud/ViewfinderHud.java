@@ -404,6 +404,24 @@ public final class ViewfinderHud {
         };
     }
 
+    /**
+     * ISO in the bottom bar. Digital: "ISO AUTO 400" / "ISO 400". Film: the rated speed, "DX" while it is read
+     * from the cartridge, and the push/pull in stops when it differs from the box speed ("ISO 1600 +2.0");
+     * nothing on a body without a meter (there is no speed to set).
+     */
+    private static String isoLabel(CameraSettings s, Exposure.Result exp) {
+        int idx = Math.max(0, Math.min(ExposureScales.ISO.length - 1, exp.isoIdx()));
+        String dial = Viewfinder.isoDial();
+        var stock = Viewfinder.filmStock();
+        if (dial == null || stock == null) {
+            return (s.isoIndex() < 0 || s.mode() == CameraSettings.MODE_AUTO ? "ISO AUTO " : "ISO ") + ExposureScales.ISO[idx];
+        }
+        if (dial.equals(dev.hackdanel.realcamera.spec.CameraBodySpec.Film.DIAL_NONE)) return "";
+        boolean dx = !dial.equals(dev.hackdanel.realcamera.spec.CameraBodySpec.Film.DIAL_MANUAL) && Viewfinder.effectiveIsoIndex() < 0;
+        int push = idx - ExposureScales.nearestIso(stock.iso());
+        return (dx ? "ISO DX " : "ISO ") + ExposureScales.ISO[idx] + (push != 0 ? " " + ExposureScales.evCompLabel(push) : "");
+    }
+
     private static void bottomBar(GuiGraphics g, Font font, int x, int bottom, int w, CameraSettings s,
                                   Exposure.Result exp, int baseColor, int background) {
         int y = bottom - 12;
@@ -416,14 +434,16 @@ public final class ViewfinderHud {
         boolean bulb = mode == CameraSettings.MODE_M && s.shutterIndex() >= ExposureScales.BULB_INDEX;
         String shutter = exp == null ? "--" : bulb ? "BULB" : ExposureScales.SHUTTER_LABEL[exp.shutterIdx()];
         String aperture = exp == null ? "--" : "F" + ExposureScales.APERTURE_LABEL[exp.apertureIdx()];
-        String iso = exp == null ? "--" : (s.isoIndex() < 0 || mode == CameraSettings.MODE_AUTO ? "ISO AUTO " : "ISO ")
-                + ExposureScales.ISO[Math.max(0, Math.min(ExposureScales.ISO.length - 1, exp.isoIdx()))];
+        String iso = exp == null ? "--" : isoLabel(s, exp);
+        boolean isoSettable = isoFree && Viewfinder.isoAdjustable();
         String ev = ExposureScales.evCompLabel(s.evComp());
         int cx = x + 6;
         cx = text(g, font, modeLabel(mode), cx, y, YELLOW) + 12;
         cx = text(g, font, shutter, cx, y, color(sel == CameraSettings.PARAM_SHUTTER, shutterFree, baseColor)) + 10;
         cx = text(g, font, aperture, cx, y, color(sel == CameraSettings.PARAM_APERTURE, apertureFree, baseColor)) + 10;
-        cx = text(g, font, iso, cx, y, color(sel == CameraSettings.PARAM_ISO, isoFree, baseColor)) + 10;
+        if (!iso.isEmpty()) {
+            cx = text(g, font, iso, cx, y, color(sel == CameraSettings.PARAM_ISO, isoSettable, baseColor)) + 10;
+        }
         cx = text(g, font, "EV" + ev, cx, y, color(sel == CameraSettings.PARAM_EV, isoFree, baseColor)) + 10;
         text(g, font, wbLabel(s), cx, y, color(sel == CameraSettings.PARAM_WB, isoFree, baseColor));
         if (Viewfinder.chain() != null && Viewfinder.chain().tiltShift().isPresent()) {

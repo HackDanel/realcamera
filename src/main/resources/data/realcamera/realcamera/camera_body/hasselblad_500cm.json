@@ -54,6 +54,7 @@
     "modes": [
       "m"
     ],
-    "meter": "none"
+    "meter": "none",
+    "iso_dial": "none"
   }
 }

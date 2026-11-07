@@ -35,15 +35,26 @@ public record CameraBodySpec(
      * Film body: format ("135" or "120"), whether the shutter is mechanical (works without a battery; then the
      * battery only powers the light meter), the exposure modes the body has ("auto", "p", "a", "s", "m") and its
      * light meter: "battery" (needs charge), "selenium" (no battery, Zenit-E) or "none" (Hasselblad 500C/M).
+     * isoDial: how the film speed gets to the meter: "manual" (an ASA/ISO dial the photographer sets; starts at
+     * the box speed of the loaded film and stays where it was set when the roll changes), "dx_override" (reads the
+     * DX code, can be overridden: EOS-1V), "dx" (DX code only, locked: Contax T2) or "none" (no meter, nothing to
+     * set: Hasselblad 500C/M).
      */
-    public record Film(String format, boolean mechanical, List<String> modes, String meter) {
+    public record Film(String format, boolean mechanical, List<String> modes, String meter, String isoDial) {
+        public static final String DIAL_MANUAL = "manual", DIAL_DX_OVERRIDE = "dx_override", DIAL_DX = "dx", DIAL_NONE = "none";
         public static final List<String> ALL_MODES = List.of("auto", "p", "a", "s", "m");
         public static final Codec<Film> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.STRING.optionalFieldOf("format", "135").forGetter(Film::format),
                 Codec.BOOL.optionalFieldOf("mechanical", false).forGetter(Film::mechanical),
                 Codec.STRING.listOf().optionalFieldOf("modes", ALL_MODES).forGetter(Film::modes),
-                Codec.STRING.optionalFieldOf("meter", "battery").forGetter(Film::meter)
+                Codec.STRING.optionalFieldOf("meter", "battery").forGetter(Film::meter),
+                Codec.STRING.optionalFieldOf("iso_dial", DIAL_MANUAL).forGetter(Film::isoDial)
         ).apply(i, Film::new));
+
+        /** The photographer can change the rated speed (manual dial or DX override). */
+        public boolean isoAdjustable() {
+            return DIAL_MANUAL.equals(isoDial) || DIAL_DX_OVERRIDE.equals(isoDial);
+        }
     }
 
     private static final String[] MODE_NAMES = {"auto", "p", "a", "s", "m"};
