@@ -133,4 +133,15 @@ class CatalogTest {
         }
         assertTrue(problems.isEmpty(), String.join("\n", problems));
     }
+
+    /** Issues #5, #8: crop Canon bodies and APS-C Canon lenses show EF-S / RF-S (SpecNames.mount), not EF / RF. */
+    @Test
+    void canonApscMountsHaveTheirNames() throws IOException {
+        JsonObject en = lang("en_us"), ru = lang("ru_ru");
+        for (String mount : List.of("canon_ef", "canon_rf")) {
+            String key = "realcamera.mount.realcamera." + mount + ".apsc";
+            String name = en.has(key) ? en.get(key).getAsString() : "";
+            assertTrue(name.endsWith("-S") && ru.has(key), key + " = " + name);
+        }
+    }
 }

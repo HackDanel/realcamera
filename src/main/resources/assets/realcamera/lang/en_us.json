@@ -762,5 +762,7 @@
   "tooltip.realcamera.filter.gnd": "Graduated ND: darkens the sky (top half), ⌀%2$s mm",
   "tooltip.realcamera.filter.star": "Star: rays from bright points, ⌀%2$s mm",
   "tooltip.realcamera.filter_fits": "Fits lenses with a thread up to %s mm (step-up ring)",
-  "tooltip.realcamera.lens_details_nofilter": "Min. focus %s m · %s blades · no filter thread"
+  "tooltip.realcamera.lens_details_nofilter": "Min. focus %s m · %s blades · no filter thread",
+  "realcamera.mount.realcamera.canon_ef.apsc": "Canon EF-S",
+  "realcamera.mount.realcamera.canon_rf.apsc": "Canon RF-S"
 }

@@ -35,6 +35,8 @@ def main():
     for key, (name, fl, throat) in C.MOUNTS.items():
         write("mount", key, {"name": name, "flange_mm": fl, "throat_mm": throat})
         names[f"realcamera.mount.realcamera.{key}"] = name
+    for key, name in C.APSC_MOUNT_NAMES.items():
+        names[f"realcamera.mount.realcamera.{key}.apsc"] = name
     for key, (name, cap, _, _) in C.BATTERIES.items():
         write("battery_type", key, {"name": name, "capacity": cap, "model": C.rc(f"item/battery/{key}")})
         names[f"realcamera.battery_type.realcamera.{key}"] = name

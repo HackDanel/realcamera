@@ -32,6 +32,9 @@ MOUNTS = {
     "hasselblad_xcd": ("Hasselblad XCD", 18.14, 60.0),
     "fixed": ("—", 0.0, 0.0),  # built-in lenses of compact cameras
 }
+# the same mount under its APS-C name (lang key "realcamera.mount.realcamera.<key>.apsc"): shown for crop bodies and
+# APS-C lenses; mounts without one (Nikon F/Z DX, Sony E, Fujifilm X) keep their name
+APSC_MOUNT_NAMES = {"canon_ef": "Canon EF-S", "canon_rf": "Canon RF-S"}
 OLD_MOUNT_FLANGE = {"sony_e": 18.0, "canon_ef": 44.0, "nikon_f": 46.5, "leica_m": 27.8}
 
 

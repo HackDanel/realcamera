@@ -140,7 +140,7 @@ public class CameraBodyItem extends Item {
                     String.format(Locale.ROOT, "%.1f×%.1f", body.sensor().widthMm(), body.sensor().heightMm()),
                     String.format(Locale.ROOT, "%.2f", body.sensor().cropFactor())).withStyle(ChatFormatting.GRAY));
             lines.add(Component.translatable("tooltip.realcamera.mount",
-                    SpecNames.name("mount", body.mount())).withStyle(ChatFormatting.GRAY));
+                    SpecNames.mount(body.mount(), body.sensor().cropFactor() > 1.4f)).withStyle(ChatFormatting.GRAY));
         });
         CameraParts parts = CameraHelper.parts(stack);
         lines.add(parts.lens().isEmpty()

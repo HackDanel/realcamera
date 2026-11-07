@@ -762,5 +762,7 @@
   "tooltip.realcamera.filter.gnd": "Градиентный ND: темнее небо (верхняя половина), ⌀%2$s мм",
   "tooltip.realcamera.filter.star": "Звёздный: лучи от ярких точек, ⌀%2$s мм",
   "tooltip.realcamera.filter_fits": "Подходит к объективам с резьбой до %s мм (через повышающее кольцо)",
-  "tooltip.realcamera.lens_details_nofilter": "Мин. дистанция %s м · %s лепестков · без резьбы под фильтр"
+  "tooltip.realcamera.lens_details_nofilter": "Мин. дистанция %s м · %s лепестков · без резьбы под фильтр",
+  "realcamera.mount.realcamera.canon_ef.apsc": "Canon EF-S",
+  "realcamera.mount.realcamera.canon_rf.apsc": "Canon RF-S"
 }

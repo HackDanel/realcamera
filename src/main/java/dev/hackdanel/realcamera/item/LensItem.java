@@ -43,7 +43,7 @@ public class LensItem extends Item {
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> lines, TooltipFlag flag) {
         Specs.lens(context.registries(), stack).ifPresent(lens -> {
             lines.add(Component.literal(focalLabel(lens) + "  " + apertureLabel(lens)).withStyle(ChatFormatting.GRAY));
-            lines.add(Component.translatable("tooltip.realcamera.mount", SpecNames.name("mount", lens.mount()))
+            lines.add(Component.translatable("tooltip.realcamera.mount", SpecNames.mount(lens.mount(), "apsc".equals(lens.imageCircle())))
                     .withStyle(ChatFormatting.GRAY));
             lines.add(Component.translatable(lens.filterMm() > 0 ? "tooltip.realcamera.lens_details" : "tooltip.realcamera.lens_details_nofilter",
                     String.format(Locale.ROOT, "%.2f", lens.minFocusM()), lens.blades(), lens.filterMm())
