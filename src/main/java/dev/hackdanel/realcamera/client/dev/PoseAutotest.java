@@ -36,8 +36,9 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 /**
- * Holding the camera and filters (-Drealcamera.autotest=pose): the camera on the strap and the two-handed pose seen
- * from the front, the raise to the eye in first person, and photos through the new filters (Black Mist, graduated
+ * Holding the camera and filters (-Drealcamera.autotest=pose): the camera on the strap (kit zoom and the longest lens
+ * from the front, side, three-quarter and back, sneaking and under a chestplate: strap_*.png) and the two-handed pose
+ * seen from the front, the raise to the eye in first person, and photos through the new filters (Black Mist, graduated
  * ND, star), and a filter on a step-up ring put together in the parts menu (issue #7). Look at
  * screenshots/autotest/pose_*.png, ring_parts_menu.png and the photos afterwards.
  */
@@ -113,6 +114,81 @@ public final class PoseAutotest {
             Minecraft.getInstance().options.keyUse.setDown(false);
             log("PASS shot {}", label);
         }, 40);
+    }
+
+    /** Puts {@code cam} in hotbar slot 1 with an empty hand: it hangs on the strap. */
+    private static void strapCamera(String label, java.util.function.Supplier<ItemStack> cam) {
+        step("strap " + label, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            ItemStack s = cam.get();
+            mc.player.getInventory().setItem(1, s);
+            mc.gameMode.handleCreativeModeItemAdd(s, 37);
+            mc.player.getInventory().setItem(0, ItemStack.EMPTY);
+            mc.gameMode.handleCreativeModeItemAdd(ItemStack.EMPTY, 36);
+            mc.player.getInventory().selected = 0;
+        }, 40);
+    }
+
+    /**
+     * Issue #10: the camera on the strap seen through the invisible armour stand {@code rc_view} put around the
+     * player (who stands facing south): lens forward, back against the chest, nothing through the body.
+     */
+    private static void strapView(String name, double dx, double dz, float yaw) {
+        step("view " + name, () -> server(p -> cmd(p, String.format(java.util.Locale.ROOT,
+                "execute at @s run tp @e[type=minecraft:armor_stand,tag=rc_view,limit=1] ~%.2f ~-0.45 ~%.2f %.1f 6",
+                dx, dz, yaw))), 12);
+        step("screenshot " + name, () -> pendingScreenshot = name, 5);
+    }
+
+    private static void strapViews(String label) {
+        strapView("strap_" + label + "_front", 0, 1.9, 180);
+        strapView("strap_" + label + "_side", 1.9, 0.3, 90);
+        strapView("strap_" + label + "_three_quarter", 1.5, 1.5, 135);
+        strapView("strap_" + label + "_back", 0, -1.9, 0);
+    }
+
+    private static ItemStack longLensCamera() {
+        Minecraft mc = Minecraft.getInstance();
+        var regs = mc.level.registryAccess();
+        var body = regs.lookupOrThrow(RCRegistries.CAMERA_BODY)
+                .getOrThrow(ResourceKey.create(RCRegistries.CAMERA_BODY, RealCamera.id("nikon_z9")));
+        ItemStack cam = RCStacks.kit(regs, body).orElseThrow();
+        CameraParts parts = cam.get(RCComponents.CAMERA_PARTS.get());
+        cam.set(RCComponents.CAMERA_PARTS.get(), parts
+                .with(CameraParts.SLOT_LENS, RCStacks.lens(ResourceKey.create(RCRegistries.LENS, RealCamera.id("nikon_z_600_f63_pf"))))
+                .with(CameraParts.SLOT_TC, RCStacks.teleconverter(ResourceKey.create(RCRegistries.TELECONVERTER,
+                        RealCamera.id("nikon_z_tc20")))));
+        return cam;
+    }
+
+    /** Kit zoom and the longest lens (600 mm + 2x teleconverter on a Z9) on the strap, standing, sneaking, armoured. */
+    private static void strap() {
+        step("view camera", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            var stand = mc.level.getEntitiesOfClass(net.minecraft.world.entity.decoration.ArmorStand.class,
+                    mc.player.getBoundingBox().inflate(8)).stream().findFirst().orElseThrow();
+            mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
+            mc.setCameraEntity(stand);
+            mc.options.hideGui = true;
+        }, 5);
+        strapCamera("kit", () -> camera("sony_fe_28_70_oss", 5.6, 10f));
+        strapViews("kit");
+        strapCamera("long", PoseAutotest::longLensCamera);
+        strapViews("long");
+        step("sneak", () -> Minecraft.getInstance().options.keyShift.setDown(true), 15);
+        step("sneaking", () -> log(Minecraft.getInstance().player.isCrouching() ? "PASS sneaking" : "FAIL not sneaking"), 0);
+        strapView("strap_long_sneak_side", 1.9, 0.3, 90);
+        strapView("strap_long_sneak_front", 0, 1.9, 180);
+        step("stand up", () -> Minecraft.getInstance().options.keyShift.setDown(false), 10);
+        step("armour", () -> server(p -> cmd(p, "item replace entity @s armor.chest with minecraft:diamond_chestplate")), 20);
+        strapView("strap_long_armour_side", 1.9, 0.3, 90);
+        strapView("strap_long_armour_three_quarter", 1.5, 1.5, 135);
+        step("no armour", () -> server(p -> cmd(p, "item replace entity @s armor.chest with minecraft:air")), 10);
+        step("player camera", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.setCameraEntity(mc.player);
+            mc.options.hideGui = false;
+        }, 5);
     }
 
     private static String f4(double v) {
@@ -269,7 +345,9 @@ public final class PoseAutotest {
             cmd(p, "fill ~-16 ~ ~-6 ~16 ~20 ~60 minecraft:air");
             cmd(p, "fill ~-3 ~ ~20 ~3 ~6 ~22 minecraft:white_concrete");
             cmd(p, String.format("tp @s %d.5 %d %d.5 0 0", o.getX(), o.getY(), o.getZ()));
+            cmd(p, "summon minecraft:armor_stand ~ ~ ~-3 {Invisible:1b,NoGravity:1b,Invulnerable:1b,Tags:[\"rc_view\"]}");
         }), 80);
+        strap();
         // on the strap: camera in slot 1, empty hand
         step("give strap", () -> {
             Minecraft mc = Minecraft.getInstance();

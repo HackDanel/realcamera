@@ -166,7 +166,9 @@ pose). `client/render/CameraItemExtensions`: third person returns the two-handed
 counter-rotates the camera while a raised camera is drawn (`CameraPose.raisedNow`, set in RenderPlayerEvent); first
 person animates the raise/lower over `Viewfinder.RAISE_TICKS`, and the viewfinder only activates after it. A camera in
 the inventory but not in a hand hangs on the chest (`gameplay/NeckCameras` sends `NeckCamera` to trackers,
-`client/render/NeckCameraLayer`). Own flash: the server sends `FlashPop` to the photographer too; `FlashGlow` defers
+`client/render/NeckCameraLayer`): lens forward, back against the chest (and armour), drawn with `ItemDisplayContext.NONE`
+and placed by the bounds of all render passes so any lens stays outside the body; it tilts about the back edge that
+touches the chest (lens-down while standing, swings out when sneaking). Own flash: the server sends `FlashPop` to the photographer too; `FlashGlow` defers
 pops while a frame is captured and gives the own flash (shooter = local player, hand or tripod) only the scene
 brightening, no source glare/afterimage (issue #9). Glare/afterimage scale continuously with the stops above the eye's
 adaptation.
@@ -223,6 +225,8 @@ axis; 1 model unit ≈ 9 mm, shared mount point in `tools/gen_assets.py`).
   probe for packs (`DepthUpsampler.agrees(..., true)`) tolerates grass in front, or the blur toggled with the aim.
 - IterationT (and other `#version … compatibility` packs) do not load on this Mesa machine; run the autotest with
   `allow_glsl_compat_shaders=true ./gradlew runClientAutotest …` to test them.
-- `-Pautotest=pose`: strap, two-handed pose, first-person raise, photos through GND/Black Mist/star.
+- `-Pautotest=pose`: strap (`strap_*.png`: kit zoom and Z9 + TC-2.0x + 600 mm seen through an invisible armour stand from
+  front/side/three-quarter/back, sneaking, in a chestplate), two-handed pose, first-person raise, photos through
+  GND/Black Mist/star.
 - `-Pautotest=dof`: grass meadow at f/1.8 for checking depth of field; `realcamera.debugDumps` writes
   `raw_<ms>.jpg`/`depth_<ms>.jpg` per shot to `screenshots/realcamera_debug/`.
