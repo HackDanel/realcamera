@@ -367,6 +367,9 @@ public final class Stage3Autotest {
         }, 260);
         until("selfie stored", () -> !PhotoCapture.busy(), 600);
         step("selfie check", () -> log(exported() > photosBefore ? "PASS selfie -> {}" : "FAIL selfie not taken", newest()), 5);
+        // 7b) the head tilted up and down: the view, the photo and the model seen from the side all agree (issue #11)
+        tripodTilt("up", -40);
+        tripodTilt("down", 40);
 
         // 8) night: flash on a subject, built-in flash above sync speed (curtain shadow)
         step("night", () -> server(p -> {
@@ -429,6 +432,33 @@ public final class Stage3Autotest {
             log("done, stopping");
             Minecraft.getInstance().stop();
         }, 100);
+    }
+
+    /** Look through the tripod, tilt the head to {@code pitch}, shoot (self-timer), then look at it from the side. */
+    private static void tripodTilt(String name, float pitch) {
+        step("tilt " + name, () -> server(p -> cmd(p, "tp @s " + (origin.getX() + 0.5) + " " + origin.getY() + " "
+                + (origin.getZ() - 0.5) + " 0 0")), 10);
+        step("look through " + name, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.player.getInventory().selected = 1;
+            mc.gameMode.interact(mc.player, mc.level.getEntity(TRIPOD_ID), InteractionHand.MAIN_HAND);
+        }, 10);
+        step("aim " + name, () -> Minecraft.getInstance().player.setXRot(pitch), 20);
+        until("tripod view " + name, Viewfinder::isActive, 60);
+        screenshot("s3_07b_tripod_" + name + "_view");
+        step("shoot " + name, () -> {
+            photosBefore = exported();
+            Viewfinder.debugPressShutter();
+        }, 230);
+        until("stored " + name, () -> !PhotoCapture.busy(), 600);
+        step("check " + name, () -> {
+            var t = Minecraft.getInstance().level.getEntity(TRIPOD_ID);
+            log(exported() > photosBefore && Math.abs(t.getXRot() - pitch) < 1
+                    ? "PASS tripod {} -> {} (head pitch {})" : "FAIL tripod {}: {} (head pitch {})", name, newest(), t.getXRot());
+            dev.hackdanel.realcamera.client.camera.TripodView.exit();
+            server(p -> cmd(p, "tp @s " + (origin.getX() + 3.5) + " " + origin.getY() + " " + (origin.getZ() + 0.5) + " 90 10"));
+        }, 30);
+        screenshot("s3_07c_tripod_" + name + "_side");
     }
 
     private static int TRIPOD_ID;

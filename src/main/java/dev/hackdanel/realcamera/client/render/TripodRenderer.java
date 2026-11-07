@@ -46,9 +46,10 @@ public class TripodRenderer extends EntityRenderer<TripodEntity> {
         pose.translate(0, HEAD, 0);
         pose.mulPose(Axis.YP.rotationDegrees(180 - headYaw));
         QuadHelper.box(pose.last(), vc, -0.08f, 0, -0.06f, 0.08f, 0.06f, 0.06f, metal, -1, light);
-        // the camera, tilted with the head
+        // the camera, tilted with the head: the lens faces -z here, and a positive pitch (looking down) must
+        // turn it down, i.e. a negative turn about +x
         if (!tripod.camera().isEmpty()) {
-            pose.mulPose(Axis.XP.rotationDegrees(tripod.getXRot()));
+            pose.mulPose(Axis.XP.rotationDegrees(-tripod.getXRot()));
             pose.translate(0, 0.2f, 0);
             pose.scale(0.55f, 0.55f, 0.55f);
             Minecraft.getInstance().getItemRenderer().renderStatic(tripod.camera(), ItemDisplayContext.FIXED, light,
