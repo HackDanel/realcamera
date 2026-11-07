@@ -143,9 +143,13 @@ public class CameraBodyItem extends Item {
                     SpecNames.mount(body.mount(), body.sensor().cropFactor() > 1.4f)).withStyle(ChatFormatting.GRAY));
         });
         CameraParts parts = CameraHelper.parts(stack);
-        lines.add(parts.lens().isEmpty()
+        // a built-in lens is named even before the first inventory tick fills the slot (recipe viewers, /give)
+        Component lensName = Specs.body(registries, stack).flatMap(CameraBodySpec::fixedLens)
+                .map(k -> SpecNames.name("lens", k))
+                .orElseGet(() -> parts.lens().isEmpty() ? null : parts.lens().getHoverName());
+        lines.add(lensName == null
                 ? Component.translatable("tooltip.realcamera.no_lens").withStyle(ChatFormatting.DARK_GRAY)
-                : Component.translatable("tooltip.realcamera.lens", parts.lens().getHoverName()).withStyle(ChatFormatting.GRAY));
+                : Component.translatable("tooltip.realcamera.lens", lensName).withStyle(ChatFormatting.GRAY));
         BatteryCharge charge = parts.battery().get(RCComponents.CHARGE.get());
         lines.add(charge == null
                 ? Component.translatable("tooltip.realcamera.no_battery").withStyle(ChatFormatting.DARK_GRAY)

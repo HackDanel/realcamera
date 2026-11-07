@@ -21,8 +21,10 @@ public final class RCCreativeTab {
             .displayItems((params, out) -> {
                 HolderLookup.Provider r = params.holders();
                 r.lookup(RCRegistries.CAMERA_BODY).ifPresent(bodies -> bodies.listElements().forEach(b -> {
-                    RCStacks.kit(r, b).ifPresent(out::accept);
-                    out.accept(RCStacks.body(b.key()));
+                    var kit = RCStacks.kit(r, b);
+                    kit.ifPresent(out::accept);
+                    // a body with a built-in lens is never a bare body: only its kit is listed
+                    if (kit.isEmpty() || !b.value().hasFixedLens()) out.accept(RCStacks.body(b.key()));
                 }));
                 r.lookup(RCRegistries.LENS).ifPresent(l -> l.listElements()
                         .filter(h -> !h.value().mount().location().getPath().equals("fixed"))

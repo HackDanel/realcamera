@@ -86,6 +86,7 @@ public final class Stage6Autotest {
     private static boolean worldRequested, scripted;
     private static int wait, polled;
     private static String pendingScreenshot;
+    private static ItemStack tooltipStack;
     private static BlockPos origin, computer;
     private static UUID cardA, cardB;
     private static EditSession session;
@@ -307,6 +308,29 @@ public final class Stage6Autotest {
             long lenses = regs.lookupOrThrow(RCRegistries.LENS).listElements().count();
             log(bodies >= 30 && lenses >= 50 ? "PASS catalog {} bodies, {} lenses" : "FAIL catalog {} bodies, {} lenses", bodies, lenses);
         }, 1);
+        // a bare body with a built-in lens (recipe viewer, /give: the slot is not filled yet) still names its lens,
+        // and the creative tab lists only its kit
+        step("built-in lens tooltip", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            var regs = mc.level.registryAccess();
+            ItemStack bare = RCStacks.body(key(RCRegistries.CAMERA_BODY, "contax_t2"));
+            String lensName = net.minecraft.network.chat.Component.translatable(
+                    "realcamera.lens.realcamera.contax_t2_sonnar_38").getString();
+            boolean named = bare.getTooltipLines(net.minecraft.world.item.Item.TooltipContext.of(regs), mc.player,
+                    net.minecraft.world.item.TooltipFlag.NORMAL).stream().anyMatch(c -> c.getString().contains(lensName));
+            net.minecraft.world.item.CreativeModeTabs.tryRebuildTabContents(mc.level.enabledFeatures(), true, regs);
+            var tab = dev.hackdanel.realcamera.registry.RCCreativeTab.TAB.get().getDisplayItems();
+            long bodies = tab.stream().filter(st -> key(RCRegistries.CAMERA_BODY, "contax_t2").equals(st.get(RCComponents.BODY.get())))
+                    .count();
+            boolean kitOnly = bodies == 1 && tab.stream().anyMatch(st -> st.is(RCItems.CAMERA_BODY.get())
+                    && key(RCRegistries.CAMERA_BODY, "contax_t2").equals(st.get(RCComponents.BODY.get()))
+                    && !CameraHelper.parts(st).lens().isEmpty());
+            log(named ? "PASS built-in lens named on a bare body" : "FAIL built-in lens not named on a bare body");
+            log(kitOnly ? "PASS creative tab lists only the Contax T2 kit" : "FAIL creative tab Contax T2 stacks: {}", bodies);
+            tooltipStack = bare;
+        }, 5);
+        screenshot("s6_00_builtin_lens_tooltip");
+        step("tooltip off", () -> tooltipStack = null, 1);
 
         // 2) showcase wall: round lenses and the new body styles
         step("look at wall", () -> server(p -> p.connection.teleport(origin.getX() + 0.5, origin.getY(), origin.getZ() + 3.0, 90f, 8f)), 40);
@@ -481,6 +505,13 @@ public final class Stage6Autotest {
             log("FAIL step {} threw {}", s.label(), e.toString());
         }
         wait = s.delay();
+    }
+
+    @SubscribeEvent
+    static void onGui(net.neoforged.neoforge.client.event.RenderGuiEvent.Post event) {
+        if (!ENABLED || tooltipStack == null) return;
+        Minecraft mc = Minecraft.getInstance();
+        event.getGuiGraphics().renderTooltip(mc.font, tooltipStack, 20, 30);
     }
 
     @SubscribeEvent

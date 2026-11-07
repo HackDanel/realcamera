@@ -201,7 +201,9 @@ dev.hackdanel.realcamera
   `weather_sealing` (0/1/2), `color_profiles`, `flash` (`built_in_gn`, `sync`), `model`.
 - `film` (только плёночные): `format` (135/120), `mechanical`, разрешённые `modes`, `meter`
   (`battery`/`selenium`/`none`), `iso_dial` (`manual` по умолчанию / `dx_override` / `dx` / `none`).
-- `fixed_lens`: встроенный объектив компакта на псевдо-байонете `realcamera:fixed`.
+- `fixed_lens`: встроенный объектив компакта на псевдо-байонете `realcamera:fixed`. Слот объектива заполняется
+  тушкой на тике инвентаря и блокируется; подсказка называет встроенный объектив и до этого (JEI/EMI, `/give`).
+  Во вкладке креатива у таких камер только готовый комплект, без варианта «только тушка».
 
 Производные правила (в коде спеки, не в логике камеры):
 
