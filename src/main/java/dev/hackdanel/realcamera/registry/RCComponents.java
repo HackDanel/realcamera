@@ -52,6 +52,10 @@ public final class RCComponents {
     public static final Supplier<DataComponentType<ResourceKey<dev.hackdanel.realcamera.spec.FilterSpec>>> FILTER_TYPE = REGISTER.registerComponentType(
             "filter_type", b -> b.persistent(ResourceKey.codec(RCRegistries.FILTER_TYPE))
                     .networkSynchronized(ResourceKey.streamCodec(RCRegistries.FILTER_TYPE)));
+    /** Which step-up ring a ring item is; on a filter, the ring screwed onto it. */
+    public static final Supplier<DataComponentType<ResourceKey<dev.hackdanel.realcamera.spec.StepUpRingSpec>>> STEP_UP_RING = REGISTER.registerComponentType(
+            "step_up_ring", b -> b.persistent(ResourceKey.codec(RCRegistries.STEP_UP_RING))
+                    .networkSynchronized(ResourceKey.streamCodec(RCRegistries.STEP_UP_RING)));
     public static final Supplier<DataComponentType<ResourceKey<dev.hackdanel.realcamera.spec.GripSpec>>> GRIP_TYPE = REGISTER.registerComponentType(
             "grip_type", b -> b.persistent(ResourceKey.codec(RCRegistries.GRIP_TYPE))
                     .networkSynchronized(ResourceKey.streamCodec(RCRegistries.GRIP_TYPE)));

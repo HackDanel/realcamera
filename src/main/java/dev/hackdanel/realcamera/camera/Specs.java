@@ -63,6 +63,11 @@ public final class Specs {
         return lookup(r, RCRegistries.FILTER_TYPE, stack.get(RCComponents.FILTER_TYPE.get()));
     }
 
+    /** The ring item's type, or the step-up ring a filter carries. */
+    public static Optional<dev.hackdanel.realcamera.spec.StepUpRingSpec> stepUpRing(HolderLookup.Provider r, ItemStack stack) {
+        return lookup(r, RCRegistries.STEP_UP_RING, stack.get(RCComponents.STEP_UP_RING.get()));
+    }
+
     public static Optional<dev.hackdanel.realcamera.spec.GripSpec> grip(HolderLookup.Provider r, ItemStack stack) {
         return lookup(r, RCRegistries.GRIP_TYPE, stack.get(RCComponents.GRIP_TYPE.get()));
     }

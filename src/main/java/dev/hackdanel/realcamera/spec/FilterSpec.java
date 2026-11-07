@@ -17,8 +17,9 @@ import net.minecraft.resources.ResourceLocation;
  * <li>"gnd" — graduated ND, soft edge: the top half darkened by {@code gndStops}, for bright skies;</li>
  * <li>"star" — cross screen: bright points get {@code starPoints} rays.</li>
  * </ul>
- * diameterMm must be at least the lens thread (a step-up ring is assumed for larger filters); a lens without a
- * thread (bulging fisheye front element, compact cameras) takes none.
+ * diameterMm must match the lens thread, or the filter sits on a step-up ring ({@link StepUpRingSpec}) whose input
+ * matches the thread and whose output is at most the filter's size; a lens without a thread (bulging fisheye front
+ * element, compact cameras) takes none.
  */
 public record FilterSpec(String name, String kind, float ndStops, float r, float g, float b, int diameterMm,
                          ResourceLocation model, float mist, float gndStops, int starPoints) {
@@ -46,8 +47,11 @@ public record FilterSpec(String name, String kind, float ndStops, float r, float
         };
     }
 
-    /** Fits a lens with this filter thread (mm; 0 = the lens takes no screw-in filter). */
-    public boolean fits(int lensThreadMm) {
-        return lensThreadMm > 0 && diameterMm >= lensThreadMm;
+    /**
+     * Fits a lens with this filter thread (mm; 0 = the lens takes no screw-in filter), screwed on directly
+     * ({@code ring} null) or through the step-up ring it carries.
+     */
+    public boolean fits(int lensThreadMm, @org.jetbrains.annotations.Nullable StepUpRingSpec ring) {
+        return ring == null ? lensThreadMm > 0 && diameterMm == lensThreadMm : ring.fits(lensThreadMm) && ring.takes(diameterMm);
     }
 }

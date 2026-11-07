@@ -1577,6 +1577,17 @@ def main():
     import catalog as _C
     for fl in _C.FILTERS:
         flat("filter", fl["key"], filter_icon(rgba(fl["tint"]), fl["alpha"]))
+    # step-up rings: a black metal ring, the opening as wide as the input thread is against the output thread
+    def ring_icon(inner):
+        def f(img, d):
+            d.ellipse([1, 1, 14, 14], fill=rgba("#1c1c1c"), outline=rgba("#4a4a4e"))
+            r = max(2.0, 6.5 * inner)
+            d.ellipse([7.5 - r, 7.5 - r, 7.5 + r, 7.5 + r], fill=(0, 0, 0, 0), outline=rgba("#3a3a3e"))
+            d.arc([2, 2, 13, 13], 200, 250, fill=rgba("#9a9aa0"))
+        return f
+    for ring in _C.STEP_UP_RINGS:
+        flat("step_up_ring", ring["key"], ring_icon(ring["in"] / ring["out"]))
+    icon(ring_icon(0.75), "step_up_ring")
     icon(draw_flash_icon, "flash")
     icon(filter_generic, "filter")
     icon(draw_grip_icon, "battery_grip")

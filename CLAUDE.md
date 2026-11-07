@@ -174,7 +174,11 @@ adaptation.
 **Filters** are generated from `FILTER_KINDS` in `tools/catalog.py` (kind × thread sizes, key `<base>_<size>`):
 gen_catalog writes the JSON + names, gen_assets the icons, gen_recipes the recipes. Kinds: nd, cpl, uv, color
 (per-channel, also 80A/85), mist (`ImagePipeline.mist`), gnd (`graduatedNd`), star (`star`, point-like sources only).
-`FilterSpec.fits`: diameter ≥ lens thread, none on thread 0 (fisheyes, compacts).
+`FilterSpec.fits(thread, ring)`: diameter == lens thread, or through a step-up ring (`STEP_UP_RINGS` in the catalog,
+registry `step_up_ring`, issue #7): ring input == thread, filter ≥ ring output; none on thread 0 (fisheyes, compacts).
+The ring rides on the filter (`STEP_UP_RING` component on the filter stack), so the optics read the filter as before;
+they are screwed together/apart by clicks in any slot (`AccessoryItem` overrides), a bare ring may sit in the
+camera's filter slot. `CatalogTest.everyThreadTakesAFilter` wants a filter or ring for every lens thread.
 
 Network messages identify a camera with `camera/CameraRef` (a hand or a tripod entity id); the server
 resolves it with `ServerPhotoService.resolve`, mutates the stack and must call the handle's `commit()`

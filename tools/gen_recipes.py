@@ -269,6 +269,11 @@ def main():
         glass = 1 if fl["size"] <= 82 else 2
         assembly(fl["key"], [(rc("optical_glass"), glass), (mc("iron_nugget"), 2), fl["extra"]], rc("filter"), 1, 60,
                  {f"{NS}:filter_type": f"{NS}:{fl['key']}"})
+    # step-up rings: a thin black-anodised metal ring (more nuggets than a filter's mount, so neither recipe is a
+    # subset of the other)
+    for ring in _C.STEP_UP_RINGS:
+        assembly(ring["key"], [(mc("iron_nugget"), 3), (mc("black_dye"), 1)], rc("step_up_ring"), 1, 40,
+                 {f"{NS}:step_up_ring": f"{NS}:{ring['key']}"})
     assembly("sony_vg_c4em", [(rc("magnesium_alloy"), 2), (rc("circuit_board"), 1), (rc("battery_cell"), 2)], rc("battery_grip"), 1,
              160, {f"{NS}:grip_type": f"{NS}:sony_vg_c4em", f"{NS}:charge": {"charge": 290, "capacity": 580}})
     assembly("nikon_mb_d16", [(rc("magnesium_alloy"), 2), (rc("circuit_board"), 1), (rc("battery_cell"), 2)], rc("battery_grip"), 1,

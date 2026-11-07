@@ -125,7 +125,7 @@ public final class RecipeViews {
     public static net.minecraft.world.item.Item[] subtypedItems() {
         return new net.minecraft.world.item.Item[]{RCItems.CAMERA_BODY.get(), RCItems.LENS.get(), RCItems.BATTERY.get(),
                 RCItems.MEMORY_CARD.get(), RCItems.MOUNT_ADAPTER.get(), RCItems.TELECONVERTER.get(), RCItems.FLASH.get(),
-                RCItems.FILTER.get(), RCItems.BATTERY_GRIP.get(), RCItems.FILM_ROLL.get(), RCItems.PHOTO_PAPER.get(),
+                RCItems.FILTER.get(), RCItems.STEP_UP_RING.get(), RCItems.BATTERY_GRIP.get(), RCItems.FILM_ROLL.get(), RCItems.PHOTO_PAPER.get(),
                 RCItems.PHOTO_FRAME.get()};
     }
 
@@ -134,7 +134,7 @@ public final class RecipeViews {
         StringBuilder b = new StringBuilder();
         for (var type : List.of(RCComponents.BODY.get(), RCComponents.LENS.get(), RCComponents.BATTERY_TYPE.get(),
                 RCComponents.CARD_TYPE.get(), RCComponents.ADAPTER.get(), RCComponents.TELECONVERTER.get(),
-                RCComponents.FLASH_TYPE.get(), RCComponents.FILTER_TYPE.get(), RCComponents.GRIP_TYPE.get(),
+                RCComponents.FLASH_TYPE.get(), RCComponents.FILTER_TYPE.get(), RCComponents.STEP_UP_RING.get(), RCComponents.GRIP_TYPE.get(),
                 RCComponents.FILM_STOCK.get())) {
             Object v = s.get(type);
             if (v instanceof net.minecraft.resources.ResourceKey<?> k) b.append(k.location()).append(';');

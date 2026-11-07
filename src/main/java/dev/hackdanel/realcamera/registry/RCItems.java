@@ -31,6 +31,8 @@ public final class RCItems {
             () -> new dev.hackdanel.realcamera.item.AccessoryItem(new Item.Properties(), "flash_type"));
     public static final DeferredItem<dev.hackdanel.realcamera.item.AccessoryItem> FILTER = REGISTER.register("filter",
             () -> new dev.hackdanel.realcamera.item.AccessoryItem(new Item.Properties(), "filter_type"));
+    public static final DeferredItem<dev.hackdanel.realcamera.item.AccessoryItem> STEP_UP_RING = REGISTER.register("step_up_ring",
+            () -> new dev.hackdanel.realcamera.item.AccessoryItem(new Item.Properties(), "step_up_ring"));
     public static final DeferredItem<dev.hackdanel.realcamera.item.AccessoryItem> BATTERY_GRIP = REGISTER.register("battery_grip",
             () -> new dev.hackdanel.realcamera.item.AccessoryItem(new Item.Properties(), "grip_type"));
     public static final DeferredItem<dev.hackdanel.realcamera.item.CleaningKitItem> CLEANING_KIT = REGISTER.register("cleaning_kit",

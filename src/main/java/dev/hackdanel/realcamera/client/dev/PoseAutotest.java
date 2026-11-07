@@ -6,8 +6,10 @@ import dev.hackdanel.realcamera.client.capture.PhotoCapture;
 import dev.hackdanel.realcamera.component.CameraParts;
 import dev.hackdanel.realcamera.component.CameraSettings;
 import dev.hackdanel.realcamera.item.RCStacks;
+import dev.hackdanel.realcamera.menu.CameraPartsMenu;
 import dev.hackdanel.realcamera.optics.ExposureScales;
 import dev.hackdanel.realcamera.registry.RCComponents;
+import dev.hackdanel.realcamera.registry.RCItems;
 import dev.hackdanel.realcamera.registry.RCRegistries;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -36,7 +38,8 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 /**
  * Holding the camera and filters (-Drealcamera.autotest=pose): the camera on the strap and the two-handed pose seen
  * from the front, the raise to the eye in first person, and photos through the new filters (Black Mist, graduated
- * ND, star). Look at screenshots/autotest/pose_*.png and the photos afterwards.
+ * ND, star), and a filter on a step-up ring put together in the parts menu (issue #7). Look at
+ * screenshots/autotest/pose_*.png, ring_parts_menu.png and the photos afterwards.
  */
 @EventBusSubscriber(modid = RealCamera.MODID, value = Dist.CLIENT)
 public final class PoseAutotest {
@@ -159,6 +162,85 @@ public final class PoseAutotest {
         }, 10);
     }
 
+    private static void click(int slot, int button) {
+        Minecraft mc = Minecraft.getInstance();
+        mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, slot, button,
+                net.minecraft.world.inventory.ClickType.PICKUP, mc.player);
+    }
+
+    private static void openParts() {
+        step("open parts", () -> server(p -> p.openMenu(new net.minecraft.world.SimpleMenuProvider((id, inv, pl) ->
+                new CameraPartsMenu(id, inv, InteractionHand.MAIN_HAND), p.getMainHandItem().getHoverName()),
+                buf -> buf.writeEnum(InteractionHand.MAIN_HAND))), 10);
+        until("parts menu open", () -> Minecraft.getInstance().player.containerMenu instanceof CameraPartsMenu, 60);
+    }
+
+    private static ItemStack partsFilter() {
+        return Minecraft.getInstance().player.containerMenu.getSlot(CameraParts.SLOT_FILTER).getItem();
+    }
+
+    /**
+     * Issue #7: a 67 mm graduated ND on the 55 mm thread of the 28-70 through a 55→67 step-up ring, put together in
+     * the camera's parts menu by clicks (ring into the filter slot, filter onto it), a photo through it, then the
+     * filter unscrewed again with nothing lost. Menu slots: 0-7 parts, 8-34 main inventory (9-35), 35-43 hotbar.
+     */
+    private static void stepUpRing() {
+        var ringKey = ResourceKey.create(RCRegistries.STEP_UP_RING, RealCamera.id("step_up_55_67"));
+        var filterKey = ResourceKey.create(RCRegistries.FILTER_TYPE, RealCamera.id("gnd8_67"));
+        step("ring kit", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.player.getInventory().selected = 0;
+            ItemStack cam = camera("sony_fe_28_70_oss", 8, 10f);
+            server(p -> {
+                p.getInventory().selected = 0;
+                p.getInventory().setItem(0, cam);
+                p.getInventory().setItem(9, RCStacks.stepUpRing(ringKey));
+                p.getInventory().setItem(10, RCStacks.filter(filterKey));
+                p.getInventory().setItem(11, ItemStack.EMPTY);
+            });
+        }, 20);
+        openParts();
+        step("ring into the filter slot", () -> {
+            var menu = (CameraPartsMenu) Minecraft.getInstance().player.containerMenu;
+            boolean refused = !menu.accepts(CameraParts.SLOT_FILTER, RCStacks.filter(filterKey));
+            log(refused ? "PASS bare 67 mm filter refused on a 55 mm thread" : "FAIL bare 67 mm filter fits a 55 mm thread");
+            click(8, 0);
+            click(CameraParts.SLOT_FILTER, 0);
+        }, 10);
+        step("filter onto the ring", () -> {
+            click(9, 0);
+            click(CameraParts.SLOT_FILTER, 0);
+        }, 10);
+        step("ring menu screenshot", () -> pendingScreenshot = "ring_parts_menu", 5);
+        step("joined", () -> {
+            ItemStack f = partsFilter();
+            boolean ok = f.is(RCItems.FILTER.get()) && ringKey.equals(f.get(RCComponents.STEP_UP_RING.get()))
+                    && Minecraft.getInstance().player.containerMenu.getCarried().isEmpty();
+            log(ok ? "PASS filter screwed onto the step-up ring in the filter slot" : "FAIL filter slot holds {}", f);
+            Minecraft.getInstance().player.closeContainer();
+        }, 20);
+        until("camera has the ringed filter", () -> {
+            ItemStack f = Minecraft.getInstance().player.getInventory().getItem(0)
+                    .getOrDefault(RCComponents.CAMERA_PARTS.get(), CameraParts.EMPTY).filter();
+            return filterKey.equals(f.get(RCComponents.FILTER_TYPE.get())) && ringKey.equals(f.get(RCComponents.STEP_UP_RING.get()));
+        }, 60);
+        shootHeld("gnd8_67 on step-up ring");
+        openParts();
+        step("unscrew", () -> {
+            click(CameraParts.SLOT_FILTER, 1); // the bare filter no longer fits: the ring stays, the filter comes off
+            click(10, 0);
+        }, 10);
+        step("nothing lost", () -> {
+            ItemStack slot = partsFilter();
+            ItemStack off = Minecraft.getInstance().player.containerMenu.getSlot(10).getItem();
+            boolean ok = ringKey.equals(slot.get(RCComponents.STEP_UP_RING.get())) && slot.is(RCItems.STEP_UP_RING.get())
+                    && filterKey.equals(off.get(RCComponents.FILTER_TYPE.get())) && !off.has(RCComponents.STEP_UP_RING.get());
+            log(ok ? "PASS unscrewed: ring stays on the lens, filter back in the inventory" : "FAIL unscrew: slot {} inventory {}",
+                    slot, off);
+            Minecraft.getInstance().player.closeContainer();
+        }, 20);
+    }
+
     private static void shootHeld(String label) {
         step("raise " + label, () -> {
             Minecraft mc = Minecraft.getInstance();
@@ -244,6 +326,7 @@ public final class PoseAutotest {
         shootHeld("gnd8");
         filter("mist4_82");
         shootHeld("mist4");
+        stepUpRing();
         step("night", () -> server(p -> {
             cmd(p, "time set 18000");
             for (int i = -3; i <= 3; i++) cmd(p, String.format("setblock ~%d ~3 ~19 minecraft:sea_lantern", i * 2));

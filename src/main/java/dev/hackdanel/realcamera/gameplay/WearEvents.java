@@ -92,7 +92,7 @@ public final class WearEvents {
             if (!CameraHelper.isCamera(camera) || rnd.nextFloat() > 0.5f) continue;
             CameraParts parts = CameraHelper.parts(camera);
             ItemStack filter = parts.filter();
-            if (!filter.isEmpty() && filter.getOrDefault(RCComponents.DAMAGE.get(), 0f) <= 0) {
+            if (filter.is(dev.hackdanel.realcamera.registry.RCItems.FILTER.get()) && filter.getOrDefault(RCComponents.DAMAGE.get(), 0f) <= 0) {
                 ItemStack cracked = filter.copy();
                 cracked.set(RCComponents.DAMAGE.get(), 1f);
                 CameraHelper.setParts(camera, parts.with(CameraParts.SLOT_FILTER, cracked));

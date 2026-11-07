@@ -33,7 +33,7 @@ import net.neoforged.neoforge.client.model.BakedModelWrapper;
 @EventBusSubscriber(modid = RealCamera.MODID, value = Dist.CLIENT)
 public final class SpecItemModels {
     private static final String[] FOLDERS = {"body", "lens", "battery", "card", "adapter", "teleconverter", "flash",
-            "filter", "grip"};
+            "filter", "grip", "step_up_ring"};
 
     private SpecItemModels() {}
 
@@ -59,6 +59,7 @@ public final class SpecItemModels {
         wrap(models, RCItems.TELECONVERTER.get(), (r, s) -> Specs.teleconverter(r, s).map(t -> t.model()).orElse(null), false);
         wrap(models, RCItems.FLASH.get(), (r, s) -> Specs.flash(r, s).map(f -> f.model()).orElse(null), false);
         wrap(models, RCItems.FILTER.get(), (r, s) -> Specs.filter(r, s).map(f -> f.model()).orElse(null), false);
+        wrap(models, RCItems.STEP_UP_RING.get(), (r, s) -> Specs.stepUpRing(r, s).map(g -> g.model()).orElse(null), false);
         wrap(models, RCItems.BATTERY_GRIP.get(), (r, s) -> Specs.grip(r, s).map(g -> g.model()).orElse(null), false);
     }
 

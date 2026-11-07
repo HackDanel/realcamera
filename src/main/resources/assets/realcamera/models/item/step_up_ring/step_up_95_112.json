@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "realcamera:item/step_up_ring/step_up_95_112"
+  }
+}

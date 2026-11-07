@@ -72,6 +72,10 @@ def main():
         write("filter_type", fl["key"], fl["spec"])
         names[f"realcamera.filter_type.realcamera.{fl['key']}"] = fl["name"]
         names_ru[f"realcamera.filter_type.realcamera.{fl['key']}"] = fl["name_ru"]
+    for ring in C.STEP_UP_RINGS:
+        write("step_up_ring", ring["key"], ring["spec"])
+        names[f"realcamera.step_up_ring.realcamera.{ring['key']}"] = ring["name"]
+        names_ru[f"realcamera.step_up_ring.realcamera.{ring['key']}"] = ring["name_ru"]
 
     for lang, conv in (("en_us", lambda s: s), ("ru_ru", ru)):
         path = os.path.join(LANG, lang + ".json")

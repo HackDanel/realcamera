@@ -119,8 +119,11 @@ public class CameraPartsMenu extends AbstractContainerMenu {
                     .map(a -> OpticalChain.incompatibility(body.get(), lens, a, tc) == null).orElse(false);
             case CameraParts.SLOT_TC -> stack.is(RCItems.TELECONVERTER.get()) && Specs.teleconverter(r, stack)
                     .map(t -> OpticalChain.incompatibility(body.get(), lens, adapter, t) == null).orElse(false);
-            case CameraParts.SLOT_FILTER -> stack.is(RCItems.FILTER.get()) && Specs.filter(r, stack)
-                    .map(f -> lens == null || f.fits(lens.filterMm())).orElse(false);
+            // a filter (on its own or on the step-up ring it carries), or a bare step-up ring to screw a filter onto
+            case CameraParts.SLOT_FILTER -> stack.is(RCItems.FILTER.get()) ? Specs.filter(r, stack)
+                    .map(f -> lens == null || f.fits(lens.filterMm(), Specs.stepUpRing(r, stack).orElse(null))).orElse(false)
+                    : stack.is(RCItems.STEP_UP_RING.get()) && Specs.stepUpRing(r, stack)
+                    .map(g -> lens == null || g.fits(lens.filterMm())).orElse(false);
             case CameraParts.SLOT_FLASH -> stack.is(RCItems.FLASH.get()) && Specs.flash(r, stack).isPresent();
             case CameraParts.SLOT_GRIP -> stack.is(RCItems.BATTERY_GRIP.get()) && Specs.grip(r, stack)
                     .map(g -> g.bodies().contains(player.getItemInHand(hand).get(RCComponents.BODY.get()))).orElse(false);

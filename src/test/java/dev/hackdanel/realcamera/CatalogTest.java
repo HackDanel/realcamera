@@ -120,7 +120,8 @@ class CatalogTest {
             recipes = sb.toString();
         }
         List<String> problems = new ArrayList<>();
-        for (String reg : List.of("camera_body", "lens", "mount_adapter", "teleconverter", "battery_type", "mount")) {
+        for (String reg : List.of("camera_body", "lens", "mount_adapter", "teleconverter", "battery_type", "mount",
+                "filter_type", "step_up_ring")) {
             for (var e : load(reg).entrySet()) {
                 String key = "realcamera." + reg + "." + e.getKey().replace(':', '.');
                 if (!en.has(key)) problems.add("en " + key);
@@ -131,6 +132,37 @@ class CatalogTest {
                 }
             }
         }
+        assertTrue(problems.isEmpty(), String.join("\n", problems));
+    }
+
+    /**
+     * Issue #7: every lens with a filter thread takes some filter, of its own size or through a step-up ring; every
+     * ring has a model, a lens it fits and a filter it takes.
+     */
+    @Test
+    void everyThreadTakesAFilter() throws IOException {
+        java.util.Set<Integer> filterSizes = new java.util.TreeSet<>();
+        for (var e : load("filter_type").values()) filterSizes.add(e.get("diameter_mm").getAsInt());
+        Map<Integer, Integer> ringOut = new HashMap<>();
+        List<String> problems = new ArrayList<>();
+        java.util.Set<Integer> threads = new java.util.TreeSet<>();
+        for (var l : load("lens").values()) {
+            int t = l.has("filter_mm") ? l.get("filter_mm").getAsInt() : 67;
+            if (t > 0) threads.add(t);
+        }
+        for (var e : load("step_up_ring").entrySet()) {
+            JsonObject r = e.getValue();
+            int in = r.get("in_mm").getAsInt(), out = r.get("out_mm").getAsInt();
+            if (in >= out) problems.add(e.getKey() + ": not a step-up");
+            if (!threads.contains(in)) problems.add(e.getKey() + ": no lens with a " + in + " mm thread");
+            if (filterSizes.stream().noneMatch(s -> s >= out)) problems.add(e.getKey() + ": no filter of " + out + " mm or more");
+            ringOut.put(in, out);
+            modelExists(r.get("model").getAsString(), problems, e.getKey());
+        }
+        for (int t : threads) {
+            if (!filterSizes.contains(t) && !ringOut.containsKey(t)) problems.add("no filter or step-up ring for a " + t + " mm thread");
+        }
+        for (var e : load("filter_type").entrySet()) modelExists(e.getValue().get("model").getAsString(), problems, e.getKey());
         assertTrue(problems.isEmpty(), String.join("\n", problems));
     }
 

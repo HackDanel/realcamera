@@ -58,6 +58,12 @@ public final class RCStacks {
         return s;
     }
 
+    public static ItemStack stepUpRing(ResourceKey<dev.hackdanel.realcamera.spec.StepUpRingSpec> key) {
+        ItemStack s = new ItemStack(RCItems.STEP_UP_RING.get());
+        s.set(RCComponents.STEP_UP_RING.get(), key);
+        return s;
+    }
+
     public static ItemStack grip(ResourceKey<dev.hackdanel.realcamera.spec.GripSpec> key, int capacity) {
         ItemStack s = new ItemStack(RCItems.BATTERY_GRIP.get());
         s.set(RCComponents.GRIP_TYPE.get(), key);

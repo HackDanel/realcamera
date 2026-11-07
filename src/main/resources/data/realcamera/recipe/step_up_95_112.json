@@ -1,0 +1,21 @@
+{
+  "type": "realcamera:assembly",
+  "ingredients": [
+    {
+      "item": "minecraft:iron_nugget",
+      "count": 3
+    },
+    {
+      "item": "minecraft:black_dye",
+      "count": 1
+    }
+  ],
+  "result": {
+    "id": "realcamera:step_up_ring",
+    "count": 1,
+    "components": {
+      "realcamera:step_up_ring": "realcamera:step_up_95_112"
+    }
+  },
+  "time": 40
+}

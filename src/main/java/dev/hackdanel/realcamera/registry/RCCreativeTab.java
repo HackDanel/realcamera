@@ -34,6 +34,7 @@ public final class RCCreativeTab {
                 r.lookup(RCRegistries.FLASH_TYPE).ifPresent(l -> l.listElements()
                         .forEach(h -> out.accept(RCStacks.flash(h.key(), h.value().capacity()))));
                 r.lookup(RCRegistries.FILTER_TYPE).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.filter(h.key()))));
+                r.lookup(RCRegistries.STEP_UP_RING).ifPresent(l -> l.listElements().forEach(h -> out.accept(RCStacks.stepUpRing(h.key()))));
                 r.lookup(RCRegistries.GRIP_TYPE).ifPresent(l -> l.listElements().forEach(h -> {
                     int cap = r.lookup(RCRegistries.BATTERY_TYPE).flatMap(b -> b.get(h.value().batteryType()))
                             .map(b -> b.value().capacity()).orElse(500);

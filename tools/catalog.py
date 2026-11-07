@@ -554,3 +554,17 @@ for _base, _en, _ru, _fields, _tint, _alpha, _extra, _sizes in FILTER_KINDS:
         _spec = {"name": f"{_en} {_size}mm", **_fields, "diameter_mm": _size, "model": rc(f"item/filter/{_key}")}
         FILTERS.append({"key": _key, "name": f"{_en} {_size} mm", "name_ru": f"{_ru} {_size} мм", "spec": _spec,
                         "tint": _tint, "alpha": _alpha, "extra": _extra, "size": _size})
+
+# --- step-up rings (issue #7): one per lens filter thread, up to the next filter size made. A ring screws onto a
+# lens with exactly its input thread; a filter at least as large as its output thread screws onto the ring (the
+# filter then carries the ring, see AccessoryItem). Key = step_up_<in>_<out>.
+_FILTER_SIZES = sorted({s for k in FILTER_KINDS for s in k[7]})
+_RING_THREADS = (39, 40, 43, 46, 49, 52, 55, 58, 60, 62, 67, 72, 77, 82, 95)
+STEP_UP_RINGS = []
+for _in in _RING_THREADS:
+    _out = min(s for s in _FILTER_SIZES if s > _in)
+    _key = f"step_up_{_in}_{_out}"
+    STEP_UP_RINGS.append({"key": _key, "in": _in, "out": _out,
+                          "name": f"Step-up ring {_in}→{_out} mm", "name_ru": f"Повышающее кольцо {_in}→{_out} мм",
+                          "spec": {"name": f"Step-up ring {_in}-{_out}mm", "in_mm": _in, "out_mm": _out,
+                                   "model": rc(f"item/step_up_ring/{_key}")}})
