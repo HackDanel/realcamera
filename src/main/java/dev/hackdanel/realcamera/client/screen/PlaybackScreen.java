@@ -45,6 +45,12 @@ public class PlaybackScreen extends Screen {
         return d == null ? null : d.id().orElse(null);
     }
 
+    /** A memory card is in the camera (a fresh, never-used card has no id yet but is still a card). */
+    private boolean hasCard() {
+        if (minecraft == null || minecraft.player == null) return false;
+        return CameraHelper.usbCard(Viewfinder.camera()) != null;
+    }
+
     private List<PhotoMeta> photos() {
         UUID card = cardId();
         if (card == null) return List.of();
@@ -115,7 +121,7 @@ public class PlaybackScreen extends Screen {
         super.render(g, mouseX, mouseY, partialTick);
         deleteButton.setMessage(Component.translatable(confirmDelete ? "gui.realcamera.delete_confirm" : "gui.realcamera.delete"));
         List<PhotoMeta> list = photos();
-        if (cardId() == null) {
+        if (!hasCard()) {
             g.drawCenteredString(font, Component.translatable("message.realcamera.no_card"), width / 2, height / 2, 0xFFFFFFFF);
             return;
         }

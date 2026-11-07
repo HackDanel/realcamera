@@ -101,7 +101,7 @@
   "gui.realcamera.photo_loading": "Developing…",
   "gui.realcamera.photo_removed": "Removed",
   "gui.realcamera.playback": "Playback",
-  "gui.realcamera.no_photos": "No photos on the card",
+  "gui.realcamera.no_photos": "The memory card is empty",
   "gui.realcamera.delete": "Delete",
   "gui.realcamera.delete_confirm": "Delete? Click again",
   "gui.realcamera.camera_menu": "Camera menu",
