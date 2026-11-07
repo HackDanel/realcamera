@@ -131,6 +131,21 @@ public final class Stage5Autotest {
         step("screenshot " + name, () -> pendingScreenshot = name, 3);
     }
 
+    /** Screenshot of the open screen in English, then in Russian (longer labels), then back to English. */
+    private static void screenshotsEnRu(String name) {
+        step("hide toasts", () -> Minecraft.getInstance().getToasts().clear(), 2);
+        screenshot(name);
+        step("lang ru", () -> language("ru_ru"), 5);
+        screenshot(name + "_ru");
+        step("lang en", () -> language("en_us"), 5);
+    }
+
+    private static void language(String code) {
+        Minecraft mc = Minecraft.getInstance();
+        mc.getLanguageManager().setSelected(code);
+        mc.getLanguageManager().onResourceManagerReload(mc.getResourceManager());
+    }
+
     private static void use(BlockPos pos, int slot) {
         Minecraft mc = Minecraft.getInstance();
         mc.player.getInventory().selected = slot;
@@ -258,7 +273,10 @@ public final class Stage5Autotest {
             be.items().setStackInSlot(2, new ItemStack(RCItems.CHANGING_BAG.get()));
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.DevelopingTankBlockEntity.BUTTON_PUSH); // +1
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.DevelopingTankBlockEntity.BUTTON_START);
-        }), 10);
+            p.openMenu(be, darkroom);
+        }), 30);
+        screenshotsEnRu("s5_00_tank");
+        step("close tank", () -> Minecraft.getInstance().player.closeContainer(), 5);
         until("developed", () -> {
             var server = Minecraft.getInstance().getSingleplayerServer();
             return PhotoStorage.index(server).all().stream().filter(e -> !e.latent()).count() >= 3;
@@ -294,7 +312,10 @@ public final class Stage5Autotest {
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity.B_LIGHTER);
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity.B_LIGHTER);
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity.B_EXPOSE);
-        }), 100);
+            p.openMenu(be, darkroom.offset(1, 0, 0));
+        }), 20);
+        screenshotsEnRu("s5_01b_enlarger");
+        step("close enlarger", () -> Minecraft.getInstance().player.closeContainer(), 80);
         step("print out", () -> server(p -> {
             var be = (dev.hackdanel.realcamera.blockentity.EnlargerBlockEntity) p.serverLevel().getBlockEntity(darkroom.offset(1, 0, 0));
             ItemStack out = be.items().getStackInSlot(2);

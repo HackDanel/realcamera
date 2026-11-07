@@ -14,6 +14,8 @@ import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.inventory.SimpleContainerData;
 
 public class EnlargerMenu extends MachineMenu<EnlargerBlockEntity> {
+    /** Top of the player inventory: the screen is taller than a chest's to keep its labels apart. */
+    public static final int INV_TOP = 108;
     private final ContainerData data;
 
     public EnlargerMenu(int id, Inventory inv, RegistryFriendlyByteBuf buf) {
@@ -29,9 +31,9 @@ public class EnlargerMenu extends MachineMenu<EnlargerBlockEntity> {
         this.data = data;
         addMachineSlot(EnlargerBlockEntity.SLOT_FILM, 8, 18);
         addMachineSlot(EnlargerBlockEntity.SLOT_PAPER, 8, 54);
-        addMachineSlot(EnlargerBlockEntity.SLOT_OUTPUT, 152, 54);
+        addMachineSlot(EnlargerBlockEntity.SLOT_OUTPUT, 152, 66);
         addMachineSlot(EnlargerBlockEntity.SLOT_CHEMISTRY, 8, 36);
-        addPlayerInventory(inv, 84);
+        addPlayerInventory(inv, INV_TOP);
         addDataSlots(data);
     }
 

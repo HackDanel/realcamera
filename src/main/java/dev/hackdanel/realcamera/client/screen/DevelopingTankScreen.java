@@ -14,6 +14,7 @@ public class DevelopingTankScreen extends AbstractContainerScreen<DevelopingTank
 
     public DevelopingTankScreen(DevelopingTankMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
+        imageHeight = DevelopingTankMenu.INV_TOP + 82;
         inventoryLabelY = imageHeight - 94;
     }
 
@@ -58,14 +59,14 @@ public class DevelopingTankScreen extends AbstractContainerScreen<DevelopingTank
             int w = 74 * p / DevelopingTankBlockEntity.DEVELOP_TICKS;
             g.fill(leftPos + 50, topPos + 64, leftPos + 50 + w, topPos + 67, 0xFF3CB043);
         }
-        UiDraw.playerInventory(g, leftPos, topPos, 84);
+        UiDraw.playerInventory(g, leftPos, topPos, DevelopingTankMenu.INV_TOP);
     }
 
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         super.renderLabels(g, mouseX, mouseY);
         Component light = Component.translatable(menu.dark() ? "gui.realcamera.darkroom.dark" : "gui.realcamera.darkroom.light");
-        g.drawString(font, light, 8, 70, menu.dark() ? 0xFF207020 : 0xFFB02020, false);
+        g.drawString(font, light, 8, inventoryLabelY - 12, menu.dark() ? 0xFF207020 : 0xFFB02020, false);
         int p = menu.progress();
         if (p >= 0) {
             int left = (DevelopingTankBlockEntity.DEVELOP_TICKS - p) / 20;

@@ -10,6 +10,8 @@ import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.inventory.SimpleContainerData;
 
 public class DevelopingTankMenu extends MachineMenu<DevelopingTankBlockEntity> {
+    /** Top of the player inventory: lower than a chest's so the darkness line fits above its label. */
+    public static final int INV_TOP = 96;
     private final ContainerData data;
 
     public DevelopingTankMenu(int id, Inventory inv, RegistryFriendlyByteBuf buf) {
@@ -27,7 +29,7 @@ public class DevelopingTankMenu extends MachineMenu<DevelopingTankBlockEntity> {
         addMachineSlot(DevelopingTankBlockEntity.SLOT_CHEMISTRY, 26, 50);
         addMachineSlot(DevelopingTankBlockEntity.SLOT_BAG, 8, 26);
         addMachineSlot(DevelopingTankBlockEntity.SLOT_OUTPUT, 134, 38);
-        addPlayerInventory(inv, 84);
+        addPlayerInventory(inv, INV_TOP);
         addDataSlots(data);
     }
 
