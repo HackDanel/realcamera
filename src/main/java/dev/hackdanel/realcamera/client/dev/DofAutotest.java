@@ -72,14 +72,22 @@ public final class DofAutotest {
     }
 
     private static ItemStack camera(String lens, double fNumber, float focusM) {
+        return camera("sony_a7iv", lens, null, fNumber, focusM);
+    }
+
+    private static ItemStack camera(String bodyKey, String lens, String adapter, double fNumber, float focusM) {
         Minecraft mc = Minecraft.getInstance();
         var regs = mc.level.registryAccess();
         var body = regs.lookupOrThrow(RCRegistries.CAMERA_BODY)
-                .getOrThrow(ResourceKey.create(RCRegistries.CAMERA_BODY, RealCamera.id("sony_a7iv")));
+                .getOrThrow(ResourceKey.create(RCRegistries.CAMERA_BODY, RealCamera.id(bodyKey)));
         ItemStack cam = RCStacks.kit(regs, body).orElseThrow();
-        CameraParts parts = cam.get(RCComponents.CAMERA_PARTS.get());
-        cam.set(RCComponents.CAMERA_PARTS.get(), parts.with(CameraParts.SLOT_LENS,
-                RCStacks.lens(ResourceKey.create(RCRegistries.LENS, RealCamera.id(lens)))));
+        CameraParts parts = cam.get(RCComponents.CAMERA_PARTS.get()).with(CameraParts.SLOT_LENS,
+                RCStacks.lens(ResourceKey.create(RCRegistries.LENS, RealCamera.id(lens))));
+        if (adapter != null) {
+            parts = parts.with(CameraParts.SLOT_ADAPTER,
+                    RCStacks.adapter(ResourceKey.create(RCRegistries.MOUNT_ADAPTER, RealCamera.id(adapter))));
+        }
+        cam.set(RCComponents.CAMERA_PARTS.get(), parts);
         cam.set(RCComponents.CAMERA_SETTINGS.get(), CameraSettings.DEFAULT.withMode(CameraSettings.MODE_A)
                 .withApertureIndex(ExposureScales.nearestAperture(fNumber)).withFocusMode(CameraSettings.FOCUS_MF)
                 .withFocusDistance(focusM));
@@ -87,9 +95,13 @@ public final class DofAutotest {
     }
 
     private static void shoot(String label, String lens, double fNumber, float focusM) {
+        shoot(label, "sony_a7iv", lens, null, fNumber, focusM);
+    }
+
+    private static void shoot(String label, String body, String lens, String adapter, double fNumber, float focusM) {
         step("give " + label, () -> {
             Minecraft mc = Minecraft.getInstance();
-            ItemStack s = camera(lens, fNumber, focusM);
+            ItemStack s = camera(body, lens, adapter, fNumber, focusM);
             mc.player.getInventory().setItem(0, s);
             mc.gameMode.handleCreativeModeItemAdd(s, 36);
         }, 10);
@@ -167,6 +179,9 @@ public final class DofAutotest {
         shoot("cow f1.8", "sony_fe_85_f18", 1.8, 6.0f);
         shoot("near grass f1.8", "sony_fe_50_f18", 1.8, 2.5f);
         shoot("cow f8", "sony_fe_85_f18", 8, 6.0f);
+        // lens character: Helios swirl and soft background, STF apodisation
+        shoot("helios f2", "sony_a7iv", "helios_44_2", "m42_to_e", 2, 6.0f);
+        shoot("stf f2.8", "sony_fe_100_stf", 2.8, 6.0f);
         // autofocus: detail locks, a clear sky makes the lens hunt and give up
         step("wall", () -> server(p -> cmd(p, "fill ~-8 ~ ~14 ~8 ~8 ~14 minecraft:white_concrete")), 40);
         step("give af", () -> {
@@ -194,9 +209,37 @@ public final class DofAutotest {
             cmd(p, "fill ~-8 ~ ~14 ~8 ~8 ~14 minecraft:air");
             cmd(p, "setblock ~2 ~ ~4 minecraft:torch");
             cmd(p, "setblock ~-2 ~ ~8 minecraft:torch");
+            // lamps far behind the cow (bokeh discs) and one close to the lens (front bokeh)
+            for (int i = 0; i < 7; i++) {
+                cmd(p, String.format("setblock ~%d ~%d ~%d minecraft:glowstone", i * 2 - 6, 1 + i % 3, 18 + i * 3));
+            }
+            cmd(p, "setblock ~1 ~1 ~30 minecraft:sea_lantern");
+            cmd(p, "setblock ~-1 ~2 ~34 minecraft:sea_lantern");
+            cmd(p, "setblock ~0 ~1 ~40 minecraft:glowstone");
+            cmd(p, "setblock ~1 ~ ~2 minecraft:lantern");
+            // small flames far away for the mirror lens's ring bokeh
+            for (int i = 0; i < 5; i++) {
+                int x = i - 2, y = 1 + (i * 2) % 4, z = 64 + i * 3;
+                cmd(p, String.format("fill ~%d ~-1 ~%d ~%d ~%d ~%d minecraft:stone", x, z, x, y - 1, z));
+                cmd(p, String.format("setblock ~%d ~%d ~%d minecraft:torch", x, y, z));
+            }
             cmd(p, "time set 18000");
         }), 60);
+        step("level view", () -> {
+            var pl = Minecraft.getInstance().player;
+            pl.setXRot(6);
+            pl.xRotO = 6;
+        }, 10);
         shoot("night cow f1.8", "sony_fe_85_f18", 1.8, 6.0f);
+        shoot("night f5.6", "sony_fe_85_f18", 5.6, 6.0f);
+        shoot("night helios f2", "sony_a7iv", "helios_44_2", "m42_to_e", 2, 6.0f);
+        shoot("night stf f2.8", "sony_fe_100_stf", 2.8, 6.0f);
+        step("mirror view", () -> {
+            var pl = Minecraft.getInstance().player;
+            pl.setXRot(-1);
+            pl.xRotO = -1;
+        }, 10);
+        shoot("night mirror f8", "nikon_z6iii", "nikon_reflex_500_f8", "nikon_ftz2", 8, 15.0f);
         step("done", () -> {
             log("done, stopping");
             Minecraft.getInstance().stop();

@@ -1,0 +1,36 @@
+{
+  "brand": "Sony",
+  "exif_lens_model": "FE 100mm F2.8 STF GM OSS",
+  "mount": "realcamera:sony_e",
+  "image_circle": "ff",
+  "focal_min": 100,
+  "focal_max": 100,
+  "aperture_wide": 2.8,
+  "aperture_tele": 2.8,
+  "aperture_min": 20,
+  "min_focus_m": 0.57,
+  "af": {
+    "motor": "linear",
+    "speed": 0.6
+  },
+  "ois_stops": 4,
+  "optics": {
+    "blades": 11,
+    "rounded": true,
+    "vignetting_ev": 1.0,
+    "sharpness": 1.15,
+    "distortion_wide": 0.005,
+    "distortion_tele": 0.005,
+    "ca_px": 0.5,
+    "flare": 0.3,
+    "bokeh": "smooth",
+    "max_magnification": 0.25,
+    "character": {
+      "apodization": 1.0
+    },
+    "transmission_loss_ev": 2.0
+  },
+  "filter_mm": 72,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/sony_fe_100_stf"
+}

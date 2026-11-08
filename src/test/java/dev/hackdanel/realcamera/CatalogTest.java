@@ -89,6 +89,13 @@ class CatalogTest {
             modelExists(l.get("model").getAsString() + "_mounted", problems, e.getKey());
             float wide = l.get("aperture_wide").getAsFloat(), min = l.has("aperture_min") ? l.get("aperture_min").getAsFloat() : 22;
             if (min < wide) problems.add(e.getKey() + ": aperture range");
+            if (l.has("optics") && l.getAsJsonObject("optics").has("character")) {
+                JsonObject c = l.getAsJsonObject("optics").getAsJsonObject("character");
+                if (!within(c, "spherical", -1, 1) || !within(c, "field_curvature", 0, 0.5)
+                        || !within(c, "apodization", 0, 1) || !within(c, "obstruction", 0, 0.6)) {
+                    problems.add(e.getKey() + ": character out of range " + c);
+                }
+            }
         }
         for (var e : load("mount_adapter").entrySet()) {
             JsonObject a = e.getValue();
@@ -175,5 +182,11 @@ class CatalogTest {
             String name = en.has(key) ? en.get(key).getAsString() : "";
             assertTrue(name.endsWith("-S") && ru.has(key), key + " = " + name);
         }
+    }
+
+    private static boolean within(JsonObject o, String key, double lo, double hi) {
+        if (!o.has(key)) return true;
+        double v = o.get(key).getAsDouble();
+        return v >= lo && v <= hi;
     }
 }

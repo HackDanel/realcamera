@@ -44,12 +44,13 @@ public record LensSpec(
      * (1 = 1:1 macro; 0 = derive from focal length and minimum focus distance); loca: axial colour (purple/green
      * bokeh fringing) relative to a typical lens of its speed (0 = apochromatic, -1 = typical); transmissionLossEv:
      * light the glass absorbs and reflects, the gap between the f-stop and the T-stop (-1 = typical: more for zooms;
-     * an apodisation filter (STF/APD) loses much more).
+     * an apodisation filter (STF/APD) loses much more); character: how out-of-focus discs are drawn and where the
+     * lens focuses off-axis ({@link Character}).
      */
     public record Optics(int blades, boolean rounded, float vignettingEv, float sharpness, float distortionWide,
                          float distortionTele, float caPx, float flare, String bokeh, String projection,
                          java.util.Optional<TiltShift> tiltShift, float maxMagnification, float loca,
-                         float transmissionLossEv) {
+                         float transmissionLossEv, Character character) {
         public static final Codec<Optics> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.INT.optionalFieldOf("blades", 7).forGetter(Optics::blades),
                 Codec.BOOL.optionalFieldOf("rounded", true).forGetter(Optics::rounded),
@@ -64,14 +65,36 @@ public record LensSpec(
                 TiltShift.CODEC.optionalFieldOf("tilt_shift").forGetter(Optics::tiltShift),
                 Codec.FLOAT.optionalFieldOf("max_magnification", 0f).forGetter(Optics::maxMagnification),
                 Codec.FLOAT.optionalFieldOf("loca", -1f).forGetter(Optics::loca),
-                Codec.FLOAT.optionalFieldOf("transmission_loss_ev", -1f).forGetter(Optics::transmissionLossEv)
+                Codec.FLOAT.optionalFieldOf("transmission_loss_ev", -1f).forGetter(Optics::transmissionLossEv),
+                Character.CODEC.optionalFieldOf("character", Character.NONE).forGetter(Optics::character)
         ).apply(i, Optics::new));
         public static final Optics DEFAULT = new Optics(7, true, 1f, 1f, 0f, 0f, 1f, 0.5f, "smooth", "rectilinear",
-                java.util.Optional.empty(), 0f, -1f, -1f);
+                java.util.Optional.empty(), 0f, -1f, -1f, Character.NONE);
 
         public boolean fisheye() {
             return !"rectilinear".equals(projection);
         }
+    }
+
+    /**
+     * How a lens draws what is out of focus, beyond the blade shape and the bokeh style.
+     *
+     * @param spherical      spherical aberration, -1..1: &gt; 0 (under-corrected, most fast vintage lenses) gives
+     *                       soft-edged discs behind the focus plane and bright-rimmed, nervous ones in front of it;
+     *                       &lt; 0 the other way round. Fades within two stops.
+     * @param fieldCurvature how far (mm, image side) the plane of best focus curves towards the lens at the corner of
+     *                       the image circle: the frame edges focus closer than the centre (Petzval field curvature)
+     * @param apodization    0..1 apodisation filter (Sony STF): discs fade softly to their edge
+     * @param obstruction    0..0.6 central obstruction of a mirror lens, as a fraction of the disc radius: ring bokeh
+     */
+    public record Character(float spherical, float fieldCurvature, float apodization, float obstruction) {
+        public static final Codec<Character> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.FLOAT.optionalFieldOf("spherical", 0f).forGetter(Character::spherical),
+                Codec.FLOAT.optionalFieldOf("field_curvature", 0f).forGetter(Character::fieldCurvature),
+                Codec.FLOAT.optionalFieldOf("apodization", 0f).forGetter(Character::apodization),
+                Codec.FLOAT.optionalFieldOf("obstruction", 0f).forGetter(Character::obstruction)
+        ).apply(i, Character::new));
+        public static final Character NONE = new Character(0, 0, 0, 0);
     }
 
     /** Tilt-shift movements: maximum tilt (degrees, either way) and shift (mm, either way). */

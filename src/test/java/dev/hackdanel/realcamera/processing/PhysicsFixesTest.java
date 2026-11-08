@@ -250,7 +250,7 @@ class PhysicsFixesTest {
 
     private static dev.hackdanel.realcamera.spec.LensSpec lens(float min, float max, float n, float mfd, float maxMag) {
         var optics = new dev.hackdanel.realcamera.spec.LensSpec.Optics(9, true, 1, 1, 0, 0, 1, 0.5f, "smooth",
-                "rectilinear", java.util.Optional.empty(), maxMag, -1, -1);
+                "rectilinear", java.util.Optional.empty(), maxMag, -1, -1, dev.hackdanel.realcamera.spec.LensSpec.Character.NONE);
         return new dev.hackdanel.realcamera.spec.LensSpec("Test", "Test", net.minecraft.resources.ResourceKey.create(
                 dev.hackdanel.realcamera.registry.RCRegistries.MOUNT, net.minecraft.resources.ResourceLocation.parse("realcamera:test")),
                 "ff", min, max, n, n, 22, mfd, dev.hackdanel.realcamera.spec.LensSpec.Af.DEFAULT, 0, optics, 77, false,

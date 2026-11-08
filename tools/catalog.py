@@ -314,8 +314,12 @@ BODIES = [
 
 def lens(key, name, brand, exif, mount, circle, focal, aperture, min_ap, min_focus, motor, af_speed, ois, blades,
          vig, sharp, dist, ca, flare, filter_mm, dims, look="black", rounded=True, bokeh="smooth", tc=False,
-         projection="rectilinear", tilt_shift=None, max_mag=0.0, tier="mid"):
-    """focal: (min, max); aperture: (wide, tele); dist: (wide, tele); dims: (length mm, diameter mm)."""
+         projection="rectilinear", tilt_shift=None, max_mag=0.0, tier="mid", character=None, transmission=None, loca=None):
+    """focal: (min, max); aperture: (wide, tele); dist: (wide, tele); dims: (length mm, diameter mm).
+
+    character: out-of-focus character, any of spherical (-1..1), field_curvature (mm at the image circle's corner),
+    apodization (0..1, STF), obstruction (0..0.6, mirror lens); transmission: light lost in the glass (EV, T-stop minus
+    f-stop); loca: axial colour relative to a typical lens (0 = apochromatic)."""
     optics = {"blades": blades, "rounded": rounded, "vignetting_ev": vig, "sharpness": sharp,
               "distortion_wide": dist[0], "distortion_tele": dist[1], "ca_px": ca, "flare": flare, "bokeh": bokeh}
     if projection != "rectilinear":
@@ -324,6 +328,13 @@ def lens(key, name, brand, exif, mount, circle, focal, aperture, min_ap, min_foc
         optics["tilt_shift"] = {"tilt_deg": tilt_shift[0], "shift_mm": tilt_shift[1]}
     if max_mag:
         optics["max_magnification"] = max_mag
+    if character:
+        assert set(character) <= {"spherical", "field_curvature", "apodization", "obstruction"}, character
+        optics["character"] = dict(character)
+    if transmission is not None:
+        optics["transmission_loss_ev"] = transmission
+    if loca is not None:
+        optics["loca"] = loca
     spec = {
         "brand": brand, "exif_lens_model": exif, "mount": rc(mount), "image_circle": circle,
         "focal_min": focal[0], "focal_max": focal[1], "aperture_wide": aperture[0], "aperture_tele": aperture[1],
@@ -335,7 +346,8 @@ def lens(key, name, brand, exif, mount, circle, focal, aperture, min_ap, min_foc
     label = f"{focal[0]}-{focal[1]}" if zoom else f"{focal[0]}"
     return {"key": key, "name": name, "spec": spec, "tier": tier, "zoom": zoom, "label": label,
             "length": dims[0], "diameter": dims[1], "look": look, "fixed": mount == "fixed",
-            "kind": "fisheye" if projection != "rectilinear" else "tilt_shift" if tilt_shift else
+            "kind": "mirror" if (character or {}).get("obstruction", 0) > 0 else
+            "fisheye" if projection != "rectilinear" else "tilt_shift" if tilt_shift else
             "macro" if max_mag >= 0.5 else "vintage" if motor == "none" else "zoom" if zoom else "prime"}
 
 
@@ -347,18 +359,21 @@ US = "fast"
 LENSES = [
     # ---------------------------------------------------------------- Sony E
     lens("sony_fe_50_f18", "Sony FE 50mm F1.8", "Sony", "FE 50mm F1.8", "sony_e", "ff", (50, 50), (1.8, 1.8), 22, 0.45,
-         ST, 0.7, 0, 7, 1.3, 0.92, (-0.01, -0.01), 1.5, 0.6, 49, (45, 68), tier="entry", max_mag=0.14),
+         ST, 0.7, 0, 7, 1.3, 0.92, (-0.01, -0.01), 1.5, 0.6, 49, (45, 68), tier="entry", max_mag=0.14, character={"spherical": 0.15}),
     lens("sony_fe_24_70_gm2", "Sony FE 24-70mm F2.8 GM II", "Sony", "FE 24-70mm F2.8 GM II", "sony_e", "ff", (24, 70), (2.8, 2.8), 22, 0.21,
          L, 1.25, 0, 11, 1.2, 1.15, (-0.03, 0.015), 0.6, 0.3, 82, (120, 88), look="sony_gm", tier="pro", max_mag=0.32),
     lens("sony_fe_16_35_gm2", "Sony FE 16-35mm F2.8 GM II", "Sony", "FE 16-35mm F2.8 GM II", "sony_e", "ff", (16, 35), (2.8, 2.8), 22, 0.22,
          L, 1.2, 0, 11, 1.6, 1.1, (-0.06, -0.01), 0.8, 0.35, 82, (111, 88), look="sony_gm", tier="pro", max_mag=0.32),
     lens("sony_fe_70_200_gm2", "Sony FE 70-200mm F2.8 GM OSS II", "Sony", "FE 70-200mm F2.8 GM OSS II", "sony_e", "ff", (70, 200), (2.8, 2.8), 22, 0.4,
          L, 1.3, 4.5, 11, 0.9, 1.15, (0.01, 0.02), 0.5, 0.3, 77, (200, 88), look="sony_gm_white", tc=True, tier="pro", max_mag=0.3),
+    lens("sony_fe_100_stf", "Sony FE 100mm F2.8 STF GM OSS", "Sony", "FE 100mm F2.8 STF GM OSS", "sony_e", "ff", (100, 100), (2.8, 2.8), 20, 0.57,
+         L, 0.6, 4, 11, 1.0, 1.15, (0.005, 0.005), 0.5, 0.3, 72, (118, 85), look="sony_gm", tier="pro", max_mag=0.25,
+         character={"apodization": 1.0}, transmission=2.0),  # apodisation filter: T5.6 at f/2.8
     lens("sony_fe_90_macro", "Sony FE 90mm F2.8 Macro G OSS", "Sony", "FE 90mm F2.8 Macro G OSS", "sony_e", "ff", (90, 90), (2.8, 2.8), 22, 0.28,
          L, 0.9, 4, 9, 0.9, 1.15, (0.005, 0.005), 0.6, 0.4, 62, (130, 79), max_mag=1.0, tier="mid"),
     # ---------------------------------------------------------------- Nikon Z
     lens("nikon_z_dx_16_50", "Nikon NIKKOR Z DX 16-50mm f/3.5-6.3 VR", "Nikon", "NIKKOR Z DX 16-50mm f/3.5-6.3 VR", "nikon_z", "apsc", (16, 50), (3.5, 6.3), 22, 0.2,
-         ST, 0.85, 4.5, 7, 1.6, 0.85, (-0.08, 0.02), 1.6, 0.6, 46, (32, 70), tier="entry", max_mag=0.2),
+         ST, 0.85, 4.5, 7, 1.6, 0.85, (-0.08, 0.02), 1.6, 0.6, 46, (32, 70), tier="entry", max_mag=0.2, character={"field_curvature": 0.03}),
     lens("nikon_z_24_70_f4s", "Nikon NIKKOR Z 24-70mm f/4 S", "Nikon", "NIKKOR Z 24-70mm f/4 S", "nikon_z", "ff", (24, 70), (4.0, 4.0), 22, 0.3,
          ST, 1.0, 0, 7, 1.3, 1.05, (-0.05, 0.02), 1.0, 0.45, 72, (88, 77.5), look="nikon_s", tier="mid", max_mag=0.3),
     lens("nikon_z_50_f18s", "Nikon NIKKOR Z 50mm f/1.8 S", "Nikon", "NIKKOR Z 50mm f/1.8 S", "nikon_z", "ff", (50, 50), (1.8, 1.8), 16, 0.4,
@@ -375,16 +390,19 @@ LENSES = [
          ST, 0.9, 4.5, 9, 0.8, 1.15, (0.005, 0.005), 0.5, 0.35, 62, (140, 85), look="nikon_s", max_mag=1.0, tier="pro"),
     # ---------------------------------------------------------------- Nikon F
     lens("nikon_afp_dx_18_55", "Nikon AF-P DX 18-55mm f/3.5-5.6G VR", "Nikon", "AF-P DX NIKKOR 18-55mm f/3.5-5.6G VR", "nikon_f", "apsc", (18, 55), (3.5, 5.6), 22, 0.25,
-         ST, 0.9, 4, 7, 1.5, 0.85, (-0.07, 0.02), 1.6, 0.6, 55, (63, 65), tier="entry", max_mag=0.38),
+         ST, 0.9, 4, 7, 1.5, 0.85, (-0.07, 0.02), 1.6, 0.6, 55, (63, 65), tier="entry", max_mag=0.38, character={"field_curvature": 0.03}),
     lens("nikon_afs_24_120_f4", "Nikon AF-S 24-120mm f/4G ED VR", "Nikon", "AF-S NIKKOR 24-120mm f/4G ED VR", "nikon_f", "ff", (24, 120), (4.0, 4.0), 22, 0.45,
          US, 1.0, 4, 9, 1.4, 0.95, (-0.06, 0.03), 1.2, 0.5, 77, (104, 84), look="nikon_gold", tier="mid", max_mag=0.24),
     lens("nikon_ais_50_f14", "Nikon NIKKOR 50mm f/1.4 Ai-S", "Nikon", "NIKKOR 50mm f/1.4 Ai-S", "nikon_f", "ff", (50, 50), (1.4, 1.4), 16, 0.45,
-         N, 0, 0, 7, 1.6, 0.88, (-0.01, -0.01), 1.8, 0.8, 52, (36, 64), look="vintage", rounded=False, tier="entry", max_mag=0.15),
+         N, 0, 0, 7, 1.6, 0.88, (-0.01, -0.01), 1.8, 0.8, 52, (36, 64), look="vintage", rounded=False, tier="entry", max_mag=0.15, character={"spherical": 0.35, "field_curvature": 0.05}),
+    lens("nikon_reflex_500_f8", "Nikon Reflex-NIKKOR 500mm f/8", "Nikon", "Reflex-NIKKOR 500mm f/8", "nikon_f", "ff", (500, 500), (8.0, 8.0), 8, 1.5,
+         N, 0, 0, 9, 1.2, 0.85, (0.0, 0.0), 0.2, 0.6, 82, (116, 89), look="black", tier="mid", max_mag=0.33,
+         character={"obstruction": 0.38}, loca=0.1),  # catadioptric: fixed f/8, ring bokeh, almost no colour
     # ---------------------------------------------------------------- Canon RF
     lens("canon_rfs_18_45", "Canon RF-S 18-45mm F4.5-6.3 IS STM", "Canon", "RF-S18-45mm F4.5-6.3 IS STM", "canon_rf", "apsc", (18, 45), (4.5, 6.3), 32, 0.15,
-         ST, 0.85, 4, 7, 1.6, 0.85, (-0.08, 0.02), 1.6, 0.6, 49, (45, 67), tier="entry", max_mag=0.26),
+         ST, 0.85, 4, 7, 1.6, 0.85, (-0.08, 0.02), 1.6, 0.6, 49, (45, 67), tier="entry", max_mag=0.26, character={"field_curvature": 0.03}),
     lens("canon_rf_50_f18", "Canon RF 50mm F1.8 STM", "Canon", "RF50mm F1.8 STM", "canon_rf", "ff", (50, 50), (1.8, 1.8), 22, 0.3,
-         ST, 0.7, 0, 7, 1.4, 0.92, (-0.01, -0.01), 1.4, 0.6, 43, (41, 69), tier="entry", max_mag=0.25),
+         ST, 0.7, 0, 7, 1.4, 0.92, (-0.01, -0.01), 1.4, 0.6, 43, (41, 69), tier="entry", max_mag=0.25, character={"spherical": 0.15}),
     lens("canon_rf_24_105_f4l", "Canon RF 24-105mm F4 L IS USM", "Canon", "RF24-105mm F4 L IS USM", "canon_rf", "ff", (24, 105), (4.0, 4.0), 22, 0.45,
          L, 1.1, 5, 9, 1.4, 1.05, (-0.06, 0.03), 1.0, 0.45, 77, (107, 84), look="canon_l", tier="mid", max_mag=0.24),
     lens("canon_rf_15_35_f28l", "Canon RF 15-35mm F2.8 L IS USM", "Canon", "RF15-35mm F2.8 L IS USM", "canon_rf", "ff", (15, 35), (2.8, 2.8), 22, 0.28,
@@ -397,7 +415,7 @@ LENSES = [
          L, 1.1, 5, 9, 0.9, 1.15, (0.005, 0.005), 0.5, 0.35, 67, (148, 81.5), look="canon_l", max_mag=1.4, tier="pro"),
     # ---------------------------------------------------------------- Canon EF / FD
     lens("canon_efs_18_55", "Canon EF-S 18-55mm f/4-5.6 IS STM", "Canon", "EF-S18-55mm f/4-5.6 IS STM", "canon_ef", "apsc", (18, 55), (4.0, 5.6), 22, 0.25,
-         ST, 0.85, 4, 7, 1.5, 0.85, (-0.07, 0.02), 1.6, 0.6, 58, (62, 66), tier="entry", max_mag=0.25),
+         ST, 0.85, 4, 7, 1.5, 0.85, (-0.07, 0.02), 1.6, 0.6, 58, (62, 66), tier="entry", max_mag=0.25, character={"field_curvature": 0.03}),
     lens("canon_ef_24_70_f28l2", "Canon EF 24-70mm f/2.8L II USM", "Canon", "EF24-70mm f/2.8L II USM", "canon_ef", "ff", (24, 70), (2.8, 2.8), 22, 0.38,
          US, 1.1, 0, 9, 1.4, 1.1, (-0.04, 0.02), 0.8, 0.4, 82, (113, 88.5), look="canon_l", tier="pro", max_mag=0.21),
     lens("canon_ef_70_200_f28l3", "Canon EF 70-200mm f/2.8L IS III USM", "Canon", "EF70-200mm f/2.8L IS III USM", "canon_ef", "ff", (70, 200), (2.8, 2.8), 32, 1.2,
@@ -405,7 +423,7 @@ LENSES = [
     lens("canon_tse_24_f35l2", "Canon TS-E 24mm f/3.5L II", "Canon", "TS-E24mm f/3.5L II", "canon_ef", "ff", (24, 24), (3.5, 3.5), 22, 0.21,
          N, 0, 0, 8, 1.2, 1.1, (-0.02, -0.02), 0.8, 0.4, 82, (107, 89), look="canon_l", tilt_shift=(8.5, 12.0), tier="pro", max_mag=0.34),
     lens("canon_fd_50_f18", "Canon FD 50mm f/1.8", "Canon", "FD 50mm 1:1.8", "canon_fd", "ff", (50, 50), (1.8, 1.8), 22, 0.6,
-         N, 0, 0, 6, 1.4, 0.88, (-0.01, -0.01), 1.8, 0.8, 52, (34, 63), look="vintage", rounded=False, tier="entry", max_mag=0.15),
+         N, 0, 0, 6, 1.4, 0.88, (-0.01, -0.01), 1.8, 0.8, 52, (34, 63), look="vintage", rounded=False, tier="entry", max_mag=0.15, character={"spherical": 0.25, "field_curvature": 0.05}),
     # ---------------------------------------------------------------- Fujifilm
     lens("fuji_xf_18_55", "Fujifilm XF 18-55mm F2.8-4 R LM OIS", "Fujifilm", "XF18-55mmF2.8-4 R LM OIS", "fuji_x", "apsc", (18, 55), (2.8, 4.0), 22, 0.3,
          L, 1.0, 4, 7, 1.3, 1.0, (-0.05, 0.02), 1.0, 0.5, 58, (70, 65), look="fuji", tier="entry", max_mag=0.15),
@@ -425,14 +443,14 @@ LENSES = [
          L, 0.9, 0, 9, 1.1, 1.15, (0.0, 0.0), 0.5, 0.35, 77, (125, 94), look="fuji", tier="flagship", max_mag=0.16),
     # ---------------------------------------------------------------- Leica / Hasselblad
     lens("leica_summilux_m_35_f14", "Leica Summilux-M 35mm f/1.4 ASPH.", "Leica", "SUMMILUX-M 1:1.4/35 ASPH.", "leica_m", "ff", (35, 35), (1.4, 1.4), 16, 0.7,
-         N, 0, 0, 11, 1.4, 1.1, (-0.01, -0.01), 0.8, 0.4, 46, (46, 56), look="black", tier="flagship", max_mag=0.06),
+         N, 0, 0, 11, 1.4, 1.1, (-0.01, -0.01), 0.8, 0.4, 46, (46, 56), look="black", tier="flagship", max_mag=0.06, character={"spherical": 0.1}),
     lens("zeiss_planar_80_f28", "Carl Zeiss Planar 80mm f/2.8 CF T*", "Zeiss", "Planar 2.8/80 CF T*", "hasselblad_v", "6x6", (80, 80), (2.8, 2.8), 22, 0.9,
-         N, 0, 0, 5, 1.0, 1.0, (0.0, 0.0), 0.8, 0.5, 60, (65, 75), look="chrome_black", rounded=False, tier="flagship", max_mag=0.1),
+         N, 0, 0, 5, 1.0, 1.0, (0.0, 0.0), 0.8, 0.5, 60, (65, 75), look="chrome_black", rounded=False, tier="flagship", max_mag=0.1, character={"spherical": 0.15, "field_curvature": 0.03}),
     lens("hasselblad_xcd_55_f25", "Hasselblad XCD 55mm f/2.5 V", "Hasselblad", "XCD 2,5/55V", "hasselblad_xcd", "mf", (55, 55), (2.5, 2.5), 32, 0.45,
          L, 0.9, 0, 9, 1.0, 1.15, (-0.005, -0.005), 0.6, 0.35, 72, (84, 77), look="hasselblad", tier="flagship", max_mag=0.15),
     # ---------------------------------------------------------------- L-mount / MFT
     lens("panasonic_s_20_60", "Panasonic Lumix S 20-60mm F3.5-5.6", "Panasonic", "LUMIX S 20-60/F3.5-5.6", "l_mount", "ff", (20, 60), (3.5, 5.6), 22, 0.15,
-         ST, 0.85, 0, 9, 1.5, 0.9, (-0.07, 0.02), 1.4, 0.55, 67, (87, 77), tier="entry", max_mag=0.43),
+         ST, 0.85, 0, 9, 1.5, 0.9, (-0.07, 0.02), 1.4, 0.55, 67, (87, 77), tier="entry", max_mag=0.43, character={"field_curvature": 0.03}),
     lens("panasonic_s_24_105", "Panasonic Lumix S 24-105mm F4 Macro O.I.S.", "Panasonic", "LUMIX S 24-105/F4", "l_mount", "ff", (24, 105), (4.0, 4.0), 22, 0.3,
          ST, 1.0, 5, 9, 1.4, 1.0, (-0.06, 0.03), 1.0, 0.45, 77, (118, 83), max_mag=0.5, tier="mid"),
     lens("om_mzuiko_12_40", "OM System M.Zuiko 12-40mm F2.8 PRO", "OM System", "M.ZUIKO DIGITAL ED 12-40mm F2.8 PRO", "mft", "mft", (12, 40), (2.8, 2.8), 22, 0.2,
@@ -451,15 +469,15 @@ LENSES = [
     lens("samyang_8_fisheye_x", "Samyang 8mm F3.5 Fish-eye CS II (Fujifilm X)", "Samyang", "----", "fuji_x", "apsc", (8, 8), (3.5, 3.5), 22, 0.3,
          N, 0, 0, 6, 1.0, 0.9, (0.0, 0.0), 1.6, 0.8, 0, (75, 75), look="black", projection="stereographic", tier="entry", max_mag=0.09),
     lens("helios_44_2", "Helios 44-2 58mm f/2", "KMZ", "----", "m42", "ff", (58, 58), (2.0, 2.0), 16, 0.5,
-         N, 0, 0, 8, 1.6, 0.82, (0.0, 0.0), 2.2, 0.95, 49, (47, 63), look="chrome", rounded=False, bokeh="swirl", tier="entry", max_mag=0.13),
+         N, 0, 0, 8, 1.6, 0.82, (0.0, 0.0), 2.2, 0.95, 49, (47, 63), look="chrome", rounded=False, bokeh="swirl", tier="entry", max_mag=0.13, character={"spherical": 0.5, "field_curvature": 0.12}),
     lens("jupiter_9", "Jupiter-9 85mm f/2", "KMZ", "----", "m42", "ff", (85, 85), (2.0, 2.0), 22, 0.8,
-         N, 0, 0, 15, 1.3, 0.88, (0.0, 0.0), 1.8, 0.85, 49, (75, 60), look="chrome", tier="entry", max_mag=0.12),
+         N, 0, 0, 15, 1.3, 0.88, (0.0, 0.0), 1.8, 0.85, 49, (75, 60), look="chrome", tier="entry", max_mag=0.12, character={"spherical": 0.4, "field_curvature": 0.08}),
     lens("meyer_trioplan_100", "Meyer-Optik Trioplan 100mm f/2.8", "Meyer-Optik", "----", "m42", "ff", (100, 100), (2.8, 2.8), 22, 1.0,
-         N, 0, 0, 15, 1.2, 0.84, (0.0, 0.0), 2.0, 0.9, 49, (75, 60), look="chrome", bokeh="bubble", tier="mid", max_mag=0.11),
+         N, 0, 0, 15, 1.2, 0.84, (0.0, 0.0), 2.0, 0.9, 49, (75, 60), look="chrome", bokeh="bubble", tier="mid", max_mag=0.11, character={"spherical": 0.6, "field_curvature": 0.15}),
     lens("pentax_smc_50_f17", "SMC Pentax-M 50mm f/1.7", "Pentax", "----", "pentax_k", "ff", (50, 50), (1.7, 1.7), 22, 0.45,
-         N, 0, 0, 6, 1.4, 0.9, (-0.01, -0.01), 1.6, 0.75, 49, (31, 63), look="vintage", rounded=False, tier="entry", max_mag=0.15),
+         N, 0, 0, 6, 1.4, 0.9, (-0.01, -0.01), 1.6, 0.75, 49, (31, 63), look="vintage", rounded=False, tier="entry", max_mag=0.15, character={"spherical": 0.2, "field_curvature": 0.04}),
     lens("olympus_zuiko_50_f18", "Olympus OM Zuiko 50mm f/1.8", "Olympus", "----", "olympus_om", "ff", (50, 50), (1.8, 1.8), 16, 0.45,
-         N, 0, 0, 6, 1.4, 0.9, (-0.01, -0.01), 1.6, 0.75, 49, (31, 60), look="vintage", rounded=False, tier="entry", max_mag=0.15),
+         N, 0, 0, 6, 1.4, 0.9, (-0.01, -0.01), 1.6, 0.75, 49, (31, 60), look="vintage", rounded=False, tier="entry", max_mag=0.15, character={"spherical": 0.2, "field_curvature": 0.04}),
     # ---------------------------------------------------------------- built into compact bodies (not sold separately)
     lens("fuji_x100vi_23", "Fujinon 23mm F2", "Fujifilm", "23mmF2", "fixed", "apsc", (23, 23), (2.0, 2.0), 16, 0.1,
          L, 0.9, 0, 9, 1.0, 1.0, (-0.01, -0.01), 0.9, 0.45, 49, (24, 52), look="silver", max_mag=0.2),

@@ -45,7 +45,7 @@ void main() {
         // this pixel seen from the sample lies opposite; a disc in front of the focus plane is inverted
         float edge = sSize * rcEdgeFactor(sSigned < 0.0 ? angle : angle + 3.14159265);
         float m = smoothstep(radius - 0.5, radius + 0.5, edge);
-        float wt = m * rcProfile(clamp(radius / max(edge, 0.5), 0.0, 1.0));
+        float wt = m * rcProfile(clamp(radius / max(edge, 0.5), 0.0, 1.0), sSigned < 0.0);
         colour += s.rgb * wt + (colour / total) * (1.0 - m);
         total += wt + (1.0 - m);
         if (sSigned < centreSigned && m > 0.5) {

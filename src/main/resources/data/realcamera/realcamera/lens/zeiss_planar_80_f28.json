@@ -24,7 +24,11 @@
     "ca_px": 0.8,
     "flare": 0.5,
     "bokeh": "smooth",
-    "max_magnification": 0.1
+    "max_magnification": 0.1,
+    "character": {
+      "spherical": 0.15,
+      "field_curvature": 0.03
+    }
   },
   "filter_mm": 60,
   "tc_compatible": false,

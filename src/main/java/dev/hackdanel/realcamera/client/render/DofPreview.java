@@ -196,6 +196,13 @@ public final class DofPreview {
         coc.safeGetUniform("InvProj").set(inv.m22(), inv.m32(), inv.m23(), inv.m33());
         coc.safeGetUniform("Lens").set(focal, fNumber, focusMm, pxPerMm);
         coc.safeGetUniform("Tilt").set(invHinge, 1 / m11);
+        // field curvature: the screen in sensor millimetres and the frame's half diagonal (as the photo measures it)
+        var sensor = Viewfinder.sensor();
+        double q = Math.min(1, Math.hypot(sensor.widthMm(), sensor.heightMm())
+                / dev.hackdanel.realcamera.camera.OpticalChain.circleDiagonalMm(Viewfinder.chain().lens().imageCircle()));
+        float curve = (float) (Viewfinder.chain().lens().optics().character().fieldCurvature() * q * q);
+        float halfDiag2 = (float) ((sensor.widthMm() * sensor.widthMm() + sensor.heightMm() * sensor.heightMm()) / 4);
+        coc.safeGetUniform("Curve").set(curve, w / pxPerMm, h / pxPerMm, 1 / halfDiag2);
         coc.safeGetUniform("MaxRadius").set(maxFull);
         draw(coc, radii);
     }
@@ -235,6 +242,7 @@ public final class DofPreview {
         blur.safeGetUniform("RadScale").set(radScale);
         float[] bokeh = bokehShape();
         blur.safeGetUniform("Bokeh").set(bokeh[0], bokeh[1], bokeh[2], 0f);
+        blur.safeGetUniform("Character").set(bokeh[3], bokeh[4], bokeh[5], 0f);
         draw(blur, halfBlurred);
 
         composite.setSampler("DiffuseSampler", main.getColorTextureId());
@@ -244,19 +252,26 @@ public final class DofPreview {
         composite.safeGetUniform("InSize").set((float) w, (float) h);
         composite.safeGetUniform("Scale").set((float) scale);
         composite.safeGetUniform("Bokeh").set(bokeh[0], bokeh[1], bokeh[2], 0f);
+        composite.safeGetUniform("Character").set(bokeh[3], bokeh[4], bokeh[5], 0f);
         draw(composite, full);
 
         main.bindWrite(true);
         full.blitToScreen(w, h);
     }
 
-    /** Blades, round (1/0) and style of the lens's discs, as {@code BokehKernel.Shape.of} sees them for the photo. */
+    /**
+     * Blades, round (1/0), style, spherical aberration, apodisation and obstruction of the lens's discs, as
+     * {@code BokehKernel.Shape.of} sees them for the photo.
+     */
     private static float[] bokehShape() {
         var optics = Viewfinder.chain().lens().optics();
+        var ch = optics.character();
         float focal = Viewfinder.focal();
         double stopsDown = Math.max(0, Math.log(Viewfinder.exposure().fNumber() / Viewfinder.chain().maxApertureAt(focal)) / Math.log(2));
         boolean round = optics.rounded() || stopsDown < 0.17;
-        return new float[]{Math.max(5, optics.blades()), round ? 1 : 0, ImageParams.bokeh(optics.bokeh())};
+        return new float[]{Math.max(5, optics.blades()), round ? 1 : 0, ImageParams.bokeh(optics.bokeh()),
+                (float) (ch.spherical() * Math.max(0, 1 - stopsDown / 2)),
+                (float) (ch.apodization() * Math.max(0.4, 1 - stopsDown / 3)), ch.obstruction()};
     }
 
     private static void prepareState() {

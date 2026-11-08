@@ -7,6 +7,7 @@
     "uniforms": [
         { "name": "InvProj", "type": "float", "count": 4, "values": [ 0.0, 0.0, 0.0, 1.0 ] },
         { "name": "Tilt", "type": "float", "count": 2, "values": [ 0.0, 1.0 ] },
+        { "name": "Curve", "type": "float", "count": 4, "values": [ 0.0, 1.0, 1.0, 1.0 ] },
         { "name": "Lens", "type": "float", "count": 4, "values": [ 50.0, 4.0, 3000.0, 100.0 ] },
         { "name": "MaxRadius", "type": "float", "count": 1, "values": [ 16.0 ] }
     ]

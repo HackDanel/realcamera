@@ -790,5 +790,7 @@
   "realcamera.step_up_ring.realcamera.step_up_72_77": "Step-up ring 72→77 mm",
   "realcamera.step_up_ring.realcamera.step_up_77_82": "Step-up ring 77→82 mm",
   "realcamera.step_up_ring.realcamera.step_up_82_95": "Step-up ring 82→95 mm",
-  "realcamera.step_up_ring.realcamera.step_up_95_112": "Step-up ring 95→112 mm"
+  "realcamera.step_up_ring.realcamera.step_up_95_112": "Step-up ring 95→112 mm",
+  "realcamera.lens.realcamera.sony_fe_100_stf": "Sony FE 100mm F2.8 STF GM OSS",
+  "realcamera.lens.realcamera.nikon_reflex_500_f8": "Nikon Reflex-NIKKOR 500mm f/8"
 }

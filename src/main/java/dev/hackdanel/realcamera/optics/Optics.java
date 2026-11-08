@@ -42,6 +42,21 @@ public final class Optics {
         return (focalMm / fNumber) * (vd - v) / vd;
     }
 
+    /**
+     * Focus distance (m, from the sensor) a lens focused at {@code focusM} has where the plane of best focus lies
+     * {@code imageShiftMm} further from the lens (+): field curvature brings the frame edges' focus closer. Shifts
+     * that would focus beyond infinity are clamped to infinity (1e6 m).
+     */
+    public static double curvedFocusM(double focalMm, double focusM, double imageShiftMm) {
+        if (imageShiftMm == 0) return focusM;
+        double s = Math.max(focusM * 1000, focalMm * 4.001);
+        double u = (s + Math.sqrt(s * s - 4 * s * focalMm)) / 2, v = s - u;
+        double v2 = v + imageShiftMm;
+        if (v2 <= focalMm * 1.000001) return 1e6;
+        double u2 = 1 / (1 / focalMm - 1 / v2);
+        return Math.min(1e6, (u2 + v2) / 1000);
+    }
+
     /** Effective wavelengths (mm) of the red, green and blue channels of a camera's colour filter array. */
     public static final double[] CHANNEL_WAVELENGTH_MM = {0.000600, 0.000530, 0.000460};
 

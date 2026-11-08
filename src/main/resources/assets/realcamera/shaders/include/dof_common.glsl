@@ -3,13 +3,27 @@
 uniform vec4 InvProj;   // inverse projection m22, m32, m23, m33: view z from NDC depth
 uniform vec4 Lens;      // focal length (mm), f-number, focus distance (mm), output pixels per sensor mm
 uniform vec2 Tilt;      // tilted lens: sin(tilt) / focal length (1/mm), and 1 / projection m11 (screen y to tan)
+uniform vec4 Curve;     // field curvature: image shift at the frame corner (mm), screen width and height in sensor mm,
+                        // 1 / (half diagonal of the frame in mm)^2
 
-// Focus distance (mm) for a screen row: a tilted lens turns the plane of focus (Optics.tiltedFocusM).
+// Focus distance (mm) for a screen position: a tilted lens turns the plane of focus (Optics.tiltedFocusM), field
+// curvature brings the frame edges' focus closer (Optics.curvedFocusM).
 float rcFocusMm(vec2 uv) {
-    if (Tilt.x == 0.0) return Lens.z;
-    float tanPhi = (uv.y * 2.0 - 1.0) * Tilt.y;
-    float denom = 1.0 - Lens.z * tanPhi * Tilt.x;
-    return denom <= 1.0e-4 ? 1.0e9 : min(1.0e9, Lens.z / denom);
+    float s = Lens.z;
+    if (Tilt.x != 0.0) {
+        float tanPhi = (uv.y * 2.0 - 1.0) * Tilt.y;
+        float denom = 1.0 - Lens.z * tanPhi * Tilt.x;
+        s = denom <= 1.0e-4 ? 1.0e9 : min(1.0e9, Lens.z / denom);
+    }
+    if (Curve.x > 0.0) {
+        vec2 mm = (uv - 0.5) * Curve.yz;
+        float f = Lens.x;
+        s = max(s, f * 4.001);
+        float v = 2.0 * f / (1.0 + sqrt(max(0.0, 1.0 - 4.0 * f / s)));
+        float v2 = v + Curve.x * dot(mm, mm) * Curve.w;
+        s = v2 <= f * 1.000001 ? 1.0e9 : min(1.0e9, f * v2 / (v2 - f) + v2);
+    }
+    return s;
 }
 
 // Distance along the view axis in mm; 1e7 for the sky, -1 when unknown (a shader pack cleared the depth).

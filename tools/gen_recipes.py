@@ -141,6 +141,8 @@ def stage6_catalog():
             ing.append((mc("iron_ingot"), 1))
         if "tilt_shift" in spec["optics"]:
             ing.append((mc("piston"), 2))
+        if l["kind"] == "mirror":
+            ing.append((mc("glass"), 2))  # the two mirrors
         time = {"entry": 200, "mid": 260, "pro": 340, "flagship": 400}[tier]
         assembly(f"lens_{l['key']}", ing, rc("lens"), 1, time, {f"{NS}:lens": rc(l["key"])})
 

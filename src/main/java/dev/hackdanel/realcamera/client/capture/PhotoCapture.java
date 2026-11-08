@@ -795,7 +795,9 @@ public final class PhotoCapture {
                 chain.sharpness(), chain.lens().distortionAt(chain.lensFocal(focal)) * q * q,
                 optics.caPx() * (w / 3840.0) * q, chain.imageCircle(), optics.blades(),
                 optics.rounded(), optics.flare());
-        lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh())).withLoca(chain.locaMm(focal));
+        var ch = optics.character();
+        lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh())).withLoca(chain.locaMm(focal))
+                .withCharacter(new ImageParams.Character(ch.spherical(), ch.apodization(), ch.obstruction()));
         int projection = chain.projection();
         if (projection != Optics.PROJ_RECTILINEAR) {
             double halfDiag = Math.hypot(sensor.widthMm(), sensor.heightMm()) / 2;
@@ -809,7 +811,7 @@ public final class PhotoCapture {
                 new ImageParams.Sensor(exposureEv, isoGain, sensor.noiseLuma(), sensor.noiseChroma(),
                         (double) w * h / (sensor.megapixels() * 1e6), sensor.dynamicRangeEv(), areaFactor, belowBase),
                 new ImageParams.Focus(focal, exposure.fNumber(), focusDistance, sensor.widthMm(),
-                        chain.tiltDeg(settings)),
+                        chain.tiltDeg(settings), ch.fieldCurvature() * q * q), // a smaller sensor sees less of the curve
                 lens, ImageParams.STILL, ImageParams.NO_SUN,
                 new ImageParams.Colour(wb[0], wb[1], wb[2],
                         profile == null ? 1 : profile.contrast(), profile == null ? 1 : profile.saturation(),

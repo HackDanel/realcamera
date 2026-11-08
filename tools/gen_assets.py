@@ -794,6 +794,11 @@ def lens_elements(cx, cy, z_back, length, radius, R, zoom=True, look="black", ki
             px, py = cx + math.cos(ang) * radius * 0.8, cy + math.sin(ang) * radius * 0.8
             extra.append(element([px - radius * 0.28, py - radius * 0.28, z - 0.7], [px + radius * 0.28, py + radius * 0.28, z],
                                  all_faces(R["dark"])))
+    elif kind == "mirror":
+        # catadioptric: a wide glass front with the secondary mirror's dark housing in its middle
+        seg(z - f_len, z, radius, R["focus"], cap_front=R["glass"])
+        z -= f_len
+        seg(z - 0.25, z, radius * 0.38, R["dark"], cap_front=R["dark"])
     else:
         seg(z - f_len, z, radius, R["focus"], cap_front=None if front_ring else R["glass"])
         z -= f_len

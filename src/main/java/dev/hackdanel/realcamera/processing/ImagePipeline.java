@@ -454,15 +454,27 @@ public final class ImagePipeline {
         float[] r = new float[depth.length];
         int h = depth.length / w;
         double pxPerMm = w / f.sensorWidthMm();
+        boolean curved = f.fieldCurvatureMm() > 0;
         java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
-            double focus = rowFocusM(f, y, w, h);
+            double rowFocus = rowFocusM(f, y, w, h);
             for (int x = 0; x < w; x++) {
                 int i = y * w + x;
+                double focus = curved ? curvedFocusM(f, rowFocus, x, y, w, h) : rowFocus;
                 double c = (Optics.signedBlurMm(f.focalMm(), f.fNumber(), focus, depth[i]) + offsetMm) * pxPerMm * 0.5;
                 r[i] = (float) Math.max(-maxRadius, Math.min(maxRadius, c));
             }
         });
         return r;
+    }
+
+    /**
+     * Focus distance at a pixel of a lens with field curvature: the plane of best focus bends towards the lens with
+     * the square of the image height, so the frame edges focus closer than the centre.
+     */
+    static double curvedFocusM(ImageParams.Focus f, double focusM, int x, int y, int w, int h) {
+        double cx = w / 2.0, cy = h / 2.0;
+        double rho2 = ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy)) / (cx * cx + cy * cy);
+        return Optics.curvedFocusM(f.focalMm(), focusM, f.fieldCurvatureMm() * rho2);
     }
 
     /**
@@ -515,12 +527,14 @@ public final class ImagePipeline {
         if (largest < 0.75f) {
             return img;
         }
-        List<Highlight> highlights = extractHighlights(img, findHighlights(img, radius, w, h), w, h);
+        List<Highlight> found = extractHighlights(img, findHighlights(img, radius, w, h), w, h);
+        List<Highlight> highlights = new ArrayList<>(found.size());
         // small bright sources (lamps, glints) often get no reliable depth of their own: blur their core like
         // their surroundings, otherwise a sharp dot stays in the middle of the bokeh disc
-        for (Highlight hl : highlights) {
+        for (Highlight hl : found) {
             int cx = (int) hl.x, cy = (int) hl.y, k = 3;
             float side = Math.signum(signedAt(signed, radius, w, h, cx, cy, 8));
+            highlights.add(hl.withNear(side > 0));
             for (int y = Math.max(0, cy - k); y <= Math.min(h - 1, cy + k); y++) {
                 for (int x = Math.max(0, cx - k); x <= Math.min(w - 1, cx + k); x++) {
                     int i = y * w + x;
@@ -605,9 +619,18 @@ public final class ImagePipeline {
     // ------------------------------------------------------------------ bokeh highlights
 
     /** A bright out-of-focus point: position, blur radius, colour and (after extraction) its light energy. */
-    record Highlight(float x, float y, float r, float cr, float cg, float cb, float er, float eg, float eb) {
+    record Highlight(float x, float y, float r, float cr, float cg, float cb, float er, float eg, float eb, boolean near) {
         Highlight(float x, float y, float r, float cr, float cg, float cb) {
-            this(x, y, r, cr, cg, cb, 0, 0, 0);
+            this(x, y, r, cr, cg, cb, 0, 0, 0, false);
+        }
+
+        Highlight(float x, float y, float r, float cr, float cg, float cb, float er, float eg, float eb) {
+            this(x, y, r, cr, cg, cb, er, eg, eb, false);
+        }
+
+        /** near: in front of the focus plane (the disc is inverted and lens character draws it differently). */
+        Highlight withNear(boolean n) {
+            return new Highlight(x, y, r, cr, cg, cb, er, eg, eb, n);
         }
     }
 
@@ -741,18 +764,16 @@ public final class ImagePipeline {
      */
     static void drawBokeh(float[] img, int w, int h, List<Highlight> highlights, ImageParams.Lens lens, double stopsDown) {
         double cx = w / 2.0, cy = h / 2.0, halfDiag = Math.hypot(cx, cy);
-        int blades = Math.max(5, lens.blades());
-        int style = lens.bokeh();
-        boolean round = lens.rounded() || stopsDown < 0.17;
-        BokehKernel.Shape shape = new BokehKernel.Shape(blades, round, style, stopsDown);
+        BokehKernel.Shape shape = BokehKernel.Shape.of(lens, stopsDown);
+        int blades = shape.blades();
+        int style = shape.style();
+        boolean round = shape.round();
         double barrel = Math.max(0, 1 - stopsDown / 2);
         double budget = 6.0 * w * h; // pixels of disc area drawn at most (the brightest highlights come first)
         for (Highlight hl : highlights) {
             float r = hl.r;
             float area = (float) (Math.PI * r * r);
             if ((budget -= area) < 0) break;
-            // the extracted light spread over the disc, with a slightly brighter rim (mean rim factor ~1.07)
-            float k = 1f / area / 1.07f;
             double ox = hl.x - cx, oy = hl.y - cy;
             double dist = Math.hypot(ox, oy) / halfDiag;
             double clipShift = r * 1.2 * dist * barrel; // second circle shifted towards the centre
@@ -761,29 +782,41 @@ public final class ImagePipeline {
             double squeeze = style == ImageParams.BOKEH_SWIRL ? 1 - 0.7 * Math.min(1, dist * 1.2) * barrel : 1;
             int x0 = (int) Math.floor(hl.x - r), x1 = (int) Math.ceil(hl.x + r);
             int y0 = (int) Math.floor(hl.y - r), y1 = (int) Math.ceil(hl.y + r);
-            for (int y = Math.max(0, y0); y <= Math.min(h - 1, y1); y++) {
-                for (int x = Math.max(0, x0); x <= Math.min(w - 1, x1); x++) {
-                    double dx = x - hl.x, dy = y - hl.y;
-                    double rr = Math.hypot(dx, dy);
-                    double edge = round ? r : polygonRadius(Math.atan2(dy, dx), blades, r);
-                    if (squeeze < 1) {
-                        double rad = -(dx * ux + dy * uy), tan = dx * uy - dy * ux;
-                        double q = Math.hypot(rad / squeeze, tan);
-                        if (q > r) continue;
-                        rr = q;
-                        edge = r;
+            // the extracted light spread over the disc as its profile says: weigh first, then share it out
+            double sum = 0;
+            for (int pass = 0; pass < 2; pass++) {
+                float k = pass == 0 ? 0 : (float) (1 / Math.max(1e-9, sum));
+                for (int y = Math.max(0, y0); y <= Math.min(h - 1, y1); y++) {
+                    for (int x = Math.max(0, x0); x <= Math.min(w - 1, x1); x++) {
+                        double dx = x - hl.x, dy = y - hl.y;
+                        double rr = Math.hypot(dx, dy);
+                        // in front of the focus plane the aperture's image is inverted
+                        double theta = hl.near ? Math.atan2(-dy, -dx) : Math.atan2(dy, dx);
+                        double edge = round ? r : polygonRadius(theta, blades, r);
+                        if (squeeze < 1) {
+                            double rad = -(dx * ux + dy * uy), tan = dx * uy - dy * ux;
+                            double q = Math.hypot(rad / squeeze, tan);
+                            if (q > r) continue;
+                            rr = q;
+                            edge = r;
+                        }
+                        if (rr > edge) continue;
+                        // cat's eye: also inside a circle of radius r shifted towards the image centre
+                        double ex = dx - ux * clipShift, ey = dy - uy * clipShift;
+                        if (Math.hypot(ex, ey) > r * 1.05) continue;
+                        double e = rr / Math.max(1, edge);
+                        float rim = BokehKernel.profile(shape, Math.min(1, e), hl.near);
+                        if (pass == 0) {
+                            sum += rim;
+                            continue;
+                        }
+                        int j = (y * w + x) * 3;
+                        img[j] += hl.er * k * rim;
+                        img[j + 1] += hl.eg * k * rim;
+                        img[j + 2] += hl.eb * k * rim;
                     }
-                    if (rr > edge) continue;
-                    // cat's eye: also inside a circle of radius r shifted towards the image centre
-                    double ex = dx - ux * clipShift, ey = dy - uy * clipShift;
-                    if (Math.hypot(ex, ey) > r * 1.05) continue;
-                    double e = rr / Math.max(1, edge);
-                    float rim = BokehKernel.profile(shape, e, false);
-                    int j = (y * w + x) * 3;
-                    img[j] += hl.er * k * rim;
-                    img[j + 1] += hl.eg * k * rim;
-                    img[j + 2] += hl.eb * k * rim;
                 }
+                if (sum <= 0) break;
             }
         }
     }
@@ -1061,8 +1094,10 @@ public final class ImagePipeline {
             sigmaPx[c] = Optics.diffractionSigmaMm(p.focus().fNumber(), Optics.CHANNEL_WAVELENGTH_MM[c]) / Math.max(1e-6, pitchMm);
         }
         diffraction(img, w, h, sigmaPx);
-        // corners are softer wide open (coma, astigmatism, field curvature)
-        double corner = Math.max(0, 1 - stopsDown(p) / 2.5) * Math.max(0, 1.05 - l.sharpness()) * 2.5;
+        // corners are softer wide open (coma, astigmatism; field curvature too, unless the depth of field already
+        // draws it from the lens's measured curvature)
+        double curvature = p.focus().fieldCurvatureMm() > 0 ? 0.6 : 1;
+        double corner = Math.max(0, 1 - stopsDown(p) / 2.5) * Math.max(0, 1.05 - l.sharpness()) * 2.5 * curvature;
         if (corner > 0.02) {
             float[] soft = box3(img, w, h);
             float edge = (float) Math.min(1, corner);

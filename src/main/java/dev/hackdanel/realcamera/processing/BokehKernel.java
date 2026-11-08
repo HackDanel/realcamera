@@ -13,11 +13,26 @@ final class BokehKernel {
      * @param round      a circle instead of a polygon (rounded blades, or wide open where the blades are retracted)
      * @param style      ImageParams.BOKEH_*
      * @param stopsDown  stops below the lens's widest aperture (lens character fades stopping down)
+     * @param spherical  spherical aberration, already faded by stopping down (+: soft discs behind the focus plane,
+     *                   bright-rimmed ones in front of it)
+     * @param apodization 0..1: discs fade softly to their edge
+     * @param obstruction 0..0.6: dark centre of a mirror lens's discs, fraction of the radius
      */
-    record Shape(int blades, boolean round, int style, double stopsDown) {
+    record Shape(int blades, boolean round, int style, double stopsDown, double spherical, double apodization,
+                 double obstruction) {
+        Shape(int blades, boolean round, int style, double stopsDown) {
+            this(blades, round, style, stopsDown, 0, 0, 0);
+        }
+
         static Shape of(ImageParams p) {
-            double down = ImagePipeline.stopsDown(p);
-            return new Shape(Math.max(5, p.lens().blades()), p.lens().rounded() || down < 0.17, p.lens().bokeh(), down);
+            return of(p.lens(), ImagePipeline.stopsDown(p));
+        }
+
+        static Shape of(ImageParams.Lens l, double down) {
+            ImageParams.Character c = l.character();
+            return new Shape(Math.max(5, l.blades()), l.rounded() || down < 0.17, l.bokeh(), down,
+                    c.spherical() * Math.max(0, 1 - down / 2), c.apodization() * Math.max(0.4, 1 - down / 3),
+                    c.obstruction());
         }
     }
 
@@ -28,16 +43,31 @@ final class BokehKernel {
 
     /**
      * Relative brightness at e (0 centre .. 1 edge) of the disc. {@code near}: the point lies in front of the focus
-     * plane (reserved for lens character that differs on the two sides).
+     * plane (spherical aberration draws the two sides differently).
      */
     static float profile(Shape s, double e, boolean near) {
-        return switch (s.style()) {
+        if (s.obstruction() > 0 && e < s.obstruction()) {
+            return 0; // the secondary mirror's shadow
+        }
+        double v = switch (s.style()) {
             // soap bubble: a bright thin outline with a dim centre
-            case ImageParams.BOKEH_BUBBLE -> (float) (0.3 + 2.6 * Math.pow(e, 7));
+            case ImageParams.BOKEH_BUBBLE -> 0.3 + 2.6 * Math.pow(e, 7);
             // onion rings from aspherical elements
-            case ImageParams.BOKEH_BUSY -> (float) ((0.8 + 0.4 * e) * (1 + 0.3 * Math.sin(e * 22)));
-            default -> (float) (0.8 + 0.4 * e);
+            case ImageParams.BOKEH_BUSY -> (0.8 + 0.4 * e) * (1 + 0.3 * Math.sin(e * 22));
+            default -> 0.8 + 0.4 * e;
         };
+        if (s.spherical() != 0) {
+            // under-corrected: light piles up at the rim of the discs in front of the focus and in the middle of
+            // those behind it
+            double k = (near ? -1 : 1) * s.spherical() * 0.7;
+            v *= Math.max(0.05, 1 + k * (0.6 - 1.2 * e));
+        }
+        if (s.apodization() > 0) {
+            // the filter darkens towards the rim of the aperture: a gaussian-like disc instead of a bright edge
+            double a = s.apodization();
+            v = (v + (1 - v) * a) * ((1 - a) + a * Math.exp(-2.5 * e * e));
+        }
+        return (float) Math.max(0, v);
     }
 
     /** A discrete kernel: offsets and normalised weights. */

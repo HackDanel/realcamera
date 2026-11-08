@@ -1,0 +1,36 @@
+{
+  "brand": "Nikon",
+  "exif_lens_model": "Reflex-NIKKOR 500mm f/8",
+  "mount": "realcamera:nikon_f",
+  "image_circle": "ff",
+  "focal_min": 500,
+  "focal_max": 500,
+  "aperture_wide": 8.0,
+  "aperture_tele": 8.0,
+  "aperture_min": 8,
+  "min_focus_m": 1.5,
+  "af": {
+    "motor": "none",
+    "speed": 0
+  },
+  "ois_stops": 0,
+  "optics": {
+    "blades": 9,
+    "rounded": true,
+    "vignetting_ev": 1.2,
+    "sharpness": 0.85,
+    "distortion_wide": 0.0,
+    "distortion_tele": 0.0,
+    "ca_px": 0.2,
+    "flare": 0.6,
+    "bokeh": "smooth",
+    "max_magnification": 0.33,
+    "character": {
+      "obstruction": 0.38
+    },
+    "loca": 0.1
+  },
+  "filter_mm": 82,
+  "tc_compatible": false,
+  "model": "realcamera:item/lens/nikon_reflex_500_f8"
+}

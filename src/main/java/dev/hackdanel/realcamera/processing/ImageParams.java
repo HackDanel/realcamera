@@ -121,10 +121,29 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
      * Thin-lens focus geometry; sensorWidthMm converts the blur circle to pixels. tiltDeg: lens tilt of a
      * tilt-shift lens (+ = plane of focus turned towards the ground).
      */
-    public record Focus(double focalMm, double fNumber, double focusM, double sensorWidthMm, double tiltDeg) {
-        public Focus(double focalMm, double fNumber, double focusM, double sensorWidthMm) {
-            this(focalMm, fNumber, focusM, sensorWidthMm, 0);
+    public record Focus(double focalMm, double fNumber, double focusM, double sensorWidthMm, double tiltDeg,
+                        double fieldCurvatureMm) {
+        public Focus(double focalMm, double fNumber, double focusM, double sensorWidthMm, double tiltDeg) {
+            this(focalMm, fNumber, focusM, sensorWidthMm, tiltDeg, 0);
         }
+
+        public Focus(double focalMm, double fNumber, double focusM, double sensorWidthMm) {
+            this(focalMm, fNumber, focusM, sensorWidthMm, 0, 0);
+        }
+
+        /** fieldCurvatureMm: image-side focus shift at the frame corner (+ = the corners focus closer). */
+        public Focus withFieldCurvature(double mm) {
+            return new Focus(focalMm, fNumber, focusM, sensorWidthMm, tiltDeg, mm);
+        }
+    }
+
+    /**
+     * Out-of-focus character beyond blade shape and bokeh style (spec.LensSpec.Character): spherical -1..1 (+ soft
+     * discs behind the focus plane, bright-rimmed ones in front), apodization 0..1 (discs fade to their edge),
+     * obstruction 0..0.6 (mirror lens ring discs, fraction of the radius).
+     */
+    public record Character(double spherical, double apodization, double obstruction) {
+        public static final Character NONE = new Character(0, 0, 0);
     }
 
     /**
@@ -140,10 +159,18 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
      * @param renderScale rendered focal length / output focal length (< 1: the frame was rendered wider)
      * @param locaMm      longitudinal (axial) chromatic aberration: how much further behind the lens red and blue
      *                    come to focus than green, mm in image space (the secondary spectrum of an achromat)
+     * @param character   out-of-focus character (spherical aberration, apodisation, mirror obstruction)
      */
     public record Lens(double vignettingEv, double maxAperture, double sharpness, double distortion, double caPx,
                        double imageCircle, int blades, boolean rounded, double flare, int bokeh, int projection,
-                       double renderCorner, double shiftPx, double renderScale, double locaMm) {
+                       double renderCorner, double shiftPx, double renderScale, double locaMm, Character character) {
+        public Lens(double vignettingEv, double maxAperture, double sharpness, double distortion, double caPx,
+                    double imageCircle, int blades, boolean rounded, double flare, int bokeh, int projection,
+                    double renderCorner, double shiftPx, double renderScale, double locaMm) {
+            this(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
+                    bokeh, projection, renderCorner, shiftPx, renderScale, locaMm, Character.NONE);
+        }
+
         public Lens(double vignettingEv, double maxAperture, double sharpness, double distortion, double caPx,
                     double imageCircle, int blades, boolean rounded, double flare) {
             this(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
@@ -159,22 +186,27 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
 
         public Lens withBokeh(int b) {
             return new Lens(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
-                    b, projection, renderCorner, shiftPx, renderScale, locaMm);
+                    b, projection, renderCorner, shiftPx, renderScale, locaMm, character);
         }
 
         public Lens withProjection(int proj, double corner) {
             return new Lens(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
-                    bokeh, proj, corner, shiftPx, renderScale, locaMm);
+                    bokeh, proj, corner, shiftPx, renderScale, locaMm, character);
         }
 
         public Lens withShift(double px, double scale) {
             return new Lens(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
-                    bokeh, projection, renderCorner, px, scale, locaMm);
+                    bokeh, projection, renderCorner, px, scale, locaMm, character);
         }
 
         public Lens withLoca(double mm) {
             return new Lens(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
-                    bokeh, projection, renderCorner, shiftPx, renderScale, mm);
+                    bokeh, projection, renderCorner, shiftPx, renderScale, mm, character);
+        }
+
+        public Lens withCharacter(Character c) {
+            return new Lens(vignettingEv, maxAperture, sharpness, distortion, caPx, imageCircle, blades, rounded, flare,
+                    bokeh, projection, renderCorner, shiftPx, renderScale, locaMm, c);
         }
     }
 
@@ -275,7 +307,8 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
     }
 
     public ImageParams withFocus(double focal, double f, double focusM) {
-        return new ImageParams(sensor, new Focus(focal, f, focusM, focus.sensorWidthMm, focus.tiltDeg), lens, motion, sun, colour, extras, seed);
+        return new ImageParams(sensor, new Focus(focal, f, focusM, focus.sensorWidthMm, focus.tiltDeg, focus.fieldCurvatureMm),
+                lens, motion, sun, colour, extras, seed);
     }
 
     public ImageParams withNoise(double iso, double luma, double chroma) {
@@ -286,7 +319,8 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
     }
 
     public ImageParams withTilt(double tiltDeg) {
-        return new ImageParams(sensor, new Focus(focus.focalMm, focus.fNumber, focus.focusM, focus.sensorWidthMm, tiltDeg),
+        return new ImageParams(sensor, new Focus(focus.focalMm, focus.fNumber, focus.focusM, focus.sensorWidthMm, tiltDeg,
+                focus.fieldCurvatureMm),
                 lens, motion, sun, colour, extras, seed);
     }
 
