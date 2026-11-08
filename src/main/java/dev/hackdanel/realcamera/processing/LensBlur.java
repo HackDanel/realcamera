@@ -59,12 +59,26 @@ final class LensBlur {
             if (k0 + 1 < levels && k0 + 1 >= 0) used[k0 + 1] = true;
         }
 
+        // the layers on the graphics card when the client offers it (same work, much faster), else here
+        GpuBlur.Job job = new GpuBlur.Job(img, signed, w, h, levels, farUsed, nearUsed,
+                shape.blades(), shape.round(), shape.style(), shape.stopsDown(), shape.spherical(), shape.apodization(),
+                shape.obstruction());
+        GpuBlur.Result gpu = GpuBlur.tryLayers(job);
+        long cpuStart, cpuNanos = 0;
+
         // 1. background
-        float[] bg = new float[n * 4];
-        for (int k = levels - 1; k >= 0; k--) {
-            if (!farUsed[k]) continue;
-            Layer l = blurLayer(img, signed, w, h, shape, k, false);
-            composite(l, bg, w, h, true);
+        float[] bg;
+        if (gpu != null) {
+            bg = gpu.bg();
+        } else {
+            cpuStart = System.nanoTime();
+            bg = new float[n * 4];
+            for (int k = levels - 1; k >= 0; k--) {
+                if (!farUsed[k]) continue;
+                Layer l = blurLayer(img, signed, w, h, shape, k, false);
+                composite(l, bg, w, h, true);
+            }
+            cpuNanos += System.nanoTime() - cpuStart;
         }
 
         // 2. in focus over the background (its holes are filled after the foreground, step 5)
@@ -103,19 +117,29 @@ final class LensBlur {
 
         // 4. foreground, farthest (nearest the focus plane) first; what lay under each pixel's own layer when it was
         // laid on is what is behind that pixel
-        float[] fg = bg; // the background is no longer needed: reuse its memory
-        java.util.Arrays.fill(fg, 0);
+        float[] fg;
         boolean anyNear = false;
         float[] behind = null;
-        for (int k = 0; k < levels; k++) {
-            if (!nearUsed[k]) continue;
-            if (anyNear) {
-                if (behind == null) behind = new float[n * 4];
-                remember(fg, behind, signed, w, h, k);
+        if (gpu != null) {
+            fg = gpu.anyNear() ? gpu.fg() : bg;
+            anyNear = gpu.anyNear();
+            behind = gpu.behind();
+        } else {
+            cpuStart = System.nanoTime();
+            fg = bg; // the background is no longer needed: reuse its memory
+            java.util.Arrays.fill(fg, 0);
+            for (int k = 0; k < levels; k++) {
+                if (!nearUsed[k]) continue;
+                if (anyNear) {
+                    if (behind == null) behind = new float[n * 4];
+                    remember(fg, behind, signed, w, h, k);
+                }
+                anyNear = true;
+                Layer l = blurLayer(img, signed, w, h, shape, k, true);
+                composite(l, fg, w, h, true);
             }
-            anyNear = true;
-            Layer l = blurLayer(img, signed, w, h, shape, k, true);
-            composite(l, fg, w, h, true);
+            cpuNanos += System.nanoTime() - cpuStart;
+            GpuBlur.cpuTime(job, cpuNanos / 1e6);
         }
 
         // 5. holes: first from the foreground behind them, then from around them

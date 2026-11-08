@@ -73,6 +73,7 @@ neoForge {
             systemProperty 'realcamera.viewer', project.findProperty('viewer') ?: ''
             systemProperty 'realcamera.debugDumps', 'true'
             systemProperty 'realcamera.captureWarmup', project.findProperty('captureWarmup') ?: '1'
+            systemProperty 'realcamera.cpuDevelop', project.findProperty('cpuDevelop') ?: 'false'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
 

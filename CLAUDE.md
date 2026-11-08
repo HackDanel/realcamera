@@ -129,6 +129,11 @@ dispatched via `ClientBridge.handlePayload`.
    renders the frame pitched up by atan(shift/f) (`ComputeCameraAngles`) and `lensShift` re-projects it; tilt
    changes the focus distance per row (`Optics.tiltedFocusM`); bokeh styles smooth/busy/swirl/bubble. Depth of field:
    `LensBlur` + `BokehKernel` (one disc shape for every pixel and for the bokeh highlights).
+   The layer loops of `LensBlur` (downsample, disc convolution with `BokehKernel`'s exact taps per tile variant,
+   "over" composite, the behind-copy) can run on the GPU: `processing/GpuBlur` (pure interface + `kernels()` tables),
+   `client/render/GpuLensBlur` (raw GL 3.2, one layer per render-thread step, all GL state saved/restored). It picks
+   itself: first job GPU, next CPU, then the faster (GPU only if 1.5x faster; a step over 250 ms disables it).
+   Java stays the reference and the fallback; `-PcpuDevelop=true` (`realcamera.cpuDevelop`) forces Java.
    Motion (`processing/MotionBlur`): the frame is mid-exposure; the world smears by shake + pan, plus parallax if the
    camera moves; moving entities (`CameraRays.motionField`, captured with the ray grid) are layers smeared over a
    filled-in background, so panning with a runner keeps it sharp; flash light is a separate sharp layer (front/rear

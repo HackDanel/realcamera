@@ -46,6 +46,8 @@ public final class RealCameraClient {
     }
 
     private static void setup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {
+        // the photo's depth of field on the graphics card (Java does it when this fails)
+        dev.hackdanel.realcamera.client.render.GpuLensBlur.register();
         // film roll icon: canister / developed strip / ruined strip
         event.enqueueWork(() -> net.minecraft.client.renderer.item.ItemProperties.register(
                 dev.hackdanel.realcamera.registry.RCItems.FILM_ROLL.get(), RealCamera.id("state"),
