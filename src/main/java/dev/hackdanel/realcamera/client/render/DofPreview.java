@@ -9,6 +9,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.hackdanel.realcamera.RealCamera;
 import dev.hackdanel.realcamera.client.camera.Viewfinder;
+import dev.hackdanel.realcamera.processing.ImageParams;
 import dev.hackdanel.realcamera.client.capture.PhotoCapture;
 import dev.hackdanel.realcamera.client.hud.FrameSampler;
 import dev.hackdanel.realcamera.config.ClientConfig;
@@ -213,8 +214,10 @@ public final class DofPreview {
         halfBlurred = ensure(halfBlurred, hw, hh, GL11.GL_LINEAR);
         full = ensure(full, w, h, GL11.GL_NEAREST);
         float maxHalf = maxFull / scale;
-        // spiral step: the sample count grows with radius² / (2 · step)
-        float radScale = Math.max(0.6f, maxHalf * maxHalf / (2f * MAX_SAMPLES));
+        // the spiral reaches as far as this frame really blurs (not the 15% cap), so small blur still gets samples
+        // close to the centre; the sample count grows with radius² / (2 · step)
+        float reach = Math.min(maxHalf, maxRadiusNow / scale + 1);
+        float radScale = Math.max(0.6f, reach * reach / (2f * MAX_SAMPLES));
 
         prepareState();
         prep.setSampler("DiffuseSampler", main.getColorTextureId());
@@ -228,17 +231,32 @@ public final class DofPreview {
         blur.setSampler("DiffuseSampler", half.getColorTextureId());
         blur.safeGetUniform("OutSize").set((float) hw, (float) hh);
         blur.safeGetUniform("MaxRadius").set(maxHalf);
+        blur.safeGetUniform("Reach").set(reach);
         blur.safeGetUniform("RadScale").set(radScale);
+        float[] bokeh = bokehShape();
+        blur.safeGetUniform("Bokeh").set(bokeh[0], bokeh[1], bokeh[2], 0f);
         draw(blur, halfBlurred);
 
         composite.setSampler("DiffuseSampler", main.getColorTextureId());
         composite.setSampler("CocSampler", radii.getColorTextureId());
         composite.setSampler("BlurSampler", halfBlurred.getColorTextureId());
         composite.safeGetUniform("BlurMaxRadius").set(maxFull);
+        composite.safeGetUniform("InSize").set((float) w, (float) h);
+        composite.safeGetUniform("Scale").set((float) scale);
+        composite.safeGetUniform("Bokeh").set(bokeh[0], bokeh[1], bokeh[2], 0f);
         draw(composite, full);
 
         main.bindWrite(true);
         full.blitToScreen(w, h);
+    }
+
+    /** Blades, round (1/0) and style of the lens's discs, as {@code BokehKernel.Shape.of} sees them for the photo. */
+    private static float[] bokehShape() {
+        var optics = Viewfinder.chain().lens().optics();
+        float focal = Viewfinder.focal();
+        double stopsDown = Math.max(0, Math.log(Viewfinder.exposure().fNumber() / Viewfinder.chain().maxApertureAt(focal)) / Math.log(2));
+        boolean round = optics.rounded() || stopsDown < 0.17;
+        return new float[]{Math.max(5, optics.blades()), round ? 1 : 0, ImageParams.bokeh(optics.bokeh())};
     }
 
     private static void prepareState() {

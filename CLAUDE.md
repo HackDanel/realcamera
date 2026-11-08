@@ -111,7 +111,8 @@ dispatched via `ClientBridge.handlePayload`.
    `optics/` is pure Java too. Keep both packages free of game classes. Special optics: fisheyes render a capped
    wide rectilinear frame (`Optics.renderVfovDeg`) and `ImagePipeline.fisheye` remaps it; a shifted tilt-shift lens
    renders the frame pitched up by atan(shift/f) (`ComputeCameraAngles`) and `lensShift` re-projects it; tilt
-   changes the focus distance per row (`Optics.tiltedFocusM`); bokeh styles smooth/busy/swirl/bubble.
+   changes the focus distance per row (`Optics.tiltedFocusM`); bokeh styles smooth/busy/swirl/bubble. Depth of field:
+   `LensBlur` + `BokehKernel` (one disc shape for every pixel and for the bokeh highlights).
    Motion (`processing/MotionBlur`): the frame is mid-exposure; the world smears by shake + pan, plus parallax if the
    camera moves; moving entities (`CameraRays.motionField`, captured with the ray grid) are layers smeared over a
    filled-in background, so panning with a runner keeps it sharp; flash light is a separate sharp layer (front/rear
@@ -214,8 +215,11 @@ axis; 1 model unit ≈ 9 mm, shared mount point in `tools/gen_assets.py`).
   depth map comes from the GPU depth buffer when it can; only the fallback (ray grid) has the old artefacts: grass
   blurred like the ground behind it, a sharp halo around wide-open portraits. Tiny light sources get the blur radius
   of their surroundings.
-- A gather blur alone leaves blurred foreground with a hard outline; `ImagePipeline.foregroundSpread` lays the
-  foreground (nearer than the focus plane) over an extrapolated background by its coverage.
+- Depth of field is `processing/LensBlur` (layers by signed blur radius, each convolved with the aperture disc of
+  `BokehKernel`, composited back to front; holes under the blurred foreground filled pull-push). A gaussian pyramid
+  looked like mush, and a gather blur alone leaves blurred foreground with a hard outline. The live preview
+  (`realcamera_dof_*`, `include/dof_bokeh.glsl`) uses the same disc shape; small blur is gathered at full resolution in
+  the composite, or the 1/8 pass made the viewfinder blurrier than the photo.
 - Outside review fixes (camera mechanics, exposure, optics, film, gameplay) are listed in `docs/review-fixes.md`.
 - Machine menus/screens must read the card through `CameraHelper.slotCard` (a camera over USB has no CARD
   component itself; reading the slot item directly showed an empty list for X2D and every USB camera).
