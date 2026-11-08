@@ -41,15 +41,18 @@ void main() {
         float angle = 0.0;
         vec2 px = 1.0 / InSize;
         for (int i = 0; i < 64 && radius < limit; i++) {
-            vec2 tc = texCoord + vec2(cos(angle), sin(angle)) * px * radius;
+            vec2 dir = vec2(cos(angle), sin(angle));
+            vec2 tc = texCoord + dir * px * radius;
             float sSigned = rcDecodeRadius(texture(CocSampler, tc).rg, BlurMaxRadius);
             float sSize = abs(sSigned);
             if (sSigned > centreSigned) {
                 sSize = min(sSize, own * 2.0); // behind this pixel
             }
             float edge = sSize * rcEdgeFactor(sSigned < 0.0 ? angle : angle + 3.14159265);
-            float m = smoothstep(radius - 0.5, radius + 0.5, edge);
-            float wt = m * rcProfile(clamp(radius / max(edge, 0.5), 0.0, 1.0), sSigned < 0.0);
+            float rr = radius;
+            float cat = rcVignetteShape(tc * InSize, InSize, -dir * radius, sSize, rr, edge);
+            float m = smoothstep(rr - 0.5, rr + 0.5, edge) * cat;
+            float wt = m * rcProfile(clamp(rr / max(edge, 0.5), 0.0, 1.0), sSigned < 0.0);
             colour += texture(DiffuseSampler, tc).rgb * wt + (colour / total) * (1.0 - m);
             total += wt + (1.0 - m);
             radius += stride / radius;

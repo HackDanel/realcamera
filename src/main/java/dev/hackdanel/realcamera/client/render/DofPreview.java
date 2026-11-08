@@ -250,8 +250,12 @@ public final class DofPreview {
         blur.safeGetUniform("Reach").set(reach);
         blur.safeGetUniform("RadScale").set(radScale);
         float[] bokeh = bokehShape();
-        blur.safeGetUniform("Bokeh").set(bokeh[0], bokeh[1], bokeh[2], 0f);
-        blur.safeGetUniform("Character").set(bokeh[3], bokeh[4], bokeh[5], 0f);
+        // the photo frame is the centred crop of the screen with the sensor's aspect
+        double aspect = Viewfinder.sensor().aspect();
+        double fw = Math.min(w, h * aspect), fh = Math.min(h, w / aspect);
+        float halfDiag = (float) (Math.hypot(fw, fh) / 2 / h);
+        blur.safeGetUniform("Bokeh").set(bokeh[0], bokeh[1], bokeh[2], halfDiag);
+        blur.safeGetUniform("Character").set(bokeh[3], bokeh[4], bokeh[5], bokeh[6]);
         draw(blur, halfBlurred);
 
         composite.setSampler("DiffuseSampler", main.getColorTextureId());
@@ -260,8 +264,8 @@ public final class DofPreview {
         composite.safeGetUniform("BlurMaxRadius").set(maxFull);
         composite.safeGetUniform("InSize").set((float) w, (float) h);
         composite.safeGetUniform("Scale").set((float) scale);
-        composite.safeGetUniform("Bokeh").set(bokeh[0], bokeh[1], bokeh[2], 0f);
-        composite.safeGetUniform("Character").set(bokeh[3], bokeh[4], bokeh[5], 0f);
+        composite.safeGetUniform("Bokeh").set(bokeh[0], bokeh[1], bokeh[2], halfDiag);
+        composite.safeGetUniform("Character").set(bokeh[3], bokeh[4], bokeh[5], bokeh[6]);
         draw(composite, full);
 
         main.bindWrite(true);
@@ -280,7 +284,8 @@ public final class DofPreview {
         boolean round = optics.rounded() || stopsDown < 0.17;
         return new float[]{Math.max(5, optics.blades()), round ? 1 : 0, ImageParams.bokeh(optics.bokeh()),
                 (float) (ch.spherical() * Math.max(0, 1 - stopsDown / 2)),
-                (float) (ch.apodization() * Math.max(0.4, 1 - stopsDown / 3)), ch.obstruction()};
+                (float) (ch.apodization() * Math.max(0.4, 1 - stopsDown / 3)), ch.obstruction(),
+                (float) Math.max(0, 1 - stopsDown / 2)};
     }
 
     private static void prepareState() {

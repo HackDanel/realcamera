@@ -35,7 +35,8 @@ void main() {
     vec2 px = 1.0 / OutSize;
     float limit = min(MaxRadius, Reach);
     for (int i = 0; i < 400 && radius < limit; i++) {
-        vec2 tc = texCoord + vec2(cos(angle), sin(angle)) * px * radius;
+        vec2 dir = vec2(cos(angle), sin(angle));
+        vec2 tc = texCoord + dir * px * radius;
         vec4 s = texture(DiffuseSampler, tc);
         float sSigned = radiusOf(s.a);
         float sSize = abs(sSigned);
@@ -44,8 +45,10 @@ void main() {
         }
         // this pixel seen from the sample lies opposite; a disc in front of the focus plane is inverted
         float edge = sSize * rcEdgeFactor(sSigned < 0.0 ? angle : angle + 3.14159265);
-        float m = smoothstep(radius - 0.5, radius + 0.5, edge);
-        float wt = m * rcProfile(clamp(radius / max(edge, 0.5), 0.0, 1.0), sSigned < 0.0);
+        float rr = radius;
+        float cat = rcVignetteShape(tc * OutSize, OutSize, -dir * radius, sSize, rr, edge);
+        float m = smoothstep(rr - 0.5, rr + 0.5, edge) * cat;
+        float wt = m * rcProfile(clamp(rr / max(edge, 0.5), 0.0, 1.0), sSigned < 0.0);
         colour += s.rgb * wt + (colour / total) * (1.0 - m);
         total += wt + (1.0 - m);
         if (sSigned < centreSigned && m > 0.5) {
