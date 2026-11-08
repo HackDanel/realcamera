@@ -53,7 +53,7 @@ public class PrinterMenu extends MachineMenu<PrinterBlockEntity> {
     @Override
     public boolean clickMenuButton(Player p, int id) {
         if (be != null) {
-            be.handleButton(id);
+            be.handleButton(p, id);
             if (id == PrinterBlockEntity.BUTTON_PRINT && be.printing() && p instanceof net.minecraft.server.level.ServerPlayer sp) {
                 dev.hackdanel.realcamera.gameplay.PhotoEvents.count(sp, "prints");
             }

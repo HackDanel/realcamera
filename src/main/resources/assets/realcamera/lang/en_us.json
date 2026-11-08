@@ -438,6 +438,7 @@
   "message.realcamera.rewound": "Film rewound, safe to take out",
   "message.realcamera.film_fogged": "Opened in the light: the film is fogged!",
   "message.realcamera.film_no_playback": "A film camera has no screen: you'll see the frames after developing",
+  "message.realcamera.printer.no_ink": "No ink: put in the cartridges",
   "message.realcamera.tank.wrong_chemistry": "Wrong chemistry for this film",
   "message.realcamera.tank.fogged": "Loaded in the light: the film is fogged",
   "message.realcamera.enlarger.fogged": "The paper got fogged: you need darkness or a safelight",

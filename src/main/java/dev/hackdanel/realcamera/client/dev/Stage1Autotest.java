@@ -168,6 +168,9 @@ public final class Stage1Autotest {
                 ItemStack cam = p.getMainHandItem();
                 printer.items().setStackInSlot(PrinterBlockEntity.SLOT_CARD, CameraHelper.parts(cam).card().copy());
                 printer.items().setStackInSlot(PrinterBlockEntity.SLOT_PAPER, RCStacks.paper("a4", "glossy", 4));
+                // no cartridges yet: the printer must refuse (issue #32)
+                printer.handleButton(PrinterBlockEntity.BUTTON_PRINT);
+                log(printer.printing() ? "FAIL printer started without ink" : "PASS printer refuses to print without ink");
                 printer.items().setStackInSlot(2, new ItemStack(RCItems.INK_CYAN.get()));
                 printer.items().setStackInSlot(3, new ItemStack(RCItems.INK_MAGENTA.get()));
                 printer.items().setStackInSlot(4, new ItemStack(RCItems.INK_YELLOW.get()));

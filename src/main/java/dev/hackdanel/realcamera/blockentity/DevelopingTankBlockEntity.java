@@ -135,10 +135,13 @@ public class DevelopingTankBlockEntity extends MachineBlockEntity {
         be.setChanged();
     }
 
-    /** The roll stays in the closed tank until the process is done. */
+    /**
+     * The roll, the chemistry in the tank and the changing bag it was loaded with stay put until the process is
+     * done (issue #30: the chemistry could be taken out mid-process and was never used up).
+     */
     @Override
     protected boolean canTake(int slot) {
-        return slot != SLOT_ROLL || progress < 0;
+        return slot == SLOT_OUTPUT || progress < 0;
     }
 
     /** Breaking the tank open mid-process exposes the half-developed film to light. */

@@ -273,6 +273,10 @@ public final class Stage5Autotest {
             be.items().setStackInSlot(2, new ItemStack(RCItems.CHANGING_BAG.get()));
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.DevelopingTankBlockEntity.BUTTON_PUSH); // +1
             be.handleButton(p, dev.hackdanel.realcamera.blockentity.DevelopingTankBlockEntity.BUTTON_START);
+            // while it develops, nothing but the output comes out (issue #30)
+            boolean locked = be.items().extractItem(1, 1, true).isEmpty() && be.items().extractItem(2, 1, true).isEmpty()
+                    && be.items().extractItem(0, 1, true).isEmpty();
+            log(locked ? "PASS tank holds roll, chemistry and bag while developing" : "FAIL chemistry or bag taken out mid-process");
             p.openMenu(be, darkroom);
         }), 30);
         screenshotsEnRu("s5_00_tank");

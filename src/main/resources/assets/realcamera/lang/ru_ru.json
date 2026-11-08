@@ -438,6 +438,7 @@
   "message.realcamera.rewound": "Плёнка перемотана, можно вынимать",
   "message.realcamera.film_fogged": "Крышку открыли на свету: плёнка засвечена!",
   "message.realcamera.film_no_playback": "У плёночной камеры нет экрана: кадры увидишь после проявки",
+  "message.realcamera.printer.no_ink": "Нет чернил: вставьте картриджи",
   "message.realcamera.tank.wrong_chemistry": "Не та химия для этой плёнки",
   "message.realcamera.tank.fogged": "Плёнку заряжали на свету — она засвечена",
   "message.realcamera.enlarger.fogged": "Бумага засветилась: нужна темнота или красный фонарь",

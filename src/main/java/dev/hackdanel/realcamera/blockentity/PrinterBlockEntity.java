@@ -122,6 +122,24 @@ public class PrinterBlockEntity extends MachineBlockEntity {
         return progress >= 0;
     }
 
+    /** The print button pressed by a player: says why nothing happens when there is no ink at all. */
+    public void handleButton(net.minecraft.world.entity.player.Player player, int id) {
+        if (id == BUTTON_PRINT && progress < 0 && !hasAnyInk()) {
+            player.displayClientMessage(Component.translatable("message.realcamera.printer.no_ink"), true);
+            return;
+        }
+        handleButton(id);
+    }
+
+    /** At least one cartridge with ink left: without any the printer has nothing to print with (issue #32). */
+    public boolean hasAnyInk() {
+        for (int c = 0; c < 4; c++) {
+            ItemStack cart = items.getStackInSlot(SLOT_INK_FIRST + c);
+            if (!cart.isEmpty() && InkCartridgeItem.ink(cart) > 0) return true;
+        }
+        return false;
+    }
+
     public void handleButton(int id) {
         int count = photos().size();
         switch (id) {
@@ -140,7 +158,7 @@ public class PrinterBlockEntity extends MachineBlockEntity {
     private boolean canStart() {
         List<UUID> list = photos();
         return selected < list.size() && items.getStackInSlot(SLOT_OUTPUT).isEmpty()
-                && items.getStackInSlot(SLOT_PAPER).has(RCComponents.PAPER.get());
+                && items.getStackInSlot(SLOT_PAPER).has(RCComponents.PAPER.get()) && hasAnyInk();
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, PrinterBlockEntity be) {
