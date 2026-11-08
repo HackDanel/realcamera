@@ -218,12 +218,42 @@ final class LensBlur {
             }
         }
         float[] dst = new float[lw * lh * 5];
-        int[] kdx = ker.dx(), kdy = ker.dy();
-        float[] kw = ker.w();
+        // towards the frame edges the barrel clips the disc (cat's eye) and a swirl lens squeezes it: one kernel per
+        // tile, by where the tile lies (direction in 16 steps, distance in 6)
+        boolean shaped = Math.max(0, 1 - shape.stopsDown() / 2) > 0.02;
+        BokehKernel.Kernel[] variants = new BokehKernel.Kernel[16 * 6];
+        int[] tileKernel = new int[tw * th];
+        double hcx = w / 2.0, hcy = h / 2.0, halfDiag = Math.hypot(hcx, hcy);
+        for (int ty = 0; ty < th; ty++) {
+            for (int tx = 0; tx < tw; tx++) {
+                if (!active[ty * tw + tx] || !shaped) {
+                    tileKernel[ty * tw + tx] = -1;
+                    continue;
+                }
+                double ox = ((tx + 0.5) * TILE * scale) - hcx, oy = ((ty + 0.5) * TILE * scale) - hcy;
+                double dist = Math.min(1, Math.hypot(ox, oy) / halfDiag);
+                int db = (int) Math.min(5, Math.floor(dist * 6));
+                if (db == 0) {
+                    tileKernel[ty * tw + tx] = -1;
+                    continue;
+                }
+                int ab = (int) Math.floorMod((long) Math.floor((Math.atan2(oy, ox) + Math.PI) / (2 * Math.PI) * 16 + 0.5), 16L);
+                int key = db * 16 + ab;
+                if (variants[key] == null) {
+                    double ang = ab * 2 * Math.PI / 16 - Math.PI, d = (db + 0.5) / 6;
+                    variants[key] = BokehKernel.kernel(shape, r / scale, near, d, -Math.cos(ang), -Math.sin(ang));
+                }
+                tileKernel[ty * tw + tx] = key;
+            }
+        }
         IntStream.range(0, lh).parallel().forEach(ly -> {
             int ty = ly / TILE;
             for (int lx = 0; lx < lw; lx++) {
                 if (!active[ty * tw + lx / TILE]) continue;
+                int kv = tileKernel[ty * tw + lx / TILE];
+                BokehKernel.Kernel kk = kv < 0 ? ker : variants[kv];
+                int[] kdx = kk.dx(), kdy = kk.dy();
+                float[] kw = kk.w();
                 float a0 = 0, a1 = 0, a2 = 0, a3 = 0, a4 = 0;
                 for (int t = 0; t < kw.length; t++) {
                     int sx = lx - kdx[t], sy = ly - kdy[t];

@@ -132,4 +132,21 @@ class LensBlurTest {
             assertEquals(near.w()[i], f.getOrDefault(mirrored, 0f), 1e-6);
         }
     }
+
+    @Test
+    void discsNearTheCornerBecomeCatsEyes() {
+        // a dot near the top-left corner, wide open: the barrel cuts the side of its disc away from the centre
+        int w = 160, h = 120, x = 18, y = 14;
+        float[] img = grey(w, h, 0);
+        set(img, w, x, y, 0.4f, 0.4f, 0.4f);
+        float r = (float) LensBlur.layerRadius(4); // 5.1 px, one whole layer
+        float[] out = LensBlur.apply(img, fill(w * h, -r), w, h, ROUND);
+        double ux = (w / 2.0 - x), uy = (h / 2.0 - y), n = Math.hypot(ux, uy);
+        ux /= n;
+        uy /= n;
+        float inward = out[((int) Math.round(y + uy * 4) * w + (int) Math.round(x + ux * 4)) * 3];
+        float outward = out[((int) Math.round(y - uy * 4) * w + (int) Math.round(x - ux * 4)) * 3];
+        assertTrue(inward > 1e-4f, "towards the centre lit " + inward);
+        assertTrue(outward < inward * 0.3f, "away from the centre clipped: " + outward + " vs " + inward);
+    }
 }

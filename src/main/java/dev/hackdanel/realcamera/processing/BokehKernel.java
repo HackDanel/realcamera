@@ -78,6 +78,18 @@ final class BokehKernel {
      * aperture's image is inverted (the rays cross before the sensor), so a polygon points the other way.
      */
     static Kernel kernel(Shape s, double r, boolean near) {
+        return kernel(s, r, near, 0, 0, 0);
+    }
+
+    /**
+     * The disc at {@code dist} (0 centre .. 1 corner of the frame) whose direction to the frame centre is (ux, uy):
+     * the lens barrel clips it into a cat's eye, and a swirl lens squeezes it along the radius, both fading within two
+     * stops (as {@code ImagePipeline.drawBokeh} does for the bright points).
+     */
+    static Kernel kernel(Shape s, double r, boolean near, double dist, double ux, double uy) {
+        double barrel = Math.max(0, 1 - s.stopsDown() / 2);
+        double clipShift = r * 1.2 * dist * barrel;
+        double squeeze = s.style() == ImageParams.BOKEH_SWIRL ? 1 - 0.7 * Math.min(1, dist * 1.2) * barrel : 1;
         int reach = (int) Math.ceil(r + 0.5);
         int n = (2 * reach + 1) * (2 * reach + 1);
         int[] dx = new int[n], dy = new int[n];
@@ -90,7 +102,17 @@ final class BokehKernel {
                 double ox = near ? -x : x, oy = near ? -y : y;
                 double rr = Math.hypot(ox, oy);
                 double edge = edge(s, Math.atan2(oy, ox), r);
+                if (squeeze < 1) {
+                    double rad = -(x * ux + y * uy), tan = x * uy - y * ux;
+                    rr = Math.hypot(rad / squeeze, tan);
+                    edge = r;
+                }
                 double cover = Math.min(1, Math.max(0, edge + 0.5 - rr)); // anti-aliased rim
+                if (clipShift > 0) {
+                    // cat's eye: also inside a circle shifted towards the frame centre
+                    double cx = x - ux * clipShift, cy = y - uy * clipShift;
+                    cover = Math.min(cover, Math.max(0, r * 1.05 + 0.5 - Math.hypot(cx, cy)));
+                }
                 if (cover <= 0) continue;
                 float wt = (float) (cover * profile(s, Math.min(1, rr / Math.max(0.5, edge)), near));
                 if (wt <= 0) continue;
