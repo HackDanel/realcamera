@@ -839,7 +839,7 @@ public final class Viewfinder {
                 boolean miss = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS;
                 BlockPos lit = miss ? null : SceneMeter.litPos(mc.level, hit);
                 if (!miss) {
-                    devSum += incident;
+                    devSum += Math.pow(2, incident);
                     devLight += Math.log(SceneMeter.gameLight(mc.level, lit));
                     devAlbedo += Math.log(0.3 * Math.pow(2, refl));
                     devN++;
@@ -851,7 +851,8 @@ public final class Viewfinder {
                     albedoW += w;
                     surface[y * gx + x] = (float) w;
                 }
-                sum += ev * w;
+                // a meter integrates light, not stops: a dark sky in the frame barely lowers the reading
+                sum += Math.pow(2, ev) * w;
                 wsum += w;
                 lightSum += Math.log(miss ? skyGame : SceneMeter.gameLight(mc.level, lit)) * w;
                 double fire = miss ? 0 : SceneMeter.fireShare(mc.level, lit, day);
@@ -866,12 +867,12 @@ public final class Viewfinder {
         }
         if (wsum == 0) {
             Vec3 dir = rays.direction(su, sv);
-            sum = SceneMeter.sampleEv(mc.level, rays.cast(dir), dir, day, ambient);
+            sum = Math.pow(2, SceneMeter.sampleEv(mc.level, rays.cast(dir), dir, day, ambient));
             lightSum = Math.log(skyGame);
             miredSum = 1e6 / 5500;
             wsum = 1;
         }
-        meteredEv = Mth.lerp(0.5, meteredEv, sum / wsum);
+        meteredEv = Mth.lerp(0.5, meteredEv, Math.log(sum / wsum) / Math.log(2));
         meteredGameLight = Math.exp(lightSum / wsum);
         meteredK = 1e6 / (miredSum / wsum);
         meterWeights = weights;
@@ -879,7 +880,7 @@ public final class Viewfinder {
         meteredAlbedo = albedoW > 0 ? Math.exp(albedoSum / albedoW) : -1;
         blockLit = blockVotes > gx * gy / 3;
         // only sky in the frame: develop against the meter (nothing in the picture is lit by anything else)
-        double devTarget = devN > 0 ? devSum / devN : sum / wsum;
+        double devTarget = Math.log(devN > 0 ? devSum / devN : sum / wsum) / Math.log(2);
         developEv = Mth.lerp(0.5, developEv, devTarget);
         developGameLight = devN > 0 ? Math.exp(devLight / devN) : meteredGameLight;
         developAlbedo = devN > 0 ? Math.exp(devAlbedo / devN) : -1;

@@ -84,6 +84,8 @@ public final class SceneMeter {
             return 0;
         }
         var state = level.getBlockState(bhr.getBlockPos());
+        // water mirrors the sky: as bright as what it reflects, not the dark blue of its map colour
+        if (state.getBlock() instanceof net.minecraft.world.level.block.LiquidBlock) return 0;
         int rgb = state.getMapColor(level, bhr.getBlockPos()).col;
         if (rgb == 0) return 0;
         double r = lin(((rgb >> 16) & 255) / 255.0), g = lin(((rgb >> 8) & 255) / 255.0), b = lin((rgb & 255) / 255.0);
