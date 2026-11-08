@@ -96,6 +96,7 @@
   "message.realcamera.upload.busy": "Предыдущий снимок ещё сохраняется",
   "message.realcamera.upload.invalid": "Сервер отклонил файл снимка",
   "message.realcamera.upload.io": "Сервер не смог сохранить снимок",
+  "gui.realcamera.assembly.choose": "Выберите результат (%s):",
   "gui.realcamera.slot.lens": "Объектив",
   "gui.realcamera.slot.battery": "Аккум.",
   "gui.realcamera.slot.card": "Карта",

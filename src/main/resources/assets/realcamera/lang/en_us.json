@@ -96,6 +96,7 @@
   "message.realcamera.upload.busy": "Previous photo is still being saved",
   "message.realcamera.upload.invalid": "Server rejected the photo file",
   "message.realcamera.upload.io": "Server could not store the photo",
+  "gui.realcamera.assembly.choose": "Pick the result (%s recipes):",
   "gui.realcamera.slot.lens": "Lens",
   "gui.realcamera.slot.battery": "Battery",
   "gui.realcamera.slot.card": "Card",

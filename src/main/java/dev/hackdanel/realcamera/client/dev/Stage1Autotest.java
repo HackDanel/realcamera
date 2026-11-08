@@ -372,6 +372,49 @@ public final class Stage1Autotest {
             }
             case 34 -> {
                 mc.setScreen(null);
+                server(p -> {
+                    // step-up rings all share one recipe: the workshop must let the player pick one
+                    BlockPos station = origin.offset(-2, 0, 1);
+                    var be = (dev.hackdanel.realcamera.blockentity.AssemblyStationBlockEntity) p.serverLevel().getBlockEntity(station);
+                    for (int s = 0; s <= dev.hackdanel.realcamera.blockentity.AssemblyStationBlockEntity.OUTPUT; s++) {
+                        be.items().setStackInSlot(s, ItemStack.EMPTY);
+                    }
+                    be.items().setStackInSlot(0, new ItemStack(net.minecraft.world.item.Items.IRON_NUGGET, 6));
+                    be.items().setStackInSlot(1, new ItemStack(net.minecraft.world.item.Items.BLACK_DYE, 2));
+                    p.openMenu(be, station);
+                });
+                wait = 20;
+            }
+            case 35 -> {
+                if (mc.screen instanceof dev.hackdanel.realcamera.client.screen.AssemblyStationScreen s) {
+                    int n = s.getMenu().choiceCount();
+                    log(n > 1 ? "PASS workshop offers {} recipes for nuggets + dye" : "FAIL workshop offers {} recipe(s)", n);
+                    s.mouseClicked(s.getGuiLeft() + dev.hackdanel.realcamera.menu.AssemblyStationMenu.CHOICE_X + 2 * 18 + 8,
+                            s.getGuiTop() + dev.hackdanel.realcamera.menu.AssemblyStationMenu.CHOICE_Y + 8, 0);
+                } else {
+                    log("FAIL workshop screen not open: {}", mc.screen);
+                }
+                wait = 10;
+            }
+            case 36 -> {
+                pendingScreenshot = "8b_workshop_choice";
+                wait = 60; // ring assembly time 40
+            }
+            case 37 -> {
+                mc.player.closeContainer();
+                server(p -> {
+                    var be = (dev.hackdanel.realcamera.blockentity.AssemblyStationBlockEntity) p.serverLevel()
+                            .getBlockEntity(origin.offset(-2, 0, 1));
+                    ItemStack out = be.items().getStackInSlot(dev.hackdanel.realcamera.blockentity.AssemblyStationBlockEntity.OUTPUT);
+                    var all = dev.hackdanel.realcamera.recipe.AssemblyChoices.find(p.server.getRecipeManager(),
+                            new dev.hackdanel.realcamera.recipe.AssemblyInput(java.util.List.of(
+                                    new ItemStack(net.minecraft.world.item.Items.IRON_NUGGET, 6),
+                                    new ItemStack(net.minecraft.world.item.Items.BLACK_DYE, 2))), p.level());
+                    ItemStack want = all.size() > 2 ? all.get(2).value().getResultItem(p.registryAccess()) : ItemStack.EMPTY;
+                    boolean ok = !out.isEmpty() && ItemStack.isSameItemSameComponents(out, want);
+                    log(ok ? "PASS workshop made the picked recipe: {}" : "FAIL workshop made {} instead of the picked {}",
+                            out.getHoverName().getString(), want.getHoverName().getString());
+                });
                 wait = 5;
             }
             default -> finish(mc);

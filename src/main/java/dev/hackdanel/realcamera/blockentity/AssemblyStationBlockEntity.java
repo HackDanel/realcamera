@@ -1,17 +1,18 @@
 package dev.hackdanel.realcamera.blockentity;
 
 import dev.hackdanel.realcamera.menu.AssemblyStationMenu;
+import dev.hackdanel.realcamera.recipe.AssemblyChoices;
 import dev.hackdanel.realcamera.recipe.AssemblyInput;
 import dev.hackdanel.realcamera.recipe.AssemblyRecipe;
 import dev.hackdanel.realcamera.registry.RCBlockEntities;
-import dev.hackdanel.realcamera.registry.RCRecipes;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Inventory;
@@ -23,29 +24,43 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Photo workshop: 6 input slots, 1 output, runs assembly recipes over time. */
+/**
+ * Photo workshop: 6 input slots, 1 output, runs assembly recipes over time. When several recipes match
+ * the inputs (see {@link AssemblyChoices}) the player picks one in the screen; the pick is kept by id,
+ * so it comes back when the inputs match it again.
+ */
 public class AssemblyStationBlockEntity extends MachineBlockEntity {
     public static final int INPUTS = 6, OUTPUT = 6;
+    /** Menu data: progress, max progress, number of matching recipes, index of the running one. */
+    public static final int DATA_COUNT = 4;
 
     private int progress;
     private int maxProgress;
     private boolean dirty = true;
     private RecipeHolder<AssemblyRecipe> current;
+    private List<RecipeHolder<AssemblyRecipe>> choices = List.of();
+    @Nullable
+    private ResourceLocation selected;
 
     private final ContainerData data = new ContainerData() {
         @Override
         public int get(int i) {
-            return i == 0 ? progress : maxProgress;
+            return switch (i) {
+                case 0 -> progress;
+                case 1 -> maxProgress;
+                case 2 -> choices.size();
+                default -> current == null ? -1 : choices.indexOf(current);
+            };
         }
 
         @Override
         public void set(int i, int v) {
-            if (i == 0) progress = v; else maxProgress = v;
+            if (i == 0) progress = v; else if (i == 1) maxProgress = v;
         }
 
         @Override
         public int getCount() {
-            return 2;
+            return DATA_COUNT;
         }
     };
 
@@ -71,13 +86,25 @@ public class AssemblyStationBlockEntity extends MachineBlockEntity {
         return new AssemblyInput(list);
     }
 
+    /** Picks the index-th matching recipe (from the screen's choice row). */
+    public void select(int index) {
+        if (index >= 0 && index < choices.size()) {
+            selected = choices.get(index).id();
+            dirty = true;
+            setChanged();
+        }
+    }
+
     public static void serverTick(Level level, BlockPos pos, BlockState state, AssemblyStationBlockEntity be) {
         if (be.dirty) {
             be.dirty = false;
-            AssemblyInput input = be.input();
-            Optional<RecipeHolder<AssemblyRecipe>> found = level.getRecipeManager()
-                    .getRecipeFor(RCRecipes.ASSEMBLY_TYPE.get(), input, level);
-            RecipeHolder<AssemblyRecipe> next = found.orElse(null);
+            be.choices = AssemblyChoices.find(level.getRecipeManager(), be.input(), level);
+            RecipeHolder<AssemblyRecipe> next = be.choices.isEmpty() ? null : be.choices.getFirst();
+            for (RecipeHolder<AssemblyRecipe> h : be.choices) {
+                if (h.id().equals(be.selected)) {
+                    next = h;
+                }
+            }
             if (next != be.current) {
                 be.current = next;
                 be.progress = 0;
@@ -123,12 +150,16 @@ public class AssemblyStationBlockEntity extends MachineBlockEntity {
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         tag.putInt("progress", progress);
+        if (selected != null) {
+            tag.putString("recipe", selected.toString());
+        }
     }
 
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         progress = tag.getInt("progress");
+        selected = tag.contains("recipe") ? ResourceLocation.tryParse(tag.getString("recipe")) : null;
         dirty = true;
     }
 
