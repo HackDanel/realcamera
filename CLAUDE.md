@@ -152,8 +152,9 @@ dispatched via `ClientBridge.handlePayload`.
    sensor temperature (`client/camera/SensorHeat`) and hot pixels unless long-exposure NR is on.
 4. Export: full-size JPEG with EXIF (`processing/ExifWriter`) and optional RAW to `screenshots/realcamera/`.
    RAW = output of `ImagePipeline.developSensor` (before lens corrections `correctLens` and `finish`: white balance,
-   roll-off, profile) as a 16-bit linear PNG +
-   JSON sidecar (`processing/RawFile`); `client/photo/LocalOriginals` remembers which local files belong to which
+   roll-off, profile) as a linear DNG (`processing/DngFile`: 16-bit LinearRaw, ColorMatrix1 = XYZ→sRGB at D65,
+   AsShotNeutral = 1/WB multipliers, BaselineExposure puts grey ~3 stops under clip, so Lightroom opens it like a
+   camera RAW) + JSON sidecar (`processing/RawFile`; pre-0.8.7 16-bit PNGs are still read); `client/photo/LocalOriginals` remembers which local files belong to which
    photo id. A downscaled JPEG goes through `client/photo/PhotoUploader` (sequential queue; camera shots and editor
    saves share it).
 5. Server: `network/ServerPhotoService` validates (quota, rate, JPEG header), stores files under

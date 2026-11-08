@@ -168,8 +168,10 @@ class PhotoEditorTest {
         RawFile.Info info = new RawFile.Info();
         info.white = 4;
         info.camera = "SONY ILCE-7M4";
-        Path png = dir.resolve("DSC00001.PNG");
+        info.white_balance = new double[]{2, 1, 1.25};
+        Path png = dir.resolve("DSC00001.DNG");
         RawFile.write(png, px, w, h, info);
+        assertTrue(DngFile.is(png));
         assertTrue(Files.exists(dir.resolve("DSC00001.json")));
         RawFile.Info back = RawFile.readInfo(png);
         assertEquals("SONY ILCE-7M4", back.camera);
@@ -180,5 +182,31 @@ class PhotoEditorTest {
         for (int i = 0; i < px.length; i++) {
             assertEquals(Math.min(4, px[i]), read[i], 1e-3, "sample " + i);
         }
+    }
+
+    /** A DNG of a test card for checking with a raw converter: build/test-dng/card.DNG. */
+    @Test
+    void dngSample() throws Exception {
+        String root = System.getProperty("realcamera.projectDir");
+        if (root == null) return;
+        Path out = Path.of(root, "build", "test-dng", "card.DNG");
+        int w = 600, h = 400;
+        float[] px = new float[w * h * 3];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int j = (y * w + x) * 3;
+                double v = 0.18 * Math.pow(2, (x / (double) w) * 10 - 7); // ramp -7..+3 EV around grey
+                double[] cast = {1 / 1.6, 1, 1 / 1.9}; // warm light, camera WB corrects it
+                double[] tint = y < h / 3 ? new double[]{1, 0.3, 0.3} : y < 2 * h / 3 ? new double[]{1, 1, 1}
+                        : new double[]{0.3, 0.5, 1};
+                for (int c = 0; c < 3; c++) px[j + c] = (float) Math.min(1.87, v * cast[c] * tint[c]);
+            }
+        }
+        RawFile.Info info = new RawFile.Info();
+        info.white = 1.87;
+        info.camera = "Nikon Z 6";
+        info.white_balance = new double[]{1.6, 1, 1.9};
+        RawFile.write(out, px, w, h, info);
+        assertTrue(DngFile.is(out));
     }
 }

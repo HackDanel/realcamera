@@ -2,23 +2,19 @@ package dev.hackdanel.realcamera.processing;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import java.awt.Point;
-import java.awt.Transparency;
-import java.awt.color.ColorSpace;
 import java.awt.image.BufferedImage;
-import java.awt.image.ComponentColorModel;
 import java.awt.image.DataBuffer;
 import java.awt.image.Raster;
-import java.awt.image.WritableRaster;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
 /**
- * The mod's "RAW" format: a 16-bit linear PNG of the sensor data (before white balance, tone curve and
- * colour profile; 65535 = sensor saturation) and a JSON sidecar with what the editor needs to develop it.
- * Opened in an ordinary viewer the PNG looks dark and flat, like an undeveloped RAW.
+ * The mod's RAW format: a linear DNG of the sensor data (before white balance, tone curve and colour profile;
+ * 65535 = sensor saturation, see {@link DngFile}) that Lightroom and other raw converters develop like a real
+ * camera's file, and a JSON sidecar with what the in-game editor needs. Files from before 0.8.7 are 16-bit
+ * linear PNGs with the same sidecar and are still read.
  */
 public final class RawFile {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -56,27 +52,35 @@ public final class RawFile {
         return png.resolveSibling((dot < 0 ? name : name.substring(0, dot)) + ".json");
     }
 
-    public static void write(Path png, float[] linear, int w, int h, Info info) throws IOException {
-        WritableRaster raster = Raster.createInterleavedRaster(DataBuffer.TYPE_USHORT, w, h, 3, new Point());
+    /** Writes the RAW as a linear DNG plus the JSON sidecar; EXIF from {@code exif} (or the sidecar's fields). */
+    public static void write(Path dng, float[] linear, int w, int h, Info info, ExifWriter.Data exif) throws IOException {
         double scale = 65535 / info.white;
-        int[] px = new int[3];
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int j = (y * w + x) * 3;
-                for (int c = 0; c < 3; c++) {
-                    px[c] = (int) Math.max(0, Math.min(65535, Math.round(linear[j + c] * scale)));
-                }
-                raster.setPixel(x, y, px);
-            }
+        short[] samples = new short[w * h * 3];
+        for (int i = 0; i < samples.length; i++) {
+            samples[i] = (short) Math.max(0, Math.min(65535, Math.round(linear[i] * scale)));
         }
-        ComponentColorModel cm = new ComponentColorModel(ColorSpace.getInstance(ColorSpace.CS_LINEAR_RGB), false,
-                false, Transparency.OPAQUE, DataBuffer.TYPE_USHORT);
-        BufferedImage img = new BufferedImage(cm, raster, false, null);
-        Files.createDirectories(png.toAbsolutePath().getParent());
-        if (!ImageIO.write(img, "png", png.toFile())) {
-            throw new IOException("no PNG writer for 16-bit images");
-        }
-        Files.writeString(sidecar(png), GSON.toJson(info));
+        double[] wb = info.white_balance == null || info.white_balance.length < 3 ? new double[]{1, 1, 1}
+                : info.white_balance;
+        double[] neutral = {1 / Math.max(1e-6, wb[0]), 1 / Math.max(1e-6, wb[1]), 1 / Math.max(1e-6, wb[2])};
+        double max = Math.max(neutral[0], Math.max(neutral[1], neutral[2]));
+        for (int c = 0; c < 3; c++) neutral[c] /= max;
+        DngFile.write(dng, samples, w, h, info.camera.isEmpty() ? "RealCamera" : info.camera, neutral,
+                baselineExposure(info.white), exif);
+        Files.writeString(sidecar(dng), GSON.toJson(info));
+    }
+
+    public static void write(Path dng, float[] linear, int w, int h, Info info) throws IOException {
+        write(dng, linear, w, h, info, new ExifWriter.Data("RealCamera", info.camera, "", info.lens, "",
+                "", info.shutter_s, info.f_number, info.iso, info.focal_mm, 0, 2, 0, 5, false, w, h));
+    }
+
+    /**
+     * Default rendering offset for raw converters: middle grey (0.18) sits log2(white / 0.18) stops under
+     * clipping, about 3.4 at 12 EV of range; real cameras keep it ~3 stops under and add the rest here, so
+     * Lightroom opens the file as bright as the camera's JPEG.
+     */
+    static double baselineExposure(double white) {
+        return Math.log(white / 0.18) / Math.log(2) - 3.0;
     }
 
     public static Info readInfo(Path png) throws IOException {
@@ -93,8 +97,15 @@ public final class RawFile {
         return info;
     }
 
-    /** Linear floats (scaled by info.white) and {width, height}; 8-bit legacy files are treated as sRGB. */
+    /** Linear floats (scaled by info.white) and {width, height}: DNG, 16-bit PNG, or 8-bit legacy PNG (sRGB). */
     public static float[] readPixels(Path png, Info info, int[] size) throws IOException {
+        if (DngFile.is(png)) {
+            short[] samples = DngFile.read(png, size);
+            float scale = (float) (info.white / 65535);
+            float[] out = new float[samples.length];
+            for (int i = 0; i < out.length; i++) out[i] = (samples[i] & 0xFFFF) * scale;
+            return out;
+        }
         BufferedImage img = ImageIO.read(png.toFile());
         if (img == null) throw new IOException("not an image: " + png);
         int w = img.getWidth(), h = img.getHeight();

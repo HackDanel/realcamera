@@ -794,8 +794,8 @@ public final class PhotoCapture {
                     Files.write(localJpeg, full);
                 }
                 if (rawData != null) {
-                    localRaw = base.resolveSibling(base.getFileName() + ".PNG");
-                    writeRaw(localRaw, rawData, w, h, s, params, seconds);
+                    localRaw = base.resolveSibling(base.getFileName() + ".DNG");
+                    writeRaw(localRaw, rawData, w, h, s, params, seconds, exif(s, artist, now, w, h, seconds));
                 }
             }
             int[] size = new int[2];
@@ -985,6 +985,7 @@ public final class PhotoCapture {
         String name = String.format("DSC%05d", s.frameNumber() % 100000);
         Path base = dir.resolve(name);
         for (int i = 1; Files.exists(dir.resolve(base.getFileName() + ".JPG"))
+                || Files.exists(dir.resolve(base.getFileName() + ".DNG"))
                 || Files.exists(dir.resolve(base.getFileName() + ".PNG")); i++) {
             base = dir.resolve(name + "_" + i);
         }
@@ -992,11 +993,11 @@ public final class PhotoCapture {
     }
 
     /**
-     * "RAW": the sensor data (after optics and noise, before white balance, tone curve and profile) as a
-     * 16-bit linear PNG, plus a JSON sidecar with what the computer's editor needs to develop it.
+     * RAW: the sensor data (after optics and noise, before white balance, tone curve and profile) as a
+     * linear DNG for Lightroom and other raw converters, plus a JSON sidecar with what the computer's editor needs to develop it.
      */
-    private static void writeRaw(Path png, float[] sensor, int w, int h, Shot s, ImageParams p, double seconds)
-            throws IOException {
+    private static void writeRaw(Path dng, float[] sensor, int w, int h, Shot s, ImageParams p, double seconds,
+                                 ExifWriter.Data exif) throws IOException {
         RawFile.Info info = new RawFile.Info();
         info.camera = s.chain().body().info().exifMake() + " " + s.chain().body().info().exifModel();
         info.lens = s.chain().exifLensModel();
@@ -1018,7 +1019,7 @@ public final class PhotoCapture {
         info.vignetting_ev = p.lens().vignettingEv() * Math.max(0, 1 - stopsDown * 0.45);
         info.distortion = p.lens().distortion();
         info.ca_frac = p.lens().caPx() / Math.hypot((w - 1) / 2.0, (h - 1) / 2.0);
-        RawFile.write(png, sensor, w, h, info);
+        RawFile.write(dng, sensor, w, h, info, exif);
     }
 
     /** Dev aid: raw frame and depth map (log scale) next to the exported photos. */

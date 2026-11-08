@@ -17,9 +17,9 @@ public final class ExifWriter {
                        double exposureTime, double fNumber, int iso, double focalMm, int focal35, int program,
                        double exposureBiasEv, int metering, boolean manualWhiteBalance, int width, int height) {}
 
-    private static final short ASCII = 2, SHORT = 3, LONG = 4, RATIONAL = 5, UNDEFINED = 7, SRATIONAL = 10;
+    static final short BYTE = 1, ASCII = 2, SHORT = 3, LONG = 4, RATIONAL = 5, UNDEFINED = 7, SRATIONAL = 10;
 
-    private record Entry(int tag, short type, int count, byte[] value) {}
+    record Entry(int tag, short type, int count, byte[] value) {}
 
     private ExifWriter() {}
 
@@ -51,26 +51,9 @@ public final class ExifWriter {
         // 0x8769 Exif IFD pointer, value patched below
         ifd0.add(new Entry(0x8769, LONG, 1, new byte[4]));
 
-        List<Entry> exif = new ArrayList<>();
-        exif.add(rational(0x829A, d.exposureTime()));
-        exif.add(rational(0x829D, d.fNumber()));
-        exif.add(shortVal(0x8822, d.program()));
-        exif.add(shortVal(0x8827, Math.min(65535, d.iso())));
-        exif.add(new Entry(0x9000, UNDEFINED, 4, "0232".getBytes(StandardCharsets.US_ASCII)));
-        exif.add(ascii(0x9003, d.dateTime()));
-        exif.add(srational(0x9204, d.exposureBiasEv()));
-        exif.add(shortVal(0x9207, d.metering()));
-        exif.add(shortVal(0x9209, 0x10)); // flash did not fire, compulsory suppression
-        exif.add(rational(0x920A, d.focalMm()));
-        exif.add(longVal(0xA002, d.width()));
-        exif.add(longVal(0xA003, d.height()));
-        exif.add(shortVal(0xA403, d.manualWhiteBalance() ? 1 : 0));
-        exif.add(shortVal(0xA405, d.focal35()));
-        exif.add(ascii(0xA433, d.lensMake()));
-        exif.add(ascii(0xA434, d.lensModel()));
+        List<Entry> exif = exifEntries(d);
 
         ifd0.sort(Comparator.comparingInt(Entry::tag));
-        exif.sort(Comparator.comparingInt(Entry::tag));
 
         int ifd0Offset = 8;
         int ifd0Size = ifdSize(ifd0);
@@ -89,8 +72,31 @@ public final class ExifWriter {
         return buf.array();
     }
 
+    /** The Exif sub-IFD entries (exposure, lens, date), sorted by tag. */
+    static List<Entry> exifEntries(Data d) {
+        List<Entry> exif = new ArrayList<>();
+        exif.add(rational(0x829A, d.exposureTime()));
+        exif.add(rational(0x829D, d.fNumber()));
+        exif.add(shortVal(0x8822, d.program()));
+        exif.add(shortVal(0x8827, Math.min(65535, d.iso())));
+        exif.add(new Entry(0x9000, UNDEFINED, 4, "0232".getBytes(StandardCharsets.US_ASCII)));
+        exif.add(ascii(0x9003, d.dateTime()));
+        exif.add(srational(0x9204, d.exposureBiasEv()));
+        exif.add(shortVal(0x9207, d.metering()));
+        exif.add(shortVal(0x9209, 0x10)); // flash did not fire, compulsory suppression
+        exif.add(rational(0x920A, d.focalMm()));
+        exif.add(longVal(0xA002, d.width()));
+        exif.add(longVal(0xA003, d.height()));
+        exif.add(shortVal(0xA403, d.manualWhiteBalance() ? 1 : 0));
+        exif.add(shortVal(0xA405, d.focal35()));
+        exif.add(ascii(0xA433, d.lensMake()));
+        exif.add(ascii(0xA434, d.lensModel()));
+        exif.sort(Comparator.comparingInt(Entry::tag));
+        return exif;
+    }
+
     /** IFD byte size including its out-of-line data area. */
-    private static int ifdSize(List<Entry> entries) {
+    static int ifdSize(List<Entry> entries) {
         int size = 2 + entries.size() * 12 + 4;
         for (Entry e : entries) {
             if (e.value().length > 4) size += (e.value().length + 1) & ~1;
@@ -98,7 +104,7 @@ public final class ExifWriter {
         return size;
     }
 
-    private static void writeIfd(ByteBuffer buf, List<Entry> entries, int offset, int next) {
+    static void writeIfd(ByteBuffer buf, List<Entry> entries, int offset, int next) {
         buf.position(offset);
         buf.putShort((short) entries.size());
         int dataOffset = offset + 2 + entries.size() * 12 + 4;
@@ -120,22 +126,22 @@ public final class ExifWriter {
         buf.putInt(next);
     }
 
-    private static Entry ascii(int tag, String s) {
+    static Entry ascii(int tag, String s) {
         byte[] b = (s == null ? "" : s).getBytes(StandardCharsets.US_ASCII);
         byte[] z = new byte[b.length + 1];
         System.arraycopy(b, 0, z, 0, b.length);
         return new Entry(tag, ASCII, z.length, z);
     }
 
-    private static Entry shortVal(int tag, int v) {
+    static Entry shortVal(int tag, int v) {
         return new Entry(tag, SHORT, 1, ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort((short) v).array());
     }
 
-    private static Entry longVal(int tag, int v) {
+    static Entry longVal(int tag, int v) {
         return new Entry(tag, LONG, 1, ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(v).array());
     }
 
-    private static Entry rational(int tag, double v) {
+    static Entry rational(int tag, double v) {
         long num, den;
         if (v > 0 && v < 1) {
             den = Math.round(1 / v);
@@ -152,7 +158,7 @@ public final class ExifWriter {
                 .putInt((int) num).putInt((int) den).array());
     }
 
-    private static Entry srational(int tag, double v) {
+    static Entry srational(int tag, double v) {
         return new Entry(tag, SRATIONAL, 1, ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN)
                 .putInt((int) Math.round(v * 3)).putInt(3).array());
     }

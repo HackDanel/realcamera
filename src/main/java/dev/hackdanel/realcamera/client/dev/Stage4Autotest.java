@@ -197,11 +197,11 @@ public final class Stage4Autotest {
         until("stored", () -> !PhotoCapture.busy(), 1200);
         step("lower", () -> Minecraft.getInstance().options.keyUse.setDown(false), 40);
         step("raw check", () -> {
-            File png = newestIn(new File(Minecraft.getInstance().gameDirectory, "screenshots/realcamera"), ".PNG");
+            File png = newestIn(new File(Minecraft.getInstance().gameDirectory, "screenshots/realcamera"), ".DNG");
             try {
                 RawFile.Info info = png == null ? null : RawFile.readInfo(png.toPath());
                 boolean ok = info != null && info.version >= 2 && info.white > 1.5 && info.profiles.length > 0;
-                log(ok ? "PASS 16-bit RAW {} (white {}, {} profiles)" : "FAIL RAW sidecar {}", png == null ? "-" : png.getName(),
+                log(ok ? "PASS DNG RAW {} (white {}, {} profiles)" : "FAIL RAW sidecar {}", png == null ? "-" : png.getName(),
                         info == null ? 0 : info.white, info == null ? 0 : info.profiles.length);
             } catch (IOException e) {
                 log("FAIL RAW unreadable: {}", e.toString());

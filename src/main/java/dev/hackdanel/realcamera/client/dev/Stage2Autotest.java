@@ -165,7 +165,7 @@ public final class Stage2Autotest {
         File[] days = dir.listFiles();
         if (days != null) {
             for (File d : days) {
-                File[] f = d.listFiles((x, n) -> n.endsWith(".JPG") || n.endsWith(".PNG"));
+                File[] f = d.listFiles((x, n) -> n.endsWith(".JPG") || n.endsWith(".DNG"));
                 if (f == null) continue;
                 for (File file : f) {
                     if (best == null || file.lastModified() > best.lastModified()) best = file;
@@ -181,7 +181,7 @@ public final class Stage2Autotest {
         File[] days = dir.listFiles();
         if (days != null) {
             for (File d : days) {
-                File[] f = d.listFiles((x, n) -> n.endsWith(".JPG") || n.endsWith(".PNG"));
+                File[] f = d.listFiles((x, n) -> n.endsWith(".JPG") || n.endsWith(".DNG"));
                 if (f != null) count += f.length;
             }
         }
