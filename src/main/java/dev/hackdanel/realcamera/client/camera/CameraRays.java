@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import net.minecraft.client.Camera;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
@@ -104,6 +105,71 @@ public final class CameraRays {
             return Double.POSITIVE_INFINITY;
         }
         return hit.getLocation().subtract(origin).dot(axis);
+    }
+
+    /**
+     * The light-emitting blocks under the pixels of the frame, from the per-pixel depth (metres along the axis, the
+     * frame's size): each pixel's surface point is found from the depth and the block just behind it looked up.
+     * Torches, lanterns, glowstone, lava and fire are found however thin they are (no ray has to hit them). With a
+     * depth buffer that holds something else (a shader pack) the points land in air and nothing is found.
+     *
+     * @param drawn how bright the game drew each pixel (linear, brightest channel); only pixels from
+     *              {@link dev.hackdanel.realcamera.processing.LightSources#CANDIDATE} are looked up
+     * @return null if no pixel lies on a light source drawn like one
+     */
+    @org.jetbrains.annotations.Nullable
+    public dev.hackdanel.realcamera.processing.LightSources.Found emitters(float[] depth, int w, int h,
+                                                                           java.util.function.IntToDoubleFunction drawn) {
+        int[] block = null;
+        float[] bright = null;
+        it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap ids = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+        it.unimi.dsi.fastutil.ints.IntArrayList levels = new it.unimi.dsi.fastutil.ints.IntArrayList();
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        long lastPos = Long.MIN_VALUE;
+        int lastId = -1;
+        double ox = origin.x, oy = origin.y, oz = origin.z;
+        for (int y = 0; y < h; y++) {
+            double v = 1 - (y + 0.5) * 2 / h;
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x;
+                float d = depth[i];
+                if (d <= 0 || d >= 9_999) continue;
+                float b = (float) drawn.applyAsDouble(i);
+                if (b < dev.hackdanel.realcamera.processing.LightSources.CANDIDATE) continue;
+                double u = (x + 0.5) * 2 / w - 1;
+                double dx = forward.x + right.x * u * tanH + up.x * v * tanV;
+                double dy = forward.y + right.y * u * tanH + up.y * v * tanV;
+                double dz = forward.z + right.z * u * tanH + up.z * v * tanV;
+                double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                dx /= len;
+                dy /= len;
+                dz /= len;
+                double along = dx * axis.x + dy * axis.y + dz * axis.z;
+                if (along < 1e-3) continue;
+                double t = d / along + 0.02; // just behind the surface: inside the block that drew it
+                pos.set(Math.floor(ox + dx * t), Math.floor(oy + dy * t), Math.floor(oz + dz * t));
+                long key = pos.asLong();
+                if (key != lastPos) {
+                    lastPos = key;
+                    lastId = ids.getOrDefault(key, -2);
+                    if (lastId == -2) {
+                        int level = this.level.getBlockState(pos).getLightEmission(this.level, pos);
+                        lastId = level > 0 ? levels.size() : -1;
+                        if (level > 0) levels.add(level);
+                        ids.put(key, lastId);
+                    }
+                }
+                if (lastId < 0) continue;
+                if (block == null) {
+                    block = new int[w * h];
+                    java.util.Arrays.fill(block, -1);
+                    bright = new float[w * h];
+                }
+                block[i] = lastId;
+                bright[i] = b;
+            }
+        }
+        return block == null ? null : dev.hackdanel.realcamera.processing.LightSources.share(block, levels.toIntArray(), bright);
     }
 
     /** Depth map (metres along the axis) on a gw x gh grid, row-major top-down. Sky = 10 km. */

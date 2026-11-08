@@ -27,6 +27,7 @@ import dev.hackdanel.realcamera.processing.RawFile;
 import dev.hackdanel.realcamera.client.photo.LocalOriginals;
 import dev.hackdanel.realcamera.processing.ImageParams;
 import dev.hackdanel.realcamera.processing.LayeredDepth;
+import dev.hackdanel.realcamera.processing.LightSources;
 import dev.hackdanel.realcamera.processing.ImagePipeline;
 import dev.hackdanel.realcamera.processing.JpegCodec;
 import dev.hackdanel.realcamera.spec.ColorProfileSpec;
@@ -312,7 +313,7 @@ public final class PhotoCapture {
             int[] rgb = toRgb(image, a.cx, a.cy, a.w, a.h);
             image.close();
             submit(mc, shot, rgb, null, a.w, a.h, grids[0], grids[1], grids[2], a.gpuDepth, layers(a, grids[3]), gw, gh,
-                    a.shot.seconds(), remote, a.pack);
+                    a.shot.seconds(), remote, a.pack, rays);
             return;
         }
         accumulateFrame(mc, a);
@@ -475,7 +476,7 @@ public final class PhotoCapture {
             }
         }
         submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.entityGrid, a.gpuDepth, layers(a, a.kindGrid),
-                a.gw, a.gh, elapsed, a.remote, a.pack);
+                a.gw, a.gh, elapsed, a.remote, a.pack, a.rays);
     }
 
     /** Sum one frame (GL rows are bottom-up) into the float buffer in linear light. */
@@ -640,7 +641,8 @@ public final class PhotoCapture {
 
     private static void submit(Minecraft mc, Shot shot, int[] rgb, float[] linear, int w, int h, float[] grid,
                                float[] lightGrid, float[] entityGrid, float[] gpuDepth, @javax.annotation.Nullable DepthStack layers,
-                               int gw, int gh, double actualSeconds, float[] remote, boolean pack) {
+                               int gw, int gh, double actualSeconds, float[] remote, boolean pack, CameraRays rays) {
+        LightSources.Found emitters = lightSources(shot, rays, rgb, linear, gpuDepth, w, h, pack);
         ColorProfileSpec profile = Specs.profile(mc.level.registryAccess(), shot.chain().body(), shot.settings().profile())
                 .orElse(null);
         String artist = mc.getUser().getName();
@@ -650,7 +652,28 @@ public final class PhotoCapture {
         developing++;
         // development uses half the cores: the game keeps rendering smoothly (and a burst keeps its pace)
         WORKER.execute(() -> DEVELOP_POOL.submit(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, entityGrid, gpuDepth, layers,
-                gw, gh, actualSeconds, remote, pack, profile, film, artist, maxUpload)).join());
+                gw, gh, actualSeconds, remote, pack, emitters, profile, film, artist, maxUpload)).join());
+    }
+
+    /**
+     * The light level of the block under every bright pixel (torches, lamps, lava; see {@link LightSources}), found on
+     * the render thread (the level is read), or null: no depth, nothing found, or a scene so bright that no lamp could
+     * outshine what the game drew (clear daylight).
+     */
+    @javax.annotation.Nullable
+    private static LightSources.Found lightSources(Shot s, @javax.annotation.Nullable CameraRays rays, int[] rgb, float[] linear,
+                                       float[] depth, int w, int h, boolean pack) {
+        // a shader pack's relight may be up to 3 EV below the light curve
+        if (depth == null || rays == null || !LightSources.worthLooking(s.sceneEv(), relight(s) / (pack ? 8 : 1))) {
+            return null;
+        }
+        long t0 = System.nanoTime();
+        java.util.function.IntToDoubleFunction drawn = rgb != null ? i -> LightSources.drawnSrgb(rgb[i])
+                : i -> LightSources.drawnLinear(linear, i);
+        LightSources.Found found = rays.emitters(depth, w, h, drawn);
+        RealCamera.LOGGER.debug("Light sources: {} in {} ms", found == null ? "none" : "found",
+                (System.nanoTime() - t0) / 1_000_000);
+        return found;
     }
 
     // ------------------------------------------------------------------ worker thread
@@ -658,7 +681,7 @@ public final class PhotoCapture {
     private static void develop(Shot s, int[] rgb, float[] linear, int w, int h, float[] grid, float[] lightGrid,
                                 float[] entityGrid, float[] gpuDepth, @javax.annotation.Nullable DepthStack layers,
                                 int gw, int gh, double seconds, float[] remote,
-                                boolean pack, ColorProfileSpec profile,
+                                boolean pack, @javax.annotation.Nullable LightSources.Found emitters, ColorProfileSpec profile,
                                 @javax.annotation.Nullable dev.hackdanel.realcamera.spec.FilmStockSpec film, String artist,
                                 int maxUpload) {
         long t0 = System.nanoTime();
@@ -691,7 +714,7 @@ public final class PhotoCapture {
                 params = params.withExtras(params.extras().withOtherFlash(DepthUpsampler.upsample(remote, gw, gh, guide, w, h)));
             }
             if (Boolean.getBoolean("realcamera.debugDumps")) {
-                debugDump(guide, depth, w, h);
+                debugDump(guide, depth, gpu ? emitters : null, w, h);
             }
             float[] img = linear != null ? linear : ImagePipeline.toLinear(rgb);
             // A correct exposure puts the metered area at middle grey, however dimly the game drew it: a moonlit
@@ -705,6 +728,11 @@ public final class PhotoCapture {
             if (relight != 1) {
                 for (int i = 0; i < img.length; i++) img[i] *= relight;
             }
+            // lamps and flames back to their real brightness (the game drew them no brighter than white), before the
+            // depth of field spreads them into bokeh discs
+            int raised = LightSources.restore(img, gpu ? emitters : null, s.sceneEv(), relight); // found from that depth
+            if (raised > 0) RealCamera.LOGGER.debug("Light sources: {} pixels raised (EV {}, up to x{})", raised,
+                    String.format(java.util.Locale.ROOT, "%.1f", s.sceneEv()), LightSources.sourceLevel(15, s.sceneEv()) / relight);
             if (lightScale != 1 && light != null) {
                 for (int i = 0; i < light.length; i++) light[i] *= lightScale;
             }
@@ -969,7 +997,8 @@ public final class PhotoCapture {
     }
 
     /** Dev aid: raw frame and depth map (log scale) next to the exported photos. */
-    private static void debugDump(int[] rgb, float[] depth, int w, int h) throws IOException {
+    private static void debugDump(int[] rgb, float[] depth, @javax.annotation.Nullable LightSources.Found emitters, int w, int h)
+            throws IOException {
         Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve("screenshots").resolve("realcamera_debug");
         Files.createDirectories(dir);
         int[] d = new int[depth.length];
@@ -980,5 +1009,15 @@ public final class PhotoCapture {
         long t = System.currentTimeMillis();
         Files.write(dir.resolve("raw_" + t + ".jpg"), JpegCodec.encode(rgb, w, h, 0.95f));
         Files.write(dir.resolve("depth_" + t + ".jpg"), JpegCodec.encode(d, w, h, 0.95f));
+        if (emitters != null) {
+            // light sources (see LightSources): the frame dimmed; pixels of light-emitting blocks in blue, red where
+            // they count as the light itself (by their share of the block's brightest pixel)
+            int[] m = new int[rgb.length];
+            for (int i = 0; i < m.length; i++) {
+                int c = rgb[i], e = emitters.level()[i], sh = emitters.share()[i] & 255;
+                m[i] = e > 0 ? (sh >= 140 ? (sh << 16) : 0x2040C0) : ((c >> 2) & 0x3F3F3F);
+            }
+            Files.write(dir.resolve("lights_" + t + ".jpg"), JpegCodec.encode(m, w, h, 0.95f));
+        }
     }
 }

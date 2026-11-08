@@ -82,7 +82,10 @@ dispatched via `ClientBridge.handlePayload`.
    albedo, scene colour temperature), `optics/Exposure.solve` (P/A/S/M), AF/subject detection, drive modes, the
    camera buffer (drains at the card's write speed), shutter. Composes a `PhotoCapture.Shot`. A correct exposure
    renders the metered area at middle grey however dark the game drew it (`PhotoCapture.relight`, global factor
-   from the game's light curve at the metered points; not per pixel).
+   from the game's light curve at the metered points; not per pixel). Light sources (torches, lamps, lava: blocks with
+   light emission under each pixel, found from the GPU depth by `CameraRays.emitters`) are then raised to their real
+   luminance vs the metered EV (`processing/LightSources`, before the DoF so bokeh discs carry it); the light is the
+   texels near the block's brightest pixel in the frame (flame yes, torch stick no).
    Electronic finders (`evf`/`hybrid`/`none`, digital bodies) show the photo's look live: `client/render/EvfPreview`
    (shader `realcamera_evf`, after the live DoF) applies the per-pixel part of the development — relight of a dim
    scene (with a pack: `FrameSampler.meteredLuminance` + `ShaderCompat.packRelight`), exposure error, colour filter,
