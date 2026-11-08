@@ -2,6 +2,7 @@
 
 Мод на реалистичную фотографию для Minecraft **1.21.1 / NeoForge**. Некоммерческий фанатский проект.
 
+
 > **Дисклеймер.** Проект не связан с Sony, Canon, Nikon, Fujifilm, Hasselblad, Leica, Panasonic, OM System,
 > Pentax, Ricoh, Sigma, Tamron, Samyang, Godox, Kodak, Ilford, CineStill и другими производителями и не одобрен ими.
 > Названия камер, объективов и плёнок используются только чтобы описать реальную технику; все товарные знаки
@@ -12,7 +13,9 @@
 > describe real equipment; all trademarks belong to their owners. All textures, models and sounds are generated
 > by the project's own scripts.*
 
-Полный план функционала: `docs/` и план проекта. Итоги этапа 0: `docs/stage0-capture.md`.
+> [!IMPORTANT]
+> Рекомендуем использовать мод совместно с шейдерами! Тогда опыт съёмки получится заметно живее и разнообразней! Помимо этого, при съёмке без шейдеров могут наблюдаться артефакты отрисовки теней и света в виде тёмных и светлых пятен!
+> Мод протестирован в работе с шейдерами _**ComplementoryUnbound_r5.6.1-5.7.1, photon v1.2a-1.3b, ComplementoryReimagined_r5.6.1-5.7.1 и iterationT 3.2.0**_
 
 # Быстрый старт
 
@@ -23,7 +26,7 @@
 
 ## Установка в обычный лаунчер
 
-1. Установи NeoForge 21.1.x для Minecraft 1.21.1 (например, через Prism Launcher).
+1. Установи NeoForge 21.1.265+ для Minecraft 1.21.1 (например, через Prism Launcher).
 2. Положи `build/libs/realcamera-<версия>.jar` в папку `mods` этого профиля.
 3. По желанию добавь Sodium и Iris (NeoForge-версии для 1.21.1) и шейдерпак — мод снимает с шейдерами.
 

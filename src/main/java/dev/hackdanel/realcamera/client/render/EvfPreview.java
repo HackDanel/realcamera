@@ -137,9 +137,20 @@ public final class EvfPreview {
         var n = view.noise();
         s.safeGetUniform("Noise").set((float) n.shot(), (float) n.read2(), (float) n.chroma(), (float) n.avg());
         s.safeGetUniform("NoiseRow").set((float) n.rowSigma(), (float) (frame % 997));
-        int shadeId = shadeTexture();
+        int shadeId = shadeTexture(mc);
         s.setSampler("LightMap", shadeId >= 0 ? shadeId : main.getColorTextureId());
         s.safeGetUniform("LightMapOn").set(shadeId >= 0 ? 1f : 0f);
+        int depthTex = DepthLayers.surfaceTexture(); // opaque world + water surfaces, as the rays see it
+        s.setSampler("DepthSampler", depthTex >= 0 ? depthTex : main.getDepthTextureId());
+        var box = shadeId >= 0 ? LightVolume.box() : null;
+        s.setSampler("LightVolume", box != null ? LightVolume.textureId() : main.getColorTextureId());
+        s.safeGetUniform("VolumeOn").set(box != null ? 1f : 0f);
+        if (shadeId >= 0) {
+            setMapUniforms(s, mc, Viewfinder.shadeMap());
+        }
+        if (box != null) {
+            setVolumeUniforms(s, mc, box);
+        }
         out.bindWrite(true);
         s.apply();
         BufferBuilder b = RenderSystem.renderThreadTesselator().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
@@ -157,32 +168,90 @@ public final class EvfPreview {
         RenderSystem.enableDepthTest();
     }
 
-    /** Uploads the viewfinder's light map when it changed; its texture id, or -1 when there is none. */
-    private static int shadeTexture() {
-        float[] map = Viewfinder.shadeMap();
-        if (map == null) return -1;
-        int gw = Viewfinder.SHADE_W, gh = Viewfinder.shadeMapHeight();
+    /**
+     * Uploads the viewfinder's light map when it changed; its texture id, or -1 when there is none (or it was cast
+     * somewhere else: the camera was lowered and raised again after a walk). Red: the correction (log), green: the
+     * cell's distance (log2 metres + 5 over 17 stops); read with texelFetch, the shader filters it itself.
+     */
+    private static int shadeTexture(Minecraft mc) {
+        var map = Viewfinder.shadeMap();
+        if (map == null || map.origin().distanceToSqr(mc.gameRenderer.getMainCamera().getPosition()) > 36) return -1;
+        int gw = map.width(), gh = map.height();
         if (shadeTex == null || shadeTex.getPixels() == null || shadeTex.getPixels().getWidth() != gw
                 || shadeTex.getPixels().getHeight() != gh) {
             if (shadeTex != null) shadeTex.close();
             shadeTex = new net.minecraft.client.renderer.texture.DynamicTexture(gw, gh, false);
-            shadeTex.setFilter(true, false);
             shadeTexVersion = -1;
         }
-        if (shadeTexVersion != Viewfinder.shadeMapVersion()) {
+        if (shadeTexVersion != map.version()) {
             var img = shadeTex.getPixels();
             for (int y = 0; y < gh; y++) {
                 for (int x = 0; x < gw; x++) {
                     // texture row 0 is the bottom of the frame (the shader's frame coordinates have y up)
-                    int e = dev.hackdanel.realcamera.processing.ShadeMap.encode(map[(gh - 1 - y) * gw + x]);
-                    img.setPixelRGBA(x, y, 0xFF000000 | e << 16 | e << 8 | e);
+                    int i = (gh - 1 - y) * gw + x;
+                    int e = dev.hackdanel.realcamera.processing.ShadeMap.encode(map.factors()[i]);
+                    int d = encodeDistance(map.distances()[i]);
+                    img.setPixelRGBA(x, y, 0xFF000000 | d << 8 | e);
                 }
             }
             shadeTex.upload();
-            shadeTex.setFilter(true, false);
-            shadeTexVersion = Viewfinder.shadeMapVersion();
+            shadeTex.setFilter(false, false);
+            shadeTexVersion = map.version();
         }
         return shadeTex.getId();
+    }
+
+    /** A distance in metres as 0..255: log2(d) + 5 over 17 stops (3 cm .. 4 km), 4.7% per step. */
+    static int encodeDistance(float metres) {
+        double e = (Math.log(Math.max(1e-3, metres)) / Math.log(2) + 5) / 17;
+        return (int) Math.round(Math.max(0, Math.min(1, e)) * 255);
+    }
+
+    /**
+     * The light volume and how to read it: this frame's camera axes in the world and its position relative to the
+     * box's corner (pixel to world), the box's size, and what {@link dev.hackdanel.realcamera.processing.ShadeMap}
+     * needs to turn light levels into a correction (daylight and ambient EV, the sky's darkening, the reference).
+     */
+    private static void setVolumeUniforms(ShaderInstance s, Minecraft mc, LightVolume.Box box) {
+        var cam = mc.gameRenderer.getMainCamera();
+        org.joml.Vector3f f = cam.getLookVector(), u = cam.getUpVector(), l = cam.getLeftVector();
+        s.safeGetUniform("CamRight").set(-l.x(), -l.y(), -l.z());
+        s.safeGetUniform("CamUp").set(u.x(), u.y(), u.z());
+        s.safeGetUniform("CamFwd").set(f.x(), f.y(), f.z());
+        var p = cam.getPosition();
+        s.safeGetUniform("CamToVolume").set((float) (p.x - box.ox()), (float) (p.y - box.oy()), (float) (p.z - box.oz()));
+        s.safeGetUniform("VolumeSize").set((float) LightVolume.SX, (float) LightVolume.SY, (float) LightVolume.SZ,
+                (float) LightVolume.TILES);
+        var level = mc.level;
+        s.safeGetUniform("LightModel").set((float) dev.hackdanel.realcamera.client.camera.SceneMeter.daylightEv(level, 1f),
+                (float) dev.hackdanel.realcamera.client.camera.SceneMeter.ambientEv(level), level.getSkyDarken(1f), 0f);
+        s.safeGetUniform("DevelopRef").set((float) Viewfinder.developEv(), (float) Viewfinder.developGameLight());
+    }
+
+    /**
+     * Where the light map lies relative to this frame's view: the rotation from the current camera's axes into the
+     * map's (rows: the map's right, up and forward in current view coordinates), the camera's move since the map was
+     * cast (in map axes), the map's half-angle tangents and size, and how the screen spreads in view space.
+     */
+    private static void setMapUniforms(ShaderInstance s, Minecraft mc, Viewfinder.ShadeMapData map) {
+        var cam = mc.gameRenderer.getMainCamera();
+        org.joml.Vector3f f = cam.getLookVector(), u = cam.getUpVector(), l = cam.getLeftVector();
+        net.minecraft.world.phys.Vec3 cf = new net.minecraft.world.phys.Vec3(f.x(), f.y(), f.z());
+        net.minecraft.world.phys.Vec3 cu = new net.minecraft.world.phys.Vec3(u.x(), u.y(), u.z());
+        net.minecraft.world.phys.Vec3 cr = new net.minecraft.world.phys.Vec3(-l.x(), -l.y(), -l.z());
+        net.minecraft.world.phys.Vec3[] ref = {map.right(), map.up(), map.forward()};
+        String[] names = {"MapRotX", "MapRotY", "MapRotZ"};
+        net.minecraft.world.phys.Vec3 move = cam.getPosition().subtract(map.origin());
+        for (int i = 0; i < 3; i++) {
+            s.safeGetUniform(names[i]).set((float) ref[i].dot(cr), (float) ref[i].dot(cu), (float) ref[i].dot(cf));
+        }
+        s.safeGetUniform("MapShift").set((float) move.dot(map.right()), (float) move.dot(map.up()),
+                (float) move.dot(map.forward()));
+        s.safeGetUniform("MapTan").set((float) map.tanH(), (float) map.tanV(), (float) map.width(), (float) map.height());
+        org.joml.Matrix4f proj = DofPreview.levelProjection();
+        org.joml.Matrix4f inv = new org.joml.Matrix4f(proj).invert();
+        s.safeGetUniform("ScreenTan").set(1 / proj.m00(), 1 / proj.m11());
+        s.safeGetUniform("InvProj").set(inv.m22(), inv.m32(), inv.m23(), inv.m33());
     }
 
     /**

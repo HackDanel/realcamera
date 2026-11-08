@@ -511,7 +511,8 @@ public final class Viewfinder {
         if (tick % 4 == 0) {
             meter(mc);
         }
-        exposure = Exposure.solve(settings.mode(), meteredThroughFilter(), settings.evComp() / 3.0, settings.apertureIndex(),
+        updateShadeMap(mc);
+        exposure =Exposure.solve(settings.mode(), meteredThroughFilter(), settings.evComp() / 3.0, settings.apertureIndex(),
                 Math.min(settings.shutterIndex(), ExposureScales.BULB_INDEX - 1), effectiveIsoIndex(), limits());
         updateFocus(mc);
         if (focusShiftLeft > 0) {
@@ -702,56 +703,125 @@ public final class Viewfinder {
     private static float[] developSurface = new float[54];
 
     /** Columns of the live light map of an electronic finder ({@link #shadeMap()}). */
-    public static final int SHADE_W = 24;
-    private static float[] shadeMap;
-    private static int shadeH, shadeVersion;
+    public static final int SHADE_W = 48;
+    /** The light map covers the frame enlarged by this much each way, so a turned camera still finds its cells. */
+    public static final double SHADE_MARGIN = 1.25;
+    /** Distance stored for a cell that sees the sky, metres. */
+    public static final float SHADE_SKY = 4096;
+    /** Ticks one light map takes (its rows are cast a few per tick, so no tick casts the whole grid). */
+    private static final int SHADE_TICKS = 4;
 
     /**
-     * Per-cell light corrections of the live picture ({@link dev.hackdanel.realcamera.processing.ShadeMap}), rows
-     * top-down, {@link #SHADE_W} wide, or null when the finder does not simulate them (optical finder, film, pack).
+     * A light map: corrections and distances per cell (rows top-down) for the camera orientation and position it was
+     * cast from; the screen re-projects every pixel into it, so the map follows the world while the camera turns.
+     */
+    public record ShadeMapData(float[] factors, float[] distances, int width, int height, Vec3 origin, Vec3 forward,
+                               Vec3 up, Vec3 right, double tanH, double tanV, int version) {}
+
+    @javax.annotation.Nullable
+    private static ShadeMapData shadeMap;
+    private static int shadeVersion, shadeTicks;
+    private static long shadeNanos, volumeNanos;
+    /** The map being cast: its basis, cells and next row. */
+    @javax.annotation.Nullable
+    private static ShadePass shadePass;
+
+    private static final class ShadePass {
+        final int gw, gh;
+        final Vec3 forward, up, right;
+        final double tanH, tanV;
+        final float[] ev, light, dist;
+        int row;
+
+        ShadePass(int gw, int gh, Vec3 forward, Vec3 up, Vec3 right, double tanH, double tanV) {
+            this.gw = gw;
+            this.gh = gh;
+            this.forward = forward;
+            this.up = up;
+            this.right = right;
+            this.tanH = tanH;
+            this.tanV = tanV;
+            ev = new float[gw * gh];
+            light = new float[gw * gh];
+            dist = new float[gw * gh];
+        }
+    }
+
+    /**
+     * The live light map ({@link dev.hackdanel.realcamera.processing.ShadeMap}) or null when the finder does not
+     * simulate it (optical finder, film, pack).
      */
     @javax.annotation.Nullable
-    public static float[] shadeMap() {
+    public static ShadeMapData shadeMap() {
         return shadeMap;
     }
 
-    public static int shadeMapHeight() {
-        return shadeH;
-    }
-
-    /** Changes whenever the light map is recomputed. */
-    public static int shadeMapVersion() {
-        return shadeVersion;
-    }
-
-    /** The same light map the photo applies, on a coarser grid, for the electronic finder's exposure simulation. */
-    private static void updateShadeMap(Minecraft mc, CameraRays rays, double day, double ambient) {
+    /**
+     * The same light map the photo applies, on a coarser grid, for the electronic finder's exposure simulation. A map
+     * is cast over {@link #SHADE_TICKS} ticks in the orientation the camera had when it began (rays from where the
+     * camera is now); each cell also keeps its distance so the screen can spread it only over pixels at that depth.
+     */
+    private static void updateShadeMap(Minecraft mc) {
         if (!dev.hackdanel.realcamera.client.render.EvfPreview.electronicFinder() || body().isFilm()
                 || dev.hackdanel.realcamera.client.render.ShaderCompat.packInUse()) {
             shadeMap = null;
+            shadePass = null;
+            dev.hackdanel.realcamera.client.render.LightVolume.clear();
             return;
         }
-        int gw = SHADE_W, gh = Math.max(1, (int) Math.round(gw / sensor().aspect()));
-        float[] ev = new float[gw * gh], light = new float[gw * gh];
-        for (int y = 0; y < gh; y++) {
+        long tv = System.nanoTime();
+        dev.hackdanel.realcamera.client.render.LightVolume.tick(mc); // per-pixel light near the camera
+        volumeNanos += System.nanoTime() - tv;
+        net.minecraft.client.Camera camera = mc.gameRenderer.getMainCamera();
+        double aspect = sensor().aspect();
+        int gw = SHADE_W, gh = Math.max(1, (int) Math.round(gw / aspect));
+        if (shadePass == null || shadePass.gh != gh) {
+            org.joml.Vector3f f = camera.getLookVector(), u = camera.getUpVector(), l = camera.getLeftVector();
+            double tanV = Math.tan(Math.toRadians(sensorVfov()) / 2) * SHADE_MARGIN;
+            shadePass = new ShadePass(gw, gh, new Vec3(f.x(), f.y(), f.z()), new Vec3(u.x(), u.y(), u.z()),
+                    new Vec3(-l.x(), -l.y(), -l.z()), tanV * aspect, tanV);
+        }
+        ShadePass p = shadePass;
+        long t0 = System.nanoTime();
+        // as far as the photo's rays (PhotoCapture.rays): a shorter reach took far hills for sky (left bright) except
+        // where a ray happened to hit something closer (dark blotches on the horizon)
+        CameraRays rays = new CameraRays(mc.level, mc.getCameraEntity(), camera, sensorVfov(), aspect, 512);
+        double day = SceneMeter.daylightEv(mc.level, 1f);
+        double ambient = SceneMeter.ambientEv(mc.level);
+        int rows = (gh + SHADE_TICKS - 1) / SHADE_TICKS;
+        for (int y = p.row; y < Math.min(gh, p.row + rows); y++) {
             double v = 1 - (y + 0.5) * 2 / gh;
             for (int x = 0; x < gw; x++) {
                 double u = (x + 0.5) * 2 / gw - 1;
-                Vec3 dir = rays.direction(u, v);
+                Vec3 dir = p.forward.add(p.right.scale(u * p.tanH)).add(p.up.scale(v * p.tanV)).normalize();
                 var hit = rays.cast(dir);
                 int i = y * gw + x;
                 if (hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
-                    ev[i] = Float.NaN;
-                    light[i] = 1;
+                    p.ev[i] = Float.NaN;
+                    p.light[i] = 1;
+                    p.dist[i] = SHADE_SKY;
                 } else {
-                    ev[i] = (float) SceneMeter.sampleEv(mc.level, hit, dir, day, ambient);
-                    light[i] = (float) SceneMeter.gameLight(mc.level, SceneMeter.litPos(mc.level, hit));
+                    p.ev[i] = (float) SceneMeter.sampleEv(mc.level, hit, dir, day, ambient);
+                    p.light[i] = (float) SceneMeter.gameLight(mc.level, SceneMeter.litPos(mc.level, hit));
+                    p.dist[i] = (float) Math.max(0.05, hit.getLocation().subtract(rays.origin()).dot(p.forward));
                 }
             }
         }
-        shadeMap = dev.hackdanel.realcamera.processing.ShadeMap.factors(ev, light, developEv, developGameLight);
-        shadeH = gh;
-        shadeVersion++;
+        p.row += rows;
+        shadeNanos += System.nanoTime() - t0;
+        if (++shadeTicks == 100) {
+            RealCamera.LOGGER.debug("EVF light map: {} ms per tick, light volume {} ms", shadeNanos / 1e6 / shadeTicks,
+                    volumeNanos / 1e6 / shadeTicks);
+            shadeNanos = 0;
+            volumeNanos = 0;
+            shadeTicks = 0;
+        }
+        if (p.row >= gh) {
+            float[] fac = dev.hackdanel.realcamera.processing.ShadeMap.factors(p.ev, p.light, developEv, developGameLight);
+            shadeMap = new ShadeMapData(fac, p.dist, gw, gh, rays.origin(), p.forward, p.up, p.right, p.tanH, p.tanV,
+                    ++shadeVersion);
+            shadePass = null;
+        }
     }
 
     /** Scene EV the photo is developed against (incident light over the frame's surfaces). */
@@ -885,7 +955,6 @@ public final class Viewfinder {
         developGameLight = devN > 0 ? Math.exp(devLight / devN) : meteredGameLight;
         developAlbedo = devN > 0 ? Math.exp(devAlbedo / devN) : -1;
         developSurface = devSurface;
-        updateShadeMap(mc, rays, day, ambient);
     }
 
     // ------------------------------------------------------------------ focus

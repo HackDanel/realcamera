@@ -325,6 +325,79 @@ public final class DofAutotest {
         }), 160);
         shoot("rain f1.8", "sony_fe_85_f18", 1.8, 6.0f);
         step("rain stop", () -> server(p -> cmd(p, "weather clear")), 5);
+        // electronic finder at night without a pack: one torch, a roofed corner, a dark meadow. The light map must
+        // follow the edges of the blocks (no soft blotches across them) and stay on the world while the camera pans.
+        step("evf shade scene", () -> server(p -> {
+            cmd(p, "fill ~-16 ~ ~-6 ~16 ~8 ~40 minecraft:air");
+            // a raised bank with a torch on a post, a roofed corner beside it, the dark meadow all round
+            cmd(p, "fill ~1 ~ ~6 ~7 ~1 ~12 minecraft:dirt");
+            cmd(p, "fill ~1 ~2 ~6 ~7 ~2 ~12 minecraft:grass_block");
+            cmd(p, "setblock ~3 ~3 ~7 minecraft:oak_fence");
+            cmd(p, "setblock ~3 ~4 ~7 minecraft:torch");
+            cmd(p, "fill ~-5 ~ ~9 ~-5 ~1 ~9 minecraft:oak_fence");
+            cmd(p, "fill ~-1 ~ ~9 ~-1 ~1 ~9 minecraft:oak_fence");
+            cmd(p, "fill ~-5 ~ ~13 ~-5 ~1 ~13 minecraft:oak_fence");
+            cmd(p, "fill ~-1 ~ ~13 ~-1 ~1 ~13 minecraft:oak_fence");
+            cmd(p, "fill ~-6 ~2 ~8 ~0 ~2 ~14 minecraft:spruce_slab");
+            // a ceiling high above: no moonlight in the middle, only the torch
+            cmd(p, "fill ~-16 ~12 ~-6 ~16 ~12 ~40 minecraft:stone");
+            // the photographer on a pillar, looking down on it
+            cmd(p, "fill ~ ~ ~ ~ ~4 ~ minecraft:stone");
+            cmd(p, "tp @s ~ ~5 ~ 0 32");
+            cmd(p, "time set 18000");
+        }), 80);
+        step("evf shade view", () -> {
+            var pl = Minecraft.getInstance().player;
+            pl.setYRot(0);
+            pl.yRotO = 0;
+            pl.setXRot(32);
+            pl.xRotO = 32;
+        }, 10);
+        step("give evf", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            ItemStack s = camera("sony_fe_28_70_oss", 4, 6.0f);
+            mc.player.getInventory().setItem(0, s);
+            mc.gameMode.handleCreativeModeItemAdd(s, 36);
+        }, 10);
+        step("raise evf", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.player.getInventory().selected = 0;
+            mc.options.keyUse.setDown(true);
+            mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
+        }, 15);
+        until("viewfinder evf", Viewfinder::isActive, 60);
+        step("settle evf", () -> {}, 40);
+        step("evf shade screenshot", () -> pendingScreenshot = "vf_evf_shade", 10);
+        for (int i = 0; i < 12; i++) {
+            step("pan evf", () -> {
+                var pl = Minecraft.getInstance().player;
+                pl.setYRot(pl.getYRot() + 2.5f);
+                pl.yRotO = pl.getYRot();
+            }, 1);
+            if (i == 9) step("evf pan screenshot", () -> pendingScreenshot = "vf_evf_shade_pan", 1);
+        }
+        step("evf after pan", () -> {}, 20);
+        step("evf panned screenshot", () -> pendingScreenshot = "vf_evf_shade_panned", 10);
+        // the savanna's hills and acacias far away under the moon, the torch-lit bank in front
+        step("evf far scene", () -> {
+            server(p -> cmd(p, "fill ~-16 ~7 ~-6 ~16 ~7 ~40 minecraft:air"));
+            var pl = Minecraft.getInstance().player;
+            pl.setYRot(0);
+            pl.yRotO = 0;
+            pl.setXRot(10);
+            pl.xRotO = 10;
+        }, 80);
+        step("evf far screenshot", () -> pendingScreenshot = "vf_evf_far", 10);
+        step("evf far side", () -> {
+            var pl = Minecraft.getInstance().player;
+            pl.setYRot(60);
+            pl.yRotO = 60;
+        }, 40);
+        step("evf far side screenshot", () -> pendingScreenshot = "vf_evf_far_side", 10);
+        step("lower evf", () -> {
+            Minecraft.getInstance().options.keyUse.setDown(false);
+            log("PASS evf shade");
+        }, 20);
         step("done", () -> {
             log("done, stopping");
             Minecraft.getInstance().stop();
@@ -394,6 +467,26 @@ public final class DofAutotest {
         Minecraft mc = Minecraft.getInstance();
         com.mojang.blaze3d.platform.NativeImage img = net.minecraft.client.Screenshot.takeScreenshot(mc.getMainRenderTarget());
         java.io.File dir = new java.io.File(mc.gameDirectory, "screenshots/autotest");
+        var map = Viewfinder.shadeMap();
+        if (name.startsWith("vf_evf") && map != null) {
+            // the electronic finder's light map beside the screenshot: correction as grey (log, -6..+2 EV), 8x
+            int s = 8;
+            var m = new com.mojang.blaze3d.platform.NativeImage(map.width() * s, map.height() * s, false);
+            for (int y = 0; y < map.height() * s; y++) {
+                for (int x = 0; x < map.width() * s; x++) {
+                    int e = dev.hackdanel.realcamera.processing.ShadeMap.encode(map.factors()[(y / s) * map.width() + x / s]);
+                    m.setPixelRGBA(x, y, 0xFF000000 | e << 16 | e << 8 | e);
+                }
+            }
+            net.minecraft.Util.ioPool().execute(() -> {
+                try (m) {
+                    dir.mkdirs();
+                    m.writeToFile(new java.io.File(dir, name + "_map.png"));
+                } catch (java.io.IOException e) {
+                    RealCamera.LOGGER.error("map dump failed", e);
+                }
+            });
+        }
         net.minecraft.Util.ioPool().execute(() -> {
             try (img) {
                 dir.mkdirs();
