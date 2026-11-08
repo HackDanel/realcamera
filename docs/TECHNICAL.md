@@ -1,6 +1,6 @@
 # RealCamera — техническая документация
 
-Версия мода: **0.8.6**. Платформа: **Minecraft 1.21.1, NeoForge 21.1.265**, Java 21,
+Версия мода: **0.8.7-beta**. Платформа: **Minecraft 1.21.1, NeoForge 21.1.265**, Java 21,
 ModDevGradle, маппинги Mojang + Parchment (2024.11.17). Пакет `dev.hackdanel.realcamera`, mod id `realcamera`.
 
 Документ описывает, как устроен мод и почему он устроен именно так: каждую подсистему, её алгоритмы, числа,
@@ -909,11 +909,16 @@ stereographic, equidistant). Центр сохраняет истинный ма
   Make, Model, Orientation, Software, DateTime, Artist, ExposureTime, FNumber, ExposureProgram, ISO, ExifVersion,
   DateTimeOriginal, ExposureBias, MeteringMode, Flash, FocalLength, размеры, WhiteBalance, FocalLengthIn35mmFilm,
   LensMake, LensModel. В Lightroom снимок выглядит снятым настоящей камерой.
-- **RAW** (`processing/RawFile`): результат `developSensor` (до коррекций объектива и `finish`) как **16-битный
-  линейный PNG** (65535 = насыщение матрицы) + JSON-сайдкар: уровень белого, ББ и профиль «как снято», список
-  профилей камеры, запечённые виньетирование/дисторсия/ХА для коррекции профиля в редакторе. В обычном просмотрщике
-  выглядит тёмным и плоским, как непроявленный RAW. RAW без коррекций объектива. Сайдкары этапа 2 (без `version`)
-  читаются как 8-битные sRGB-кадры.
+- **RAW** (`processing/RawFile`, `processing/DngFile`): результат `developSensor` (до коррекций объектива и
+  `finish`) как **линейный DNG** (16 бит, PhotometricInterpretation LinearRaw, без сжатия, 65535 = насыщение
+  матрицы) + JSON-сайдкар для редактора в игре: уровень белого, ББ и профиль «как снято», список профилей камеры,
+  запечённые виньетирование/дисторсия/ХА для коррекции профиля. Матрица мода имеет первичные цвета sRGB и нейтральна
+  при D65, поэтому ColorMatrix1 = XYZ(D65)→линейный sRGB, CalibrationIlluminant1 = D65; ББ камеры записан как
+  AsShotNeutral (= 1/множители, нормированные к максимуму); BaselineExposure = log2(white/0.18) − 3, чтобы средний
+  серый стоял ~3 ступени ниже клиппинга, как у настоящих камер, и Lightroom открывал снимок яркостью как JPEG. EXIF —
+  та же Exif sub-IFD, что у JPEG. Lightroom, Camera Raw, darktable и RawTherapee проявляют его как RAW камеры
+  (ББ в кельвинах, восстановление светов). RAW без коррекций объектива. Файлы до 0.8.7 (16-битный линейный PNG) и
+  сайдкары этапа 2 (без `version`, 8-битные sRGB-кадры) читаются по-прежнему.
 - **Размер на карте** реалистичный: JPEG Fine ≈ 0.35–0.5 МБ/МП, сжатый RAW ≈ 1.2 МБ/МП. Игровая копия всегда
   маленький JPEG.
 - `client/photo/LocalOriginals` (`realcamera_cache/originals.json`) помнит, какие локальные файлы принадлежат какому
