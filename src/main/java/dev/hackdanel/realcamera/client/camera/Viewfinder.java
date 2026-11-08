@@ -752,8 +752,7 @@ public final class Viewfinder {
                 sum += ev * w;
                 wsum += w;
                 boolean miss = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS;
-                BlockPos lit = miss ? null : hit instanceof net.minecraft.world.phys.BlockHitResult bhr
-                        ? bhr.getBlockPos().relative(bhr.getDirection()) : BlockPos.containing(hit.getLocation());
+                BlockPos lit = miss ? null : SceneMeter.litPos(mc.level, hit);
                 lightSum += Math.log(miss ? skyGame : SceneMeter.gameLight(mc.level, lit)) * w;
                 double fire = miss ? 0 : SceneMeter.fireShare(mc.level, lit, day);
                 int skyLevel = miss ? 15 : mc.level.getBrightness(net.minecraft.world.level.LightLayer.SKY, lit);

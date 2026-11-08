@@ -144,9 +144,31 @@ public final class SceneMeter {
             // The sky is about one stop brighter than a sunlit subject; less near the horizon.
             return daylightEv + Mth.clamp(dir.y * 2, 0, 1);
         }
+        return pointEv(level, litPos(level, hit), daylightEv, ambientEv);
+    }
+
+    /**
+     * The position whose light lights what a ray hit: the block in front of the hit face. Stairs, slabs and other
+     * partial blocks (roofs!) store no light in their own voxel, so when the front block is one, the brightest of its
+     * neighbours is used; reading the stored 0 there made a roof meter many stops darker than it is.
+     */
+    public static BlockPos litPos(ClientLevel level, HitResult hit) {
         BlockPos pos = hit instanceof BlockHitResult bhr
                 ? bhr.getBlockPos().relative(bhr.getDirection())
                 : BlockPos.containing(hit.getLocation());
-        return pointEv(level, pos, daylightEv, ambientEv);
+        if (level.getBlockState(pos).isAir()) {
+            return pos;
+        }
+        BlockPos best = pos;
+        int bestLight = Math.max(level.getBrightness(LightLayer.SKY, pos), level.getBrightness(LightLayer.BLOCK, pos));
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
+            BlockPos n = pos.relative(d);
+            int l = Math.max(level.getBrightness(LightLayer.SKY, n), level.getBrightness(LightLayer.BLOCK, n));
+            if (l > bestLight) {
+                bestLight = l;
+                best = n;
+            }
+        }
+        return best;
     }
 }

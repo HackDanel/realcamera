@@ -268,9 +268,7 @@ public final class CameraRays {
     }
 
     private float lightAt(HitResult hit, float skyFactor) {
-        net.minecraft.core.BlockPos pos = hit instanceof BlockHitResult b
-                ? b.getBlockPos().relative(b.getDirection())
-                : net.minecraft.core.BlockPos.containing(hit.getLocation());
+        net.minecraft.core.BlockPos pos = SceneMeter.litPos(level, hit);
         float sky = level.getBrightness(net.minecraft.world.level.LightLayer.SKY, pos) * skyFactor;
         float block = level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, pos);
         float f = Math.max(sky, block) / 15f;
