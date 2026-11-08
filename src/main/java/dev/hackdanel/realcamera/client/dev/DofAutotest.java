@@ -240,6 +240,32 @@ public final class DofAutotest {
             pl.xRotO = -1;
         }, 10);
         shoot("night mirror f8", "nikon_z6iii", "nikon_reflex_500_f8", "nikon_ftz2", 8, 15.0f);
+        // through water, stained glass and smoke (best with shaders off: a shader pack keeps its own depth)
+        step("pond scene", () -> server(p -> {
+            cmd(p, "time set 6000");
+            cmd(p, "fill ~-8 ~ ~1 ~-4 ~1 ~7 minecraft:air");
+            cmd(p, "fill ~-8 ~-4 ~1 ~-4 ~-4 ~7 minecraft:sand");
+            for (int i = 0; i < 6; i++) {
+                cmd(p, String.format("setblock ~%d ~-4 ~%d minecraft:%s", -8 + (i * 3) % 5, 1 + i, i % 2 == 0 ? "gold_block" : "lapis_block"));
+            }
+            cmd(p, "fill ~-8 ~-3 ~1 ~-4 ~-1 ~7 minecraft:water");
+            cmd(p, "tp @s ~-6 ~ ~ 0 40");
+        }), 60);
+        // surface 2.7 m away along the view, the bottom 4.5 m further down: seen at 2.7 + 4.5 / 1.33 = 6.1 m
+        shoot("pond f2.8", "sony_fe_50_f18", 2.8, 6.1f);
+        step("glass scene", () -> server(p -> {
+            cmd(p, "tp @s ~6 ~ ~ 0 8");
+            cmd(p, "fill ~-3 ~ ~4 ~3 ~3 ~4 minecraft:light_blue_stained_glass");
+        }), 40);
+        step("glass view", () -> {
+            var pl = Minecraft.getInstance().player;
+            pl.setXRot(8);
+            pl.xRotO = 8;
+        }, 10);
+        shoot("glass f1.8", "sony_fe_85_f18", 1.8, 6.0f);
+        // campfire smoke (translucent particles) writes no depth: it blurs like what lies behind it (known limit)
+        step("smoke", () -> server(p -> cmd(p, "setblock ~0 ~ ~1 minecraft:campfire")), 100);
+        shoot("smoke f1.8", "sony_fe_85_f18", 1.8, 6.0f);
         step("done", () -> {
             log("done, stopping");
             Minecraft.getInstance().stop();

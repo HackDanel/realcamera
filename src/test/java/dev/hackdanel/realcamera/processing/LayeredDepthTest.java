@@ -1,0 +1,53 @@
+package dev.hackdanel.realcamera.processing;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+class LayeredDepthTest {
+    private static final int W = 8, H = 4, GW = 4, GH = 2;
+
+    private static float[] fill(int n, float v) {
+        float[] a = new float[n];
+        java.util.Arrays.fill(a, v);
+        return a;
+    }
+
+    @Test
+    void theBottomOfAPondIsSeenAtItsApparentDepth() {
+        // water surface 4 m away, the bottom 2 m below it along the view (6 m)
+        float[] full = fill(W * H, 4), opaque = fill(W * H, 6);
+        float[] out = LayeredDepth.combine(full, opaque, full.clone(), fill(GW * GH, LayeredDepth.WATER), GW, GH, W, H, false);
+        assertEquals(4 + 2 / 1.33, out[5], 1e-3);
+        // looking out from under water: no correction
+        out = LayeredDepth.combine(full, opaque, full.clone(), fill(GW * GH, LayeredDepth.WATER), GW, GH, W, H, true);
+        assertEquals(6, out[5], 1e-6);
+    }
+
+    @Test
+    void stainedGlassIsSeenThrough() {
+        float[] full = fill(W * H, 3), opaque = fill(W * H, 20);
+        float[] out = LayeredDepth.combine(full, opaque, full.clone(), fill(GW * GH, LayeredDepth.CLEAR), GW, GH, W, H, false);
+        assertEquals(20, out[0], 1e-6);
+    }
+
+    @Test
+    void particlesKeepTheirDepth() {
+        // smoke 0.5 m in front of the lens, before a window
+        float[] opaque = fill(W * H, 20), surface = fill(W * H, 3), full = fill(W * H, 0.5f);
+        float[] out = LayeredDepth.combine(full, opaque, surface, fill(GW * GH, LayeredDepth.CLEAR), GW, GH, W, H, false);
+        assertEquals(0.5f, out[0], 1e-6);
+        // a solid particle (drawn with the translucent blocks) where no translucent block is
+        out = LayeredDepth.combine(surface.clone(), opaque, surface, fill(GW * GH, LayeredDepth.NONE), GW, GH, W, H, false);
+        assertEquals(3, out[0], 1e-6);
+    }
+
+    @Test
+    void withoutTranslucentSurfacesNothingChanges() {
+        float[] full = new float[W * H];
+        for (int i = 0; i < full.length; i++) full[i] = 1 + i * 0.5f;
+        float[] out = LayeredDepth.combine(full, full.clone(), full.clone(), fill(GW * GH, LayeredDepth.NONE), GW, GH, W, H, false);
+        assertArrayEquals(full, out, 1e-6f);
+    }
+}

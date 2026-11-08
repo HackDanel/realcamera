@@ -113,13 +113,15 @@ public final class CameraRays {
 
     /**
      * Depth, optionally how brightly the game lit each surface (0..1, the light map curve of the air block in
-     * front of the hit; lets the flash recover surface colour), and where a ray hit an entity's box (1) rather
-     * than a block or the sky (0).
+     * front of the hit; lets the flash recover surface colour), where a ray hit an entity's box (1) rather
+     * than a block or the sky (0), and what kind of surface it hit ({@code LayeredDepth.WATER} for a fluid,
+     * {@code CLEAR} for a translucent block such as stained glass or ice, else {@code NONE}).
      */
     public float[][] grids(int gw, int gh, boolean withLight) {
         float[] depth = new float[gw * gh];
         float[] light = withLight ? new float[gw * gh] : null;
         float[] entity = new float[gw * gh];
+        float[] kind = new float[gw * gh];
         cellEntity = new Entity[gw * gh];
         lastGw = gw;
         lastGh = gh;
@@ -134,12 +136,27 @@ public final class CameraRays {
                 depth[y * gw + x] = (float) (Double.isInfinite(d) ? 10_000 : Math.max(0.05, d));
                 entity[y * gw + x] = hit.getType() == HitResult.Type.ENTITY ? 1 : 0;
                 if (hit instanceof EntityHitResult eh) cellEntity[y * gw + x] = eh.getEntity();
+                if (hit instanceof BlockHitResult bh && hit.getType() == HitResult.Type.BLOCK) {
+                    kind[y * gw + x] = surfaceKind(bh);
+                }
                 if (light != null) {
                     light[y * gw + x] = hit.getType() == HitResult.Type.MISS ? 1f : lightAt(hit, skyFactor);
                 }
             }
         }
-        return new float[][]{depth, light, entity};
+        return new float[][]{depth, light, entity, kind};
+    }
+
+    private float surfaceKind(BlockHitResult hit) {
+        var pos = hit.getBlockPos();
+        if (!level.getFluidState(pos).isEmpty()) {
+            return dev.hackdanel.realcamera.processing.LayeredDepth.WATER;
+        }
+        var block = level.getBlockState(pos).getBlock();
+        boolean clear = block instanceof net.minecraft.world.level.block.HalfTransparentBlock
+                || block instanceof net.minecraft.world.level.block.IronBarsBlock // glass panes
+                || block instanceof net.minecraft.world.level.block.BeaconBlock;
+        return clear ? dev.hackdanel.realcamera.processing.LayeredDepth.CLEAR : dev.hackdanel.realcamera.processing.LayeredDepth.NONE;
     }
 
     /**

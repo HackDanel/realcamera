@@ -101,7 +101,9 @@ dispatched via `ClientBridge.handlePayload`.
    frame (`RenderLevelStageEvent` AFTER_LEVEL, linearised with that frame's projection), and ray-casts depth and
    light grids (`CameraRays`). The per-pixel GPU depth is used when it agrees with the ray grid
    (`DepthUpsampler.agrees`; a shader pack may leave something else in the depth buffer), otherwise the grid is
-   upsampled. Exposures ≥ 1/4 s accumulate every frame through PBOs. Development runs on a worker thread.
+   upsampled. Exposures ≥ 1/4 s accumulate every frame through PBOs. Without a shader pack the depth is also copied
+   before and after the translucent blocks (`client/render/DepthLayers`): `processing/LayeredDepth` focuses through
+   water (apparent depth, /1.33), stained glass and ice; `agrees` must compare the FULL depth (rays stop at water). Development runs on a worker thread.
    With a shader pack the window is NOT resized (`Active.noResize`): a resize recreates the pack's buffers and resets
    its auto exposure, temporal accumulation and title timer (IterationT showed a grey frame with "Iteration 3.2.0");
    the frame is rendered at window size (taller FOV if the window is narrower than the sensor) and the centred crop

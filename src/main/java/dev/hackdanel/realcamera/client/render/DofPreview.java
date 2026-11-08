@@ -192,7 +192,14 @@ public final class DofPreview {
         maxRadiusNow = tilt != 0 ? maxFull : (float) Math.min(maxFull, worst * pxPerMm * 0.5);
 
         prepareState();
-        coc.setSampler("DepthSampler", main.getDepthTextureId());
+        int opaqueTex = DepthLayers.opaqueTexture(), surfaceTex = DepthLayers.surfaceTexture();
+        boolean layers = opaqueTex >= 0 && surfaceTex >= 0;
+        int fullTex = layers && Minecraft.useShaderTransparency() && DepthLayers.particlesTexture() >= 0
+                ? DepthLayers.particlesTexture() : main.getDepthTextureId();
+        coc.setSampler("DepthSampler", fullTex);
+        coc.setSampler("OpaqueSampler", layers ? opaqueTex : main.getDepthTextureId());
+        coc.setSampler("SurfaceSampler", layers ? surfaceTex : main.getDepthTextureId());
+        coc.safeGetUniform("Layers").set(layers ? 1f : 0f);
         coc.safeGetUniform("InvProj").set(inv.m22(), inv.m32(), inv.m23(), inv.m33());
         coc.safeGetUniform("Lens").set(focal, fNumber, focusMm, pxPerMm);
         coc.safeGetUniform("Tilt").set(invHinge, 1 / m11);

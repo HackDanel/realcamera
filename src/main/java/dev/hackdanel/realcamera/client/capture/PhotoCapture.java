@@ -1,6 +1,7 @@
 package dev.hackdanel.realcamera.client.capture;
 
 import dev.hackdanel.realcamera.client.render.ShaderCompat;
+import dev.hackdanel.realcamera.client.render.DepthLayers;
 import net.minecraft.world.phys.Vec3;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
@@ -25,6 +26,7 @@ import dev.hackdanel.realcamera.processing.ExifWriter;
 import dev.hackdanel.realcamera.processing.RawFile;
 import dev.hackdanel.realcamera.client.photo.LocalOriginals;
 import dev.hackdanel.realcamera.processing.ImageParams;
+import dev.hackdanel.realcamera.processing.LayeredDepth;
 import dev.hackdanel.realcamera.processing.ImagePipeline;
 import dev.hackdanel.realcamera.processing.JpegCodec;
 import dev.hackdanel.realcamera.spec.ColorProfileSpec;
@@ -138,6 +140,10 @@ public final class PhotoCapture {
         double savedViewScale = 1;
         /** Per-pixel depth from the GPU of the captured (first) frame, or null. */
         float[] gpuDepth;
+        /** The same frame's depth without translucent blocks and particles, and with the translucent blocks; or null. */
+        float[] gpuOpaque, gpuSurface;
+        boolean inWater;
+        float[] kindGrid;
         /** Drawn by a shader pack (exposed from what it drew, see {@link ShaderCompat#packRelight}). */
         boolean pack;
         /** Geometry of the open long exposure, for flashes of other photographers that fire meanwhile. */
@@ -305,8 +311,8 @@ public final class PhotoCapture {
             finish(mc, a);
             int[] rgb = toRgb(image, a.cx, a.cy, a.w, a.h);
             image.close();
-            submit(mc, shot, rgb, null, a.w, a.h, grids[0], grids[1], grids[2], a.gpuDepth, gw, gh, a.shot.seconds(),
-                    remote, a.pack);
+            submit(mc, shot, rgb, null, a.w, a.h, grids[0], grids[1], grids[2], a.gpuDepth, layers(a, grids[3]), gw, gh,
+                    a.shot.seconds(), remote, a.pack);
             return;
         }
         accumulateFrame(mc, a);
@@ -329,18 +335,42 @@ public final class PhotoCapture {
             return;
         }
         try {
-            float[] full = readDepth(target, event.getProjectionMatrix(), a.shot.chain().shiftPitchDeg(a.shot.focal(), a.shot.settings()));
+            double pitch = a.shot.chain().shiftPitchDeg(a.shot.focal(), a.shot.settings());
+            org.joml.Matrix4f proj = event.getProjectionMatrix();
+            float[] full = readDepth(target.getDepthTextureId(), target.width, target.height, proj, pitch);
+            // behind water, stained glass and ice (see DepthLayers): the opaque world and the translucent surfaces
+            int opaqueTex = DepthLayers.opaqueTexture(), surfaceTex = DepthLayers.surfaceTexture();
+            float[] opaque = null, surface = null;
+            if (!a.pack && opaqueTex >= 0 && surfaceTex >= 0) {
+                if (Minecraft.useShaderTransparency()) {
+                    // Fabulous: the main target holds only the opaque world, particles and water have their own
+                    opaque = full;
+                    surface = readDepth(surfaceTex, target.width, target.height, proj, pitch);
+                    int particlesTex = DepthLayers.particlesTexture();
+                    float[] particles = particlesTex >= 0 ? readDepth(particlesTex, target.width, target.height, proj, pitch) : surface;
+                    full = new float[opaque.length];
+                    for (int i = 0; i < full.length; i++) full[i] = Math.min(surface[i], particles[i]);
+                } else {
+                    opaque = readDepth(opaqueTex, target.width, target.height, proj, pitch);
+                    surface = readDepth(surfaceTex, target.width, target.height, proj, pitch);
+                }
+                a.inWater = Minecraft.getInstance().gameRenderer.getMainCamera().getFluidInCamera()
+                        == net.minecraft.world.level.material.FogType.WATER;
+            }
             a.gpuDepth = a.noResize ? crop(full, a.fw, a.cx, a.cy, a.w, a.h, 1) : full;
+            if (opaque != null) {
+                a.gpuOpaque = a.noResize ? crop(opaque, a.fw, a.cx, a.cy, a.w, a.h, 1) : opaque;
+                a.gpuSurface = a.noResize ? crop(surface, a.fw, a.cx, a.cy, a.w, a.h, 1) : surface;
+            }
         } catch (RuntimeException e) {
             RealCamera.LOGGER.warn("Could not read the depth buffer", e);
         }
     }
 
-    private static float[] readDepth(RenderTarget target, org.joml.Matrix4f projection, double levelPitchDeg) {
-        int w = target.width, h = target.height;
+    private static float[] readDepth(int texture, int w, int h, org.joml.Matrix4f projection, double levelPitchDeg) {
         java.nio.FloatBuffer buf = org.lwjgl.system.MemoryUtil.memAllocFloat(w * h);
         try {
-            RenderSystem.bindTexture(target.getDepthTextureId());
+            RenderSystem.bindTexture(texture);
             GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 4);
             GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_DEPTH_COMPONENT, GL11.GL_FLOAT, buf);
             RenderSystem.bindTexture(0);
@@ -393,6 +423,7 @@ public final class PhotoCapture {
             a.depthGrid = grids[0];
             a.lightGrid = grids[1];
             a.entityGrid = grids[2];
+            a.kindGrid = grids[3];
             for (int i = 0; i < 2; i++) {
                 a.pbo[i] = GL15.glGenBuffers();
                 GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, a.pbo[i]);
@@ -437,8 +468,8 @@ public final class PhotoCapture {
                         String.format(java.util.Locale.ROOT, "%.0f", Math.max(1, elapsed))), true);
             }
         }
-        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.entityGrid, a.gpuDepth, a.gw, a.gh, elapsed,
-                a.remote, a.pack);
+        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.entityGrid, a.gpuDepth, layers(a, a.kindGrid),
+                a.gw, a.gh, elapsed, a.remote, a.pack);
     }
 
     /** Sum one frame (GL rows are bottom-up) into the float buffer in linear light. */
@@ -592,9 +623,18 @@ public final class PhotoCapture {
         return rgb;
     }
 
+    /** The depth buffers behind translucent surfaces, for {@link LayeredDepth}. */
+    private record DepthStack(float[] opaque, float[] surface, float[] kind, boolean inWater) {}
+
+    @javax.annotation.Nullable
+    private static DepthStack layers(Active a, float[] kind) {
+        return a.gpuOpaque == null || a.gpuSurface == null || kind == null ? null
+                : new DepthStack(a.gpuOpaque, a.gpuSurface, kind, a.inWater);
+    }
+
     private static void submit(Minecraft mc, Shot shot, int[] rgb, float[] linear, int w, int h, float[] grid,
-                               float[] lightGrid, float[] entityGrid, float[] gpuDepth, int gw, int gh, double actualSeconds,
-                               float[] remote, boolean pack) {
+                               float[] lightGrid, float[] entityGrid, float[] gpuDepth, @javax.annotation.Nullable DepthStack layers,
+                               int gw, int gh, double actualSeconds, float[] remote, boolean pack) {
         ColorProfileSpec profile = Specs.profile(mc.level.registryAccess(), shot.chain().body(), shot.settings().profile())
                 .orElse(null);
         String artist = mc.getUser().getName();
@@ -603,14 +643,15 @@ public final class PhotoCapture {
                 ? dev.hackdanel.realcamera.client.camera.Viewfinder.filmStock() : null;
         developing++;
         // development uses half the cores: the game keeps rendering smoothly (and a burst keeps its pace)
-        WORKER.execute(() -> DEVELOP_POOL.submit(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, entityGrid, gpuDepth, gw, gh, actualSeconds,
-                remote, pack, profile, film, artist, maxUpload)).join());
+        WORKER.execute(() -> DEVELOP_POOL.submit(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, entityGrid, gpuDepth, layers,
+                gw, gh, actualSeconds, remote, pack, profile, film, artist, maxUpload)).join());
     }
 
     // ------------------------------------------------------------------ worker thread
 
     private static void develop(Shot s, int[] rgb, float[] linear, int w, int h, float[] grid, float[] lightGrid,
-                                float[] entityGrid, float[] gpuDepth, int gw, int gh, double seconds, float[] remote,
+                                float[] entityGrid, float[] gpuDepth, @javax.annotation.Nullable DepthStack layers,
+                                int gw, int gh, double seconds, float[] remote,
                                 boolean pack, ColorProfileSpec profile,
                                 @javax.annotation.Nullable dev.hackdanel.realcamera.spec.FilmStockSpec film, String artist,
                                 int maxUpload) {
@@ -628,6 +669,11 @@ public final class PhotoCapture {
             }
             float[] depth = gpu ? DepthUpsampler.fillUnknown(gpuDepth, () -> DepthUpsampler.upsample(grid, gw, gh, guide, w, h))
                     : DepthUpsampler.upsample(grid, gw, gh, guide, w, h);
+            // the depth check compares what the rays see (they stop at water surfaces) with the full depth buffer;
+            // then the camera focuses through water, glass and ice on what lies behind them
+            if (gpu && layers != null) {
+                depth = LayeredDepth.combine(depth, layers.opaque(), layers.surface(), layers.kind(), gw, gh, w, h, layers.inWater());
+            }
             RealCamera.LOGGER.debug("Depth map: {}", gpu ? "GPU depth buffer" : gpuDepth == null ? "ray grid" : "ray grid (GPU depth rejected: " + DepthUpsampler.lastCheck + ")");
             float[] light = lightGrid == null ? null : DepthUpsampler.upsample(lightGrid, gw, gh, guide, w, h);
             ImageParams params = params(s, profile, film, w, h, seconds);
