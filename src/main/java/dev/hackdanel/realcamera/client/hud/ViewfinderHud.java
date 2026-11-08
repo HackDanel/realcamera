@@ -182,12 +182,14 @@ public final class ViewfinderHud {
         }
     }
 
-    /** Bulb exposure is unknown until release; preview it as one second. */
+    /**
+     * How bright the photo comes out with these settings (exposure simulation, histogram): against the light of the
+     * whole frame, not the meter's reading, so aiming the meter elsewhere does not change the picture in manual mode.
+     * Bulb exposure is unknown until release; preview it as one second.
+     */
     public static double previewEv(Exposure.Result exp, CameraSettings s) {
-        if (s.mode() == CameraSettings.MODE_M && s.shutterIndex() >= ExposureScales.BULB_INDEX) {
-            return Viewfinder.meteredEv() - Exposure.cameraEv(exp.fNumber(), 1, exp.iso());
-        }
-        return exp.delta();
+        boolean bulb = s.mode() == CameraSettings.MODE_M && s.shutterIndex() >= ExposureScales.BULB_INDEX;
+        return Viewfinder.developDeltaEv(exp, bulb ? 1 : exp.seconds());
     }
 
     // ------------------------------------------------------------------ exposure preview

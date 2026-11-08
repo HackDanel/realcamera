@@ -174,12 +174,12 @@ public final class EvfPreview {
                 Viewfinder.liveFocusDistance(), ViewfinderHud.previewEv(exp, settings), Viewfinder.meteredK(), extras,
                 profile, Math.max(1, fw), Math.max(1, fh));
         // the same brightening as the photo (PhotoCapture.relight / ShaderCompat.packRelight)
-        double vanilla = Math.max(1, Math.min(16, 1 / Math.max(0.01, Viewfinder.meteredGameLight())));
+        double vanilla = Math.max(1, Math.min(16, 1 / Math.max(0.01, Viewfinder.developGameLight())));
         double relight = vanilla;
         if (ShaderCompat.packInUse()) {
-            double measured = FrameSampler.meteredLuminance(Viewfinder.meterSurfaceWeights(), aspect);
+            double measured = FrameSampler.meteredLuminance(Viewfinder.developSurfaceWeights(), aspect);
             // nothing to measure (only sky, unknown reflectance): the light curve, as the photo does
-            double target = ShaderCompat.packRelight(measured, Viewfinder.meteredAlbedo(), vanilla);
+            double target = ShaderCompat.packRelight(measured, Viewfinder.developAlbedo(), vanilla);
             packRelight = Math.exp(Math.log(packRelight) + (Math.log(target) - Math.log(packRelight)) * 0.2);
             relight = packRelight;
         }

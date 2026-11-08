@@ -692,6 +692,42 @@ public final class Viewfinder {
     /** The metering weights of the cells that see a surface (0 where the meter looks at the sky). */
     private static float[] meterSurface = new float[54];
     private static double meteredAlbedo = -1;
+    /**
+     * The light the photo is developed against, independent of where the meter looks: the incident light (no
+     * reflectance) and the game's light curve averaged over every surface in the frame. With the metered area as the
+     * reference, aiming the spot or the centre at a dark or a shaded patch brightened the whole picture (EVF and photo)
+     * in manual mode, and a reflected-light meter's bias (snow, coal) never showed in an auto mode.
+     */
+    private static double developEv = 12, developGameLight = 1, developAlbedo = -1;
+    private static float[] developSurface = new float[54];
+
+    /** Scene EV the photo is developed against (incident light over the frame's surfaces). */
+    public static double developEv() {
+        return developEv;
+    }
+
+    /** How brightly the game lit the frame's surfaces (0..1): the photo brightens a dimly drawn scene by its inverse. */
+    public static double developGameLight() {
+        return developGameLight;
+    }
+
+    /** Weights of the 9 x 6 grid (top-down): 1 for the cells that see a surface. */
+    public static float[] developSurfaceWeights() {
+        return developSurface;
+    }
+
+    /** Log-average reflectance of the frame's surfaces (linear), or -1. */
+    public static double developAlbedo() {
+        return developAlbedo;
+    }
+
+    /**
+     * How far the photo comes out from middle grey with these settings (+ brighter): the developing reference light
+     * against the camera's exposure. The meter's needle ({@link Exposure.Result#delta()}) is what the meter reads.
+     */
+    public static double developDeltaEv(Exposure.Result exp, double seconds) {
+        return developEv - lightLossEv() - Exposure.cameraEv(exp.fNumber(), seconds, exp.iso());
+    }
 
     /** How brightly the game lit the metered area (0..1): the photo brightens a dimly drawn scene by its inverse. */
     public static double meteredGameLight() {
@@ -723,6 +759,9 @@ public final class Viewfinder {
         double sum = 0, wsum = 0, lightSum = 0, miredSum = 0, albedoSum = 0, albedoW = 0;
         float[] weights = new float[gx * gy], surface = new float[gx * gy];
         int blockVotes = 0;
+        double devSum = 0, devLight = 0, devAlbedo = 0;
+        int devN = 0;
+        float[] devSurface = new float[gx * gy];
         double skyGame = SceneMeter.gameLight(mc.level, BlockPos.containing(mc.gameRenderer.getMainCamera().getPosition()).atY(
                 mc.level.getMaxBuildHeight()));
         double su = settings.afArea() == CameraSettings.AF_POINT ? settings.afX() : 0;
@@ -737,22 +776,30 @@ public final class Viewfinder {
                     case CameraSettings.METER_SPOT -> ((u - su) * (u - su) + (v - sv) * (v - sv)) < 0.05 ? 1 : 0;
                     default -> 1;
                 };
-                if (w <= 0) continue;
                 weights[y * gx + x] = (float) w;
                 Vec3 dir = rays.direction(u, v);
                 var hit = rays.cast(dir);
                 // a reflected-light meter: what the surface reflects, not only the light falling on it
                 double refl = SceneMeter.reflectanceEv(mc.level, hit);
-                double ev = SceneMeter.sampleEv(mc.level, hit, dir, day, ambient) + refl;
-                if (hit.getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
+                double incident = SceneMeter.sampleEv(mc.level, hit, dir, day, ambient);
+                double ev = incident + refl;
+                boolean miss = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS;
+                BlockPos lit = miss ? null : SceneMeter.litPos(mc.level, hit);
+                if (!miss) {
+                    devSum += incident;
+                    devLight += Math.log(SceneMeter.gameLight(mc.level, lit));
+                    devAlbedo += Math.log(0.3 * Math.pow(2, refl));
+                    devN++;
+                    devSurface[y * gx + x] = 1;
+                }
+                if (w <= 0) continue;
+                if (!miss) {
                     albedoSum += Math.log(0.3 * Math.pow(2, refl)) * w;
                     albedoW += w;
                     surface[y * gx + x] = (float) w;
                 }
                 sum += ev * w;
                 wsum += w;
-                boolean miss = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS;
-                BlockPos lit = miss ? null : SceneMeter.litPos(mc.level, hit);
                 lightSum += Math.log(miss ? skyGame : SceneMeter.gameLight(mc.level, lit)) * w;
                 double fire = miss ? 0 : SceneMeter.fireShare(mc.level, lit, day);
                 int skyLevel = miss ? 15 : mc.level.getBrightness(net.minecraft.world.level.LightLayer.SKY, lit);
@@ -778,6 +825,12 @@ public final class Viewfinder {
         meterSurface = surface;
         meteredAlbedo = albedoW > 0 ? Math.exp(albedoSum / albedoW) : -1;
         blockLit = blockVotes > gx * gy / 3;
+        // only sky in the frame: develop against the meter (nothing in the picture is lit by anything else)
+        double devTarget = devN > 0 ? devSum / devN : sum / wsum;
+        developEv = Mth.lerp(0.5, developEv, devTarget);
+        developGameLight = devN > 0 ? Math.exp(devLight / devN) : meteredGameLight;
+        developAlbedo = devN > 0 ? Math.exp(devAlbedo / devN) : -1;
+        developSurface = devSurface;
     }
 
     // ------------------------------------------------------------------ focus
@@ -1154,12 +1207,12 @@ public final class Viewfinder {
         int type = electronic() ? CameraSettings.SHUTTER_ELECTRONIC : settings.shutterType();
         ImageParams.Extras extras = extras(mc, seconds < 0 ? 1 : seconds);
         var cam = mc.gameRenderer.getMainCamera();
-        PhotoCapture.Shot shot = new PhotoCapture.Shot(ref, chain, settings, exposure, focal(), focusDistance, meteredEv,
+        PhotoCapture.Shot shot = new PhotoCapture.Shot(ref, chain, settings, exposure, focal(), focusDistance, developEv,
                 blockLit, CameraHelper.shutterCount(camera()) + 1, camera().getHoverName().getString(),
                 CameraHelper.parts(camera()).lens().getHoverName().getString(), seconds, motion(seconds),
                 SunTracker.sun(mc.level, mc.getCameraEntity(), cam, sensorVfov(), sensor().aspect()), extras,
-                SHAKE.nextInt(), meteredGameLight, meteredK, SensorHeat.sensorC(),
-                new PhotoCapture.Metering(meterWeights.clone(), meteredAlbedo));
+                SHAKE.nextInt(), developGameLight, meteredK, SensorHeat.sensorC(),
+                new PhotoCapture.Metering(developSurface.clone(), developAlbedo, lightLossEv()));
         return new Release(shot, type, extras.flashAt1m() > 0 ? emittedGn : 0, bulb, body().shutter().sound());
     }
 
@@ -1194,8 +1247,11 @@ public final class Viewfinder {
      */
     private static double printedError(PhotoCapture.Shot shot) {
         var stock = filmStock();
-        if (stock == null) return shot.exposure().delta();
-        double ev = shot.exposure().delta() - Math.log(shot.exposure().iso() / stock.iso()) / Math.log(2)
+        var e = shot.exposure();
+        double developed = shot.sceneEv() - shot.metering().lossEv()
+                - Exposure.cameraEv(e.fNumber(), shot.seconds() > 0 ? shot.seconds() : 1, e.iso());
+        if (stock == null) return developed;
+        double ev = developed - Math.log(shot.exposure().iso() / stock.iso()) / Math.log(2)
                 - stock.reciprocityLossEv(shot.seconds() < 0 ? 1 : shot.seconds());
         return stock.printedEv(ev);
     }

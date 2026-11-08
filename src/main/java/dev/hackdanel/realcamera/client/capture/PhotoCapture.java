@@ -96,7 +96,11 @@ public final class PhotoCapture {
      * Where the camera metered (9 x 6 weights, top-down) and the log-average reflectance of the metered surfaces
      * (-1 = only sky): lets a frame drawn by a shader pack be exposed from what the pack actually drew.
      */
-    public record Metering(float[] weights, double albedo) {}
+    /**
+     * What the photo is developed against: the grid cells that see a surface (whole frame, not the metering pattern),
+     * their log-average reflectance, and the light lost in the filter/glass/bellows (EV).
+     */
+    public record Metering(float[] weights, double albedo, double lossEv) {}
 
     private static final java.util.concurrent.ForkJoinPool DEVELOP_POOL =
             new java.util.concurrent.ForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
@@ -747,7 +751,7 @@ public final class PhotoCapture {
                 double scale = w / 2560.0;
                 dev.hackdanel.realcamera.processing.FilmLook.halation(finished, w, h, film.grain().halation());
                 // underexposed negatives show more grain; a bigger negative (120) is enlarged less, so finer grain
-                double under = Math.max(0, -(s.exposure().delta() - Math.log(s.exposure().iso() / film.iso()) / Math.log(2)));
+                double under = Math.max(0, -(exposureEv(s, s.seconds()) - Math.log(s.exposure().iso() / film.iso()) / Math.log(2)));
                 double enlarge = 36.0 / Math.max(36, Math.max(s.chain().sensor().widthMm(), s.chain().sensor().heightMm()));
                 dev.hackdanel.realcamera.processing.FilmLook.grain(finished, w, h,
                         film.grain().amount() * (1 + under * 0.4) * Math.sqrt(enlarge), film.grain().size() * scale * 2 * enlarge,
@@ -802,10 +806,8 @@ public final class PhotoCapture {
 
     /** Exposure error, recomputed with the real time for bulb shots. */
     private static double exposureEv(Shot s, double seconds) {
-        if (s.seconds() >= 0) {
-            return s.exposure().delta();
-        }
-        return s.sceneEv() - Exposure.cameraEv(s.exposure().fNumber(), seconds, s.exposure().iso());
+        double t = seconds > 0 ? seconds : s.exposure().seconds();
+        return s.sceneEv() - s.metering().lossEv() - Exposure.cameraEv(s.exposure().fNumber(), t, s.exposure().iso());
     }
 
     private static ImageParams params(Shot s, ColorProfileSpec profile,
