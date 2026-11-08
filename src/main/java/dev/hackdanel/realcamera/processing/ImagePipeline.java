@@ -126,6 +126,8 @@ public final class ImagePipeline {
         img = wear(img, w, h, p);
         flare(img, w, h, p);
         img = mist(img, w, h, x.mist());
+        // a soft-focus lens glows like a mist filter wide open; stopping down cuts the marginal rays that cause it
+        img = mist(img, w, h, p.lens().character().soft() * Math.max(0, 1 - stopsDown(p) / 2));
         star(img, w, h, x.starPoints());
         noise(img, w, h, p);
         float sat = (float) p.sensor().saturation();

@@ -106,4 +106,18 @@ class LensCharacterTest {
         double expected = -0.15 / 2 * (w / 36.0) * 0.5;
         assertEquals(expected, b[corner], Math.abs(expected) * 0.15, "curved: the wall lies behind the corners' focus");
     }
+
+    @Test
+    void softFocusLensGlowsWideOpenOnly() {
+        int w = 120, h = 80;
+        int[] img = new int[w * h];
+        for (int y = 30; y < 50; y++) for (int x = 50; x < 70; x++) img[y * w + x] = 0xFFFFFF;
+        var lens = new ImageParams.Lens(0, 2.8, 1, 0, 0, 1, 6, true, 0).withCharacter(new ImageParams.Character(0, 0, 0, 1));
+        ImageParams open = ImageParams.neutral().withLens(lens).withFocus(135, 2.8, 3);
+        ImageParams stopped = ImageParams.neutral().withLens(lens).withFocus(135, 5.6, 3);
+        int beside = 40 * w + 72;
+        int glowOpen = ImagePipeline.develop(img.clone(), null, w, h, open)[beside] & 0xFF;
+        int glowStopped = ImagePipeline.develop(img.clone(), null, w, h, stopped)[beside] & 0xFF;
+        assertTrue(glowOpen > glowStopped + 5, "glow wide open " + glowOpen + " vs stopped down " + glowStopped);
+    }
 }

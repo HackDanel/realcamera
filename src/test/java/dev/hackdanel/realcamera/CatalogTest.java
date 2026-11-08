@@ -92,7 +92,7 @@ class CatalogTest {
             if (l.has("optics") && l.getAsJsonObject("optics").has("character")) {
                 JsonObject c = l.getAsJsonObject("optics").getAsJsonObject("character");
                 if (!within(c, "spherical", -1, 1) || !within(c, "field_curvature", 0, 0.5)
-                        || !within(c, "apodization", 0, 1) || !within(c, "obstruction", 0, 0.6)) {
+                        || !within(c, "apodization", 0, 1) || !within(c, "obstruction", 0, 0.6) || !within(c, "soft", 0, 1)) {
                     problems.add(e.getKey() + ": character out of range " + c);
                 }
             }

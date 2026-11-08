@@ -843,7 +843,7 @@ public final class PhotoCapture {
                 optics.rounded(), optics.flare());
         var ch = optics.character();
         lens = lens.withBokeh(ImageParams.bokeh(optics.bokeh())).withLoca(chain.locaMm(focal))
-                .withCharacter(new ImageParams.Character(ch.spherical(), ch.apodization(), ch.obstruction()));
+                .withCharacter(new ImageParams.Character(ch.spherical(), ch.apodization(), ch.obstruction(), ch.soft()));
         int projection = chain.projection();
         if (projection != Optics.PROJ_RECTILINEAR) {
             double halfDiag = Math.hypot(sensor.widthMm(), sensor.heightMm()) / 2;

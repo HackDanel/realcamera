@@ -86,15 +86,18 @@ public record LensSpec(
      *                       the image circle: the frame edges focus closer than the centre (Petzval field curvature)
      * @param apodization    0..1 apodisation filter (Sony STF): discs fade softly to their edge
      * @param obstruction    0..0.6 central obstruction of a mirror lens, as a fraction of the disc radius: ring bokeh
+     * @param soft           0..1 soft-focus lens: a glow around everything, sharp core inside (spherical aberration
+     *                       left in on purpose); gone two stops down
      */
-    public record Character(float spherical, float fieldCurvature, float apodization, float obstruction) {
+    public record Character(float spherical, float fieldCurvature, float apodization, float obstruction, float soft) {
         public static final Codec<Character> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.FLOAT.optionalFieldOf("spherical", 0f).forGetter(Character::spherical),
                 Codec.FLOAT.optionalFieldOf("field_curvature", 0f).forGetter(Character::fieldCurvature),
                 Codec.FLOAT.optionalFieldOf("apodization", 0f).forGetter(Character::apodization),
-                Codec.FLOAT.optionalFieldOf("obstruction", 0f).forGetter(Character::obstruction)
+                Codec.FLOAT.optionalFieldOf("obstruction", 0f).forGetter(Character::obstruction),
+                Codec.FLOAT.optionalFieldOf("soft", 0f).forGetter(Character::soft)
         ).apply(i, Character::new));
-        public static final Character NONE = new Character(0, 0, 0, 0);
+        public static final Character NONE = new Character(0, 0, 0, 0, 0);
     }
 
     /** Tilt-shift movements: maximum tilt (degrees, either way) and shift (mm, either way). */

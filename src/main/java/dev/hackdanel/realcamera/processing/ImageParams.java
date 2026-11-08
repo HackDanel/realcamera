@@ -140,10 +140,14 @@ public record ImageParams(Sensor sensor, Focus focus, Lens lens, Motion motion, 
     /**
      * Out-of-focus character beyond blade shape and bokeh style (spec.LensSpec.Character): spherical -1..1 (+ soft
      * discs behind the focus plane, bright-rimmed ones in front), apodization 0..1 (discs fade to their edge),
-     * obstruction 0..0.6 (mirror lens ring discs, fraction of the radius).
+     * obstruction 0..0.6 (mirror lens ring discs, fraction of the radius), soft 0..1 (soft-focus glow).
      */
-    public record Character(double spherical, double apodization, double obstruction) {
-        public static final Character NONE = new Character(0, 0, 0);
+    public record Character(double spherical, double apodization, double obstruction, double soft) {
+        public static final Character NONE = new Character(0, 0, 0, 0);
+
+        public Character(double spherical, double apodization, double obstruction) {
+            this(spherical, apodization, obstruction, 0);
+        }
     }
 
     /**

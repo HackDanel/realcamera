@@ -318,7 +318,7 @@ def lens(key, name, brand, exif, mount, circle, focal, aperture, min_ap, min_foc
     """focal: (min, max); aperture: (wide, tele); dist: (wide, tele); dims: (length mm, diameter mm).
 
     character: out-of-focus character, any of spherical (-1..1), field_curvature (mm at the image circle's corner),
-    apodization (0..1, STF), obstruction (0..0.6, mirror lens); transmission: light lost in the glass (EV, T-stop minus
+    apodization (0..1, STF), obstruction (0..0.6, mirror lens), soft (0..1, soft-focus glow); transmission: light lost in the glass (EV, T-stop minus
     f-stop); loca: axial colour relative to a typical lens (0 = apochromatic)."""
     optics = {"blades": blades, "rounded": rounded, "vignetting_ev": vig, "sharpness": sharp,
               "distortion_wide": dist[0], "distortion_tele": dist[1], "ca_px": ca, "flare": flare, "bokeh": bokeh}
@@ -329,7 +329,7 @@ def lens(key, name, brand, exif, mount, circle, focal, aperture, min_ap, min_foc
     if max_mag:
         optics["max_magnification"] = max_mag
     if character:
-        assert set(character) <= {"spherical", "field_curvature", "apodization", "obstruction"}, character
+        assert set(character) <= {"spherical", "field_curvature", "apodization", "obstruction", "soft"}, character
         optics["character"] = dict(character)
     if transmission is not None:
         optics["transmission_loss_ev"] = transmission
@@ -420,6 +420,9 @@ LENSES = [
          US, 1.1, 0, 9, 1.4, 1.1, (-0.04, 0.02), 0.8, 0.4, 82, (113, 88.5), look="canon_l", tier="pro", max_mag=0.21),
     lens("canon_ef_70_200_f28l3", "Canon EF 70-200mm f/2.8L IS III USM", "Canon", "EF70-200mm f/2.8L IS III USM", "canon_ef", "ff", (70, 200), (2.8, 2.8), 32, 1.2,
          US, 1.1, 3.5, 8, 0.9, 1.1, (0.01, 0.02), 0.6, 0.35, 77, (199, 89), look="canon_l_white", tc=True, tier="pro", max_mag=0.21),
+    lens("canon_ef_135_f28_sf", "Canon EF 135mm f/2.8 Softfocus", "Canon", "EF135mm f/2.8 Softfocus", "canon_ef", "ff", (135, 135), (2.8, 2.8), 32, 1.3,
+         "slow", 0.6, 0, 6, 0.9, 1.0, (0.005, 0.005), 0.8, 0.5, 52, (98, 69), look="black", rounded=False, tier="mid", max_mag=0.12,
+         character={"spherical": 0.6, "soft": 0.6}),  # soft-focus portrait lens: glow wide open, sharp from f/5.6
     lens("canon_tse_24_f35l2", "Canon TS-E 24mm f/3.5L II", "Canon", "TS-E24mm f/3.5L II", "canon_ef", "ff", (24, 24), (3.5, 3.5), 22, 0.21,
          N, 0, 0, 8, 1.2, 1.1, (-0.02, -0.02), 0.8, 0.4, 82, (107, 89), look="canon_l", tilt_shift=(8.5, 12.0), tier="pro", max_mag=0.34),
     lens("canon_fd_50_f18", "Canon FD 50mm f/1.8", "Canon", "FD 50mm 1:1.8", "canon_fd", "ff", (50, 50), (1.8, 1.8), 22, 0.6,
