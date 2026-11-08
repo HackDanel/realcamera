@@ -5,10 +5,11 @@
 // Right after the level is drawn (the depth buffer is cleared before the hand and the GUI, and a shader pack
 // only finishes its picture later): the signed blur radius of every pixel, in full-resolution pixels.
 // With Layers = 1 the depth of field looks through water, stained glass and ice (DepthLayers): where a translucent
-// surface lies in front of the opaque world the opaque depth is used; particles keep their own depth.
+// surface lies in front of the opaque world the opaque depth is used; particles, rain and snow keep their own depth.
 uniform sampler2D DepthSampler;   // everything the level drew (Fabulous: the particles' target)
 uniform sampler2D OpaqueSampler;  // the opaque world
 uniform sampler2D SurfaceSampler; // the opaque world with translucent block surfaces
+uniform sampler2D WeatherSampler; // Fabulous: rain and snow alone (empty = far); otherwise the same as DepthSampler
 uniform float Layers;
 uniform float MaxRadius;
 
@@ -22,6 +23,8 @@ bool nearer(float a, float b) {
 float depthMm() {
     float full = rcDistanceMm(texture(DepthSampler, texCoord).r);
     if (Layers < 0.5) return full;
+    float weather = rcDistanceMm(texture(WeatherSampler, texCoord).r);
+    if (weather > 0.0 && full > 0.0) full = min(full, weather);
     float surface = rcDistanceMm(texture(SurfaceSampler, texCoord).r);
     float opaque = rcDistanceMm(texture(OpaqueSampler, texCoord).r);
     if (full < 0.0 || surface < 0.0 || opaque < 0.0) return full;

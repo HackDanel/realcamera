@@ -44,6 +44,28 @@ class LayeredDepthTest {
     }
 
     @Test
+    void smokeInFrontOfTheLensDoesNotFailTheDepthCheck() {
+        // campfire smoke (billboards 0.6 m away) over the whole frame, the ground 6 m away where the rays hit it
+        float[] opaque = fill(W * H, 6), full = fill(W * H, 0.6f), rays = fill(GW * GH, 6);
+        float[] kind = fill(GW * GH, LayeredDepth.NONE);
+        assertEquals(false, DepthUpsampler.agrees(full, W, H, rays, null, GW, GH));
+        float[] seen = LayeredDepth.rayView(opaque, opaque.clone(), kind, GW, GH, W, H);
+        assertEquals(true, DepthUpsampler.agrees(seen, W, H, rays, null, GW, GH));
+        // and the photo still gets the smoke's own depth
+        assertEquals(0.6f, LayeredDepth.combine(full, opaque, opaque.clone(), kind, GW, GH, W, H, false)[9], 1e-6);
+    }
+
+    @Test
+    void theRaysStopAtWaterButPassStainedGlass() {
+        float[] opaque = fill(W * H, 6), surface = fill(W * H, 4);
+        float[] water = LayeredDepth.rayView(opaque, surface, fill(GW * GH, LayeredDepth.WATER), GW, GH, W, H);
+        assertEquals(4, water[0], 1e-6);
+        // stained glass has no visual shape: its cell kind is whatever lies behind it
+        float[] glass = LayeredDepth.rayView(opaque, surface, fill(GW * GH, LayeredDepth.NONE), GW, GH, W, H);
+        assertEquals(6, glass[0], 1e-6);
+    }
+
+    @Test
     void withoutTranslucentSurfacesNothingChanges() {
         float[] full = new float[W * H];
         for (int i = 0; i < full.length; i++) full[i] = 1 + i * 0.5f;

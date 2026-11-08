@@ -19,9 +19,12 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>Fast/Fancy graphics draw everything into the main target: its depth is copied after the block entities (the
  * opaque world) and after the translucent blocks (plus water, glass, ice and the solid particles drawn before them);
- * at the end of the level it also holds the translucent particles. Fabulous graphics draw translucent blocks and
- * particles into their own targets, each starting from a copy of the opaque depth: those targets are used as they
- * are. With a shader pack none of this applies (the pack decides what its depth buffer holds).
+ * at the end of the level it also holds the translucent particles, and rain and snow: vanilla draws weather without
+ * writing depth on Fast/Fancy, so while depth is wanted {@code LevelRendererWeatherMixin} turns the depth writes on
+ * (nothing else of the level is drawn after it; the hand comes after a depth clear). Fabulous graphics draw translucent
+ * blocks and particles into their own targets, each starting from a copy of the opaque depth, and weather into one
+ * that starts empty: those targets are used as they are. With a shader pack none of this applies (the pack decides
+ * what its depth buffer holds).
  */
 @EventBusSubscriber(modid = RealCamera.MODID, value = Dist.CLIENT)
 public final class DepthLayers {
@@ -33,6 +36,11 @@ public final class DepthLayers {
     /** Wanted this frame: the viewfinder or a capture needs depth, without a shader pack. */
     private static boolean wanted() {
         return (Viewfinder.isActive() || PhotoCapture.capturing()) && !ShaderCompat.packInUse();
+    }
+
+    /** Rain and snow should write depth (Fast/Fancy draw them without): the depth of field blurs them by their own. */
+    public static boolean weatherDepth() {
+        return wanted() && !ShaderCompat.shadowPass();
     }
 
     @SubscribeEvent
@@ -104,6 +112,12 @@ public final class DepthLayers {
             return sameSize(Minecraft.getInstance().levelRenderer.getParticlesTarget());
         }
         return Minecraft.getInstance().getMainRenderTarget().getDepthTextureId();
+    }
+
+    /** Fabulous only: rain and snow alone (their target has no world in it, empty = far), or -1. */
+    public static int weatherTexture() {
+        if (!wanted() || !Minecraft.useShaderTransparency()) return -1;
+        return sameSize(Minecraft.getInstance().levelRenderer.getWeatherTarget());
     }
 
     /** A Fabulous target's depth texture if it matches the main target (a capture resizes only the main one). */

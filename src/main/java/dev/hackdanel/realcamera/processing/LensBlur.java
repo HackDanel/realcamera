@@ -15,10 +15,12 @@ import java.util.stream.IntStream;
  *       how much of the pixel its own pixels cover), normalised by the coverage so it continues behind whatever is
  *       nearer instead of darkening at its edge;</li>
  *   <li>in focus: sharp pixels over the background;</li>
- *   <li>holes (pixels taken by the blurred foreground, with nothing behind them) filled pull-push from around them:
- *       the background seen past a grass blade;</li>
- *   <li>foreground: the layers in front of the focus plane added over everything, not normalised, so a blurred
- *       blade turns half-transparent at its edges.</li>
+ *   <li>foreground: the layers in front of the focus plane, the one nearest the focus plane first, each over the
+ *       ones behind it, not normalised, so a blurred blade turns half-transparent at its edges and smoke right at the
+ *       lens covers the slightly blurred ground between it and the subject;</li>
+ *   <li>holes (pixels taken by the blurred foreground) filled with what the foreground layers behind them hold (the
+ *       ground behind the smoke), then pull-push from around them: the background seen past a grass blade;</li>
+ *   <li>the foreground over the filled picture.</li>
  * </ol>
  * Pure Java, no game classes.
  */
@@ -65,7 +67,7 @@ final class LensBlur {
             composite(l, bg, w, h, true);
         }
 
-        // 2. in focus over the background, 3. holes filled
+        // 2. in focus over the background (its holes are filled after the foreground, step 5)
         float[] under = new float[n * 4];
         IntStream.range(0, h).parallel().forEach(y -> {
             for (int x = 0; x < w; x++) {
@@ -98,18 +100,42 @@ final class LensBlur {
                 under[q + 3] = a;
             }
         });
-        pullPush(under, w, h);
 
-        // 4. foreground
+        // 4. foreground, farthest (nearest the focus plane) first; what lay under each pixel's own layer when it was
+        // laid on is what is behind that pixel
         float[] fg = bg; // the background is no longer needed: reuse its memory
         java.util.Arrays.fill(fg, 0);
         boolean anyNear = false;
+        float[] behind = null;
         for (int k = 0; k < levels; k++) {
             if (!nearUsed[k]) continue;
+            if (anyNear) {
+                if (behind == null) behind = new float[n * 4];
+                remember(fg, behind, signed, w, h, k);
+            }
             anyNear = true;
             Layer l = blurLayer(img, signed, w, h, shape, k, true);
-            composite(l, fg, w, h, false);
+            composite(l, fg, w, h, true);
         }
+
+        // 5. holes: first from the foreground behind them, then from around them
+        if (behind != null) {
+            float[] b = behind;
+            IntStream.range(0, h).parallel().forEach(y -> {
+                for (int i = y * w, end = i + w; i < end; i++) {
+                    int q = i * 4;
+                    float ba = Math.min(1f, b[q + 3]), rest = 1 - under[q + 3];
+                    if (rest <= 0 || ba <= 1e-6f) continue;
+                    float k = rest / Math.max(1f, b[q + 3]);
+                    under[q] += b[q] * k;
+                    under[q + 1] += b[q + 1] * k;
+                    under[q + 2] += b[q + 2] * k;
+                    under[q + 3] += rest * ba;
+                }
+            });
+        }
+        pullPush(under, w, h);
+
         float[] out = new float[n * 3];
         boolean near = anyNear;
         IntStream.range(0, h).parallel().forEach(y -> {
@@ -163,6 +189,26 @@ final class LensBlur {
         return d >= 1 ? 0 : (float) ((1 - d) * rest);
     }
 
+    /**
+     * What a pixel in front of the focus plane hides in layer k: all of what is behind it in its farther layer (or in
+     * layer 0 while it is still partly sharp), nothing in the nearer one.
+     */
+    static float nearOccupancy(float a, int k) {
+        if (a < 1f) return k == 0 ? Math.min(1f, 2 * layerWeight(a, 0)) : 0;
+        return (int) Math.floor(layerPos(a)) == k ? 1 : 0;
+    }
+
+    /** Copies what the foreground holds under the pixels whose farther layer is k, before that layer is laid on. */
+    private static void remember(float[] fg, float[] behind, float[] signed, int w, int h, int k) {
+        IntStream.range(0, h).parallel().forEach(y -> {
+            for (int i = y * w, end = i + w; i < end; i++) {
+                float s = signed[i];
+                if (s <= 0.5f || nearOccupancy(s, k) < 1) continue;
+                System.arraycopy(fg, i * 4, behind, i * 4, 4);
+            }
+        });
+    }
+
     /** A blurred layer at reduced resolution: premultiplied RGB, weight and occupancy per cell. */
     private record Layer(int scale, int lw, int lh, float[] data) {}
 
@@ -190,8 +236,10 @@ final class LensBlur {
                     src[c + 1] += img[j + 1] * wt * inv;
                     src[c + 2] += img[j + 2] * wt * inv;
                     src[c + 3] += wt * inv;
-                    // occupancy: a pixel split evenly between two layers hides what is behind either of them
-                    src[c + 4] += Math.min(1f, 2 * wt) * inv;
+                    // occupancy: a pixel split evenly between two layers hides what is behind either of them; in
+                    // front of the focus plane, where the layers are laid over each other, only its farther layer
+                    // hides (all of) what is behind, so it does not hide its own share in the other one
+                    src[c + 4] += (near ? nearOccupancy(Math.abs(s), k) : Math.min(1f, 2 * wt)) * inv;
                 }
             }
         });
@@ -201,7 +249,7 @@ final class LensBlur {
         boolean[] has = new boolean[tw * th];
         for (int ly = 0; ly < lh; ly++) {
             for (int lx = 0; lx < lw; lx++) {
-                if (src[(ly * lw + lx) * 5 + 4] > 0) has[(ly / TILE) * tw + lx / TILE] = true;
+                if (src[(ly * lw + lx) * 5 + 4] > 0 || src[(ly * lw + lx) * 5 + 3] > 0) has[(ly / TILE) * tw + lx / TILE] = true;
             }
         }
         int spread = (ker.reach() + TILE - 1) / TILE;
@@ -260,7 +308,7 @@ final class LensBlur {
                     if (sx < 0 || sy < 0 || sx >= lw || sy >= lh) continue;
                     int c = (sy * lw + sx) * 5;
                     float occ = src[c + 4];
-                    if (occ == 0) continue;
+                    if (occ == 0 && src[c + 3] == 0) continue;
                     float wt = kw[t];
                     a0 += src[c] * wt;
                     a1 += src[c + 1] * wt;
@@ -309,7 +357,7 @@ final class LensBlur {
                         v[ch] = top + (bot - top) * ty;
                     }
                 }
-                if (v[4] <= 0) continue;
+                if (v[4] <= 0 && v[3] <= 0) continue;
                 int q = (y * w + x) * 4;
                 if (over) {
                     float keep = 1 - Math.min(1f, v[4]);

@@ -103,7 +103,11 @@ dispatched via `ClientBridge.handlePayload`.
    (`DepthUpsampler.agrees`; a shader pack may leave something else in the depth buffer), otherwise the grid is
    upsampled. Exposures ≥ 1/4 s accumulate every frame through PBOs. Without a shader pack the depth is also copied
    before and after the translucent blocks (`client/render/DepthLayers`): `processing/LayeredDepth` focuses through
-   water (apparent depth, /1.33), stained glass and ice; `agrees` must compare the FULL depth (rays stop at water). Development runs on a worker thread.
+   water (apparent depth, /1.33), stained glass and ice. Without a pack `agrees` compares `LayeredDepth.rayView` (opaque
+   world + water surfaces: the rays stop at water, pass through stained glass, miss particles and rain) and
+   `dropFixedLayer` is skipped (particles are flat billboards facing the lens; smoke was dropped as a "fixed layer").
+   Rain/snow write depth on Fast/Fancy while depth is wanted (`mixin/client/LevelRendererWeatherMixin`); Fabulous: the
+   weather target. Development runs on a worker thread.
    With a shader pack the window is NOT resized (`Active.noResize`): a resize recreates the pack's buffers and resets
    its auto exposure, temporal accumulation and title timer (IterationT showed a grey frame with "Iteration 3.2.0");
    the frame is rendered at window size (taller FOV if the window is narrower than the sensor) and the centred crop
@@ -218,7 +222,9 @@ axis; 1 model unit ≈ 9 mm, shared mount point in `tools/gen_assets.py`).
   blurred like the ground behind it, a sharp halo around wide-open portraits. Tiny light sources get the blur radius
   of their surroundings.
 - Depth of field is `processing/LensBlur` (layers by signed blur radius, each convolved with the aperture disc of
-  `BokehKernel`, composited back to front; holes under the blurred foreground filled pull-push). A gaussian pyramid
+  `BokehKernel`, composited back to front, the foreground layers over each other too, a pixel occluding only in the
+  farther of its two layers; holes under the blurred foreground filled from the foreground layers behind, then
+  pull-push; summing the foreground layers left smoke at the lens with a hard dark-rimmed edge). A gaussian pyramid
   looked like mush, and a gather blur alone leaves blurred foreground with a hard outline. The live preview
   (`realcamera_dof_*`, `include/dof_bokeh.glsl`) uses the same disc shape; small blur is gathered at full resolution in
   the composite, or the 1/8 pass made the viewfinder blurrier than the photo.

@@ -6,7 +6,8 @@ package dev.hackdanel.realcamera.processing;
  *
  * <p>A camera focuses through a window or a pond's surface on what lies behind it, so behind a translucent surface
  * the depth is that of the opaque world, seen through water at its apparent depth (refraction: surface + d / 1.33).
- * Particles are drawn as they are: smoke or a leaf right in front of the lens blurs into a big soft disc. Which
+ * Particles, rain and snow are drawn as they are: smoke or a raindrop right in front of the lens blurs into a big
+ * soft disc. Which
  * surface is water and which is glass comes from the ray grid (cells whose ray hit a fluid or a translucent block).
  * Pure Java, no game classes.
  */
@@ -19,7 +20,7 @@ public final class LayeredDepth {
     private LayeredDepth() {}
 
     /**
-     * @param full      depth with everything (metres; what the GPU depth check compared against the rays)
+     * @param full      depth with everything, particles and weather too (metres)
      * @param opaque    the opaque world
      * @param surface   the opaque world plus translucent block surfaces (on Fast/Fancy graphics also solid particles)
      * @param kind      per ray grid cell: NONE, WATER or CLEAR (a translucent block)
@@ -49,6 +50,25 @@ public final class LayeredDepth {
                 } else {
                     out[i] = f;
                 }
+            }
+        });
+        return out;
+    }
+
+    /**
+     * What the camera's rays see, for checking the GPU depth against them: the opaque world, and the surface of
+     * water (and of ice, slime, panes: blocks the rays stop at) where the ray cell hit one. No particles, no rain,
+     * no stained glass (its visual shape is empty, rays pass through it). Particles are billboards facing the lens,
+     * flat and near: compared as they are, a cloud of campfire smoke in front of the camera made the whole GPU depth
+     * look wrong, and the photo fell back to the ray grid, which does not see smoke at all.
+     */
+    public static float[] rayView(float[] opaque, float[] surface, float[] kind, int gw, int gh, int w, int h) {
+        float[] out = new float[w * h];
+        java.util.stream.IntStream.range(0, h).parallel().forEach(y -> {
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x;
+                float o = opaque[i], s = surface[i];
+                out[i] = o >= 0 && s >= 0 && nearer(s, o) && kindAt(kind, gw, gh, x, y, w, h) != NONE ? s : o;
             }
         });
         return out;

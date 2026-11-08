@@ -107,6 +107,32 @@ class LensBlurTest {
     }
 
     @Test
+    void smokeAtTheLensCoversTheSlightlyBlurredGround() {
+        // grey smoke right at the lens (left half) beside green ground that is a little in front of the focus plane
+        // too: nothing in the frame is sharp. The smoke's edge spreads over the ground, and inside the edge the ground
+        // shows through it instead of black (no hole fill from in-focus pixels is possible here)
+        int w = 240, h = 40, edge = 120;
+        float[] img = new float[w * h * 3];
+        float[] signed = new float[w * h];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                boolean smoke = x < edge;
+                set(img, w, x, y, smoke ? 0.6f : 0, smoke ? 0.6f : 0.5f, smoke ? 0.6f : 0);
+                signed[y * w + x] = smoke ? 30 : 2;
+            }
+        }
+        float[] out = LensBlur.apply(img, signed, w, h, ROUND);
+        int y = h / 2;
+        for (int x = edge - 25; x < edge; x++) {
+            int j = (y * w + x) * 3;
+            assertTrue(out[j + 1] > 0.45f, "smoke inside its edge at x=" + x + ": g=" + out[j + 1]);
+        }
+        int over = (y * w + edge + 8) * 3;
+        assertTrue(out[over] > 0.1f, "smoke spread over the ground: r=" + out[over]);
+        assertEquals(0.5f, out[(y * w + w - 10) * 3 + 1], 0.02, "ground far from the smoke");
+    }
+
+    @Test
     void lightIsKept() {
         int w = 96, h = 64;
         float[] img = new float[w * h * 3];

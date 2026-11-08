@@ -348,8 +348,14 @@ public final class PhotoCapture {
                     surface = readDepth(surfaceTex, target.width, target.height, proj, pitch);
                     int particlesTex = DepthLayers.particlesTexture();
                     float[] particles = particlesTex >= 0 ? readDepth(particlesTex, target.width, target.height, proj, pitch) : surface;
+                    // rain and snow: their target starts empty (no world in it), the nearer depth wins
+                    int weatherTex = DepthLayers.weatherTexture();
+                    float[] weather = weatherTex >= 0 ? readDepth(weatherTex, target.width, target.height, proj, pitch) : null;
                     full = new float[opaque.length];
-                    for (int i = 0; i < full.length; i++) full[i] = Math.min(surface[i], particles[i]);
+                    for (int i = 0; i < full.length; i++) {
+                        full[i] = Math.min(surface[i], particles[i]);
+                        if (weather != null && weather[i] >= 0 && weather[i] < 9_999) full[i] = Math.min(full[i], weather[i]);
+                    }
                 } else {
                     opaque = readDepth(opaqueTex, target.width, target.height, proj, pitch);
                     surface = readDepth(surfaceTex, target.width, target.height, proj, pitch);
@@ -659,18 +665,22 @@ public final class PhotoCapture {
         try {
             int[] guide = rgb != null ? rgb : ImagePipeline.toSrgb(linear);
             // per-pixel depth from the GPU sees grass, leaves and the real shape of mobs; the ray grid is the fallback
-            if (gpuDepth != null) {
+            // a fixed-depth layer is a shader pack's doing; without one, flat things at one depth are real (particles
+            // are billboards facing the lens: campfire smoke was wiped out as such a layer)
+            if (gpuDepth != null && pack) {
                 int dropped = DepthUpsampler.dropFixedLayer(gpuDepth, w, h, grid, gw, gh);
                 if (dropped > 0) RealCamera.LOGGER.debug("Depth map: {} pixels of a fixed-depth layer taken from the rays", dropped);
             }
-            boolean gpu = gpuDepth != null && DepthUpsampler.agrees(gpuDepth, w, h, grid, entityGrid, gw, gh);
+            // checked against what the rays can see: they miss particles, rain and stained glass
+            float[] checked = gpuDepth != null && layers != null
+                    ? LayeredDepth.rayView(layers.opaque(), layers.surface(), layers.kind(), gw, gh, w, h) : gpuDepth;
+            boolean gpu = gpuDepth != null && DepthUpsampler.agrees(checked, w, h, grid, entityGrid, gw, gh);
             if (pack && gpuDepth != null) {
                 Minecraft.getInstance().execute(() -> ShaderCompat.reportPhotoDepth(gpu));
             }
             float[] depth = gpu ? DepthUpsampler.fillUnknown(gpuDepth, () -> DepthUpsampler.upsample(grid, gw, gh, guide, w, h))
                     : DepthUpsampler.upsample(grid, gw, gh, guide, w, h);
-            // the depth check compares what the rays see (they stop at water surfaces) with the full depth buffer;
-            // then the camera focuses through water, glass and ice on what lies behind them
+            // the camera focuses through water, glass and ice on what lies behind them; particles and weather stay
             if (gpu && layers != null) {
                 depth = LayeredDepth.combine(depth, layers.opaque(), layers.surface(), layers.kind(), gw, gh, w, h, layers.inWater());
             }

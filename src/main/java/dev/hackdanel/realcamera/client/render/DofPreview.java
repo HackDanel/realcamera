@@ -199,6 +199,8 @@ public final class DofPreview {
         coc.setSampler("DepthSampler", fullTex);
         coc.setSampler("OpaqueSampler", layers ? opaqueTex : main.getDepthTextureId());
         coc.setSampler("SurfaceSampler", layers ? surfaceTex : main.getDepthTextureId());
+        int weatherTex = layers ? DepthLayers.weatherTexture() : -1;
+        coc.setSampler("WeatherSampler", weatherTex >= 0 ? weatherTex : fullTex);
         coc.safeGetUniform("Layers").set(layers ? 1f : 0f);
         coc.safeGetUniform("InvProj").set(inv.m22(), inv.m32(), inv.m23(), inv.m33());
         coc.safeGetUniform("Lens").set(focal, fNumber, focusMm, pxPerMm);

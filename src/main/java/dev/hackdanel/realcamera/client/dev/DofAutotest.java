@@ -313,9 +313,18 @@ public final class DofAutotest {
             pl.xRotO = 8;
         }, 10);
         shoot("glass f1.8", "sony_fe_85_f18", 1.8, 6.0f);
-        // campfire smoke (translucent particles) writes no depth: it blurs like what lies behind it (known limit)
+        // campfire smoke right in front of the lens: billboards with their own depth, blurred into soft clouds
         step("smoke", () -> server(p -> cmd(p, "setblock ~0 ~ ~1 minecraft:campfire")), 100);
         shoot("smoke f1.8", "sony_fe_85_f18", 1.8, 6.0f);
+        // rain (Fast/Fancy draw it without depth; LevelRendererWeatherMixin): the drops near the lens blur
+        step("rain", () -> server(p -> {
+            cmd(p, "setblock ~0 ~ ~1 minecraft:air");
+            cmd(p, "fill ~-3 ~ ~4 ~3 ~3 ~4 minecraft:air");
+            cmd(p, "fillbiome ~-16 ~-8 ~-16 ~16 ~8 ~16 minecraft:plains"); // the meadow is a savanna: no rain there
+            cmd(p, "weather rain");
+        }), 160);
+        shoot("rain f1.8", "sony_fe_85_f18", 1.8, 6.0f);
+        step("rain stop", () -> server(p -> cmd(p, "weather clear")), 5);
         step("done", () -> {
             log("done, stopping");
             Minecraft.getInstance().stop();
