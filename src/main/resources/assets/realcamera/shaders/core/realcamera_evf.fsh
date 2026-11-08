@@ -4,8 +4,17 @@
 // game's picture (processing/LiveView is the reference and documents the order; keep the two in step).
 
 uniform sampler2D DiffuseSampler;
-uniform sampler2D LightMap;  // per-region light correction (processing/ShadeMap), log2 encoded: v * 8 - 6
+uniform sampler2D LightMap;  // per-region light correction (processing/ShadeMap), log2 encoded: r * 8 - 6;
+                             // g: the cell's distance, log2(m) = g * 17 - 5 (sky: 1)
+uniform sampler2D DepthSampler;
 uniform float LightMapOn;
+uniform vec3 MapRotX;        // rows of the rotation from this frame's view axes into the light map's
+uniform vec3 MapRotY;
+uniform vec3 MapRotZ;
+uniform vec3 MapShift;       // camera move since the map was cast, in the map's axes (metres)
+uniform vec4 MapTan;         // map half-angle tangents (x, y), map size in cells
+uniform vec2 ScreenTan;      // half-angle tangents of the screen (x, y)
+uniform vec4 InvProj;        // inverse projection m22, m32, m23, m33: view z from NDC depth
 uniform vec4 FrameRect;     // photo frame on the screen: x, y, width, height (texture coordinates)
 uniform float FrameAspect;  // width / height of the photo
 uniform float Zoom;         // magnifier: the screen shows 1/Zoom of the frame around its centre
@@ -72,6 +81,41 @@ float curve(float v, float contrast, float lift) {
     return min(1.0, v + lift * (1.0 - v) * (1.0 - v));
 }
 
+// The light map's correction for this pixel (stops). The pixel is re-projected into the map (cast a moment ago
+// from a slightly different view) by its depth, and only cells at about its own distance count: a cell's light
+// does not spill over an edge onto a nearer or farther surface. A pixel no nearby cell matches takes the closest.
+float lightMapStops() {
+    float d = texture(DepthSampler, texCoord).r;
+    vec3 ray = vec3((texCoord * 2.0 - 1.0) * ScreenTan, 1.0);
+    float z = d >= 1.0 ? 4096.0 : min(4096.0, -(InvProj.x * (d * 2.0 - 1.0) + InvProj.y)
+            / (InvProj.z * (d * 2.0 - 1.0) + InvProj.w));
+    vec3 p = ray * z;
+    vec3 q = vec3(dot(MapRotX, p), dot(MapRotY, p), dot(MapRotZ, p)) + MapShift;
+    if (q.z <= 0.01) return 0.0;
+    vec2 cell = ((q.xy / q.z) / MapTan.xy * 0.5 + 0.5) * MapTan.zw - 0.5;
+    float own = d >= 1.0 ? 12.0 : log2(max(q.z, 0.03));
+    ivec2 base = ivec2(floor(cell));
+    ivec2 last = ivec2(MapTan.zw) - 1;
+    float sum = 0.0, wsum = 0.0, bestDiff = 1.0e9, best = 0.0;
+    for (int j = -1; j <= 2; j++) {
+        for (int i = -1; i <= 2; i++) {
+            ivec2 c = clamp(base + ivec2(i, j), ivec2(0), last);
+            vec2 t = texelFetch(LightMap, c, 0).rg;
+            float stops = t.r * 8.0 - 6.0;
+            float diff = abs(t.g * 17.0 - 5.0 - own);
+            vec2 off = cell - vec2(base + ivec2(i, j));
+            float w = exp(-dot(off, off) * 1.4) * exp(-diff * diff * 12.5);
+            sum += stops * w;
+            wsum += w;
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                best = stops;
+            }
+        }
+    }
+    return wsum > 1.0e-4 ? sum / wsum : best;
+}
+
 void main() {
     vec3 c = toLinear(texture(DiffuseSampler, texCoord).rgb);
     vec2 f = 0.5 + ((texCoord - FrameRect.xy) / FrameRect.zw - 0.5) / Zoom;  // 0..1 in the photo frame, y up
@@ -82,7 +126,7 @@ void main() {
     // light on the sensor
     float k = Gain;
     // each part of the picture at its real light (shade darker than the game's flat light curve draws it)
-    if (LightMapOn > 0.5) k *= exp2(texture(LightMap, clamp(f, 0.0, 1.0)).r * 8.0 - 6.0);
+    if (LightMapOn > 0.5) k *= exp2(lightMapStops());
     if (Gnd > 0.0) {
         float s = clamp((0.6 - t) / 0.2, 0.0, 1.0);
         k *= exp2(-Gnd * s * s * (3.0 - 2.0 * s));

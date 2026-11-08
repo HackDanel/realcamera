@@ -3,7 +3,8 @@
     "fragment": "realcamera:realcamera_evf",
     "samplers": [
         { "name": "DiffuseSampler" },
-        { "name": "LightMap" }
+        { "name": "LightMap" },
+        { "name": "DepthSampler" }
     ],
     "uniforms": [
         { "name": "FrameRect", "type": "float", "count": 4, "values": [ 0.0, 0.0, 1.0, 1.0 ] },
@@ -20,6 +21,13 @@
         { "name": "Profile", "type": "float", "count": 4, "values": [ 1.0, 1.0, 0.0, 0.0 ] },
         { "name": "Noise", "type": "float", "count": 4, "values": [ 0.0, 0.0, 0.0, 1.0 ] },
         { "name": "NoiseRow", "type": "float", "count": 2, "values": [ 0.0, 0.0 ] },
-        { "name": "LightMapOn", "type": "float", "count": 1, "values": [ 0.0 ] }
+        { "name": "LightMapOn", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "MapRotX", "type": "float", "count": 3, "values": [ 1.0, 0.0, 0.0 ] },
+        { "name": "MapRotY", "type": "float", "count": 3, "values": [ 0.0, 1.0, 0.0 ] },
+        { "name": "MapRotZ", "type": "float", "count": 3, "values": [ 0.0, 0.0, 1.0 ] },
+        { "name": "MapShift", "type": "float", "count": 3, "values": [ 0.0, 0.0, 0.0 ] },
+        { "name": "MapTan", "type": "float", "count": 4, "values": [ 1.0, 1.0, 1.0, 1.0 ] },
+        { "name": "ScreenTan", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "InvProj", "type": "float", "count": 4, "values": [ 0.0, 0.0, 0.0, 1.0 ] }
     ]
 }

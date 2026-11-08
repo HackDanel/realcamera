@@ -86,8 +86,11 @@ dispatched via `ClientBridge.handlePayload`.
    and light curve averaged over all surfaces in the frame (`Viewfinder.developEv/developGameLight`, Shot.sceneEv/gameLight;
    the meter needle `Exposure.Result.delta` stays the reflected reading). Then `processing/ShadeMap` puts each region at
    its real light (2^(EV here - ref) / game light ratio: shade 2-3 stops darker than the game's flat curve) — photo:
-   192-wide ray grid (`CameraRays.grids()[4]`, edge-aware upsampled); EVF: `Viewfinder.shadeMap` 24-wide, texture
-   `LightMap` in `realcamera_evf`. Off with a shader pack (it draws its own shading). Light sources (torches, lamps, lava: blocks with
+   192-wide ray grid (`CameraRays.grids()[4]`, edge-aware upsampled); EVF: `Viewfinder.shadeMap` 48-wide over the
+   frame x1.25, cast a quarter of its rows per tick in the orientation the pass began with, each cell with its distance;
+   texture `LightMap` (R correction, G log distance) in `realcamera_evf`: every pixel is re-projected into the map by
+   its depth and the camera's turn/move since (`MapRot*`/`MapShift`), and only cells at about its own distance count
+   (a 24-wide bilinear map left soft blotches across block edges and slid with the screen while panning). Off with a shader pack (it draws its own shading). Light sources (torches, lamps, lava: blocks with
    light emission under each pixel, found from the GPU depth by `CameraRays.emitters`) are then raised to their real
    luminance vs the metered EV (`processing/LightSources`, before the DoF so bokeh discs carry it); the light is the
    texels near the block's brightest pixel in the frame (flame yes, torch stick no).
