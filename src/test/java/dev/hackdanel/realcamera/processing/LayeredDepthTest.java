@@ -72,4 +72,21 @@ class LayeredDepthTest {
         float[] out = LayeredDepth.combine(full, full.clone(), full.clone(), fill(GW * GH, LayeredDepth.NONE), GW, GH, W, H, false);
         assertArrayEquals(full, out, 1e-6f);
     }
+
+    @Test
+    void stainedGlassFrameKeepsTheGlassDepth() {
+        float[] opaque = fill(W * H, 8f), surface = fill(W * H, 3f);
+        float[] kind = fill(GW * GH, LayeredDepth.GLASS);
+        float[] out = LayeredDepth.combine(surface.clone(), opaque, surface, kind, GW, GH, W, H, false, i -> i == 5);
+        assertEquals(3f, out[5], 1e-6);  // the frame: the glass itself
+        assertEquals(8f, out[6], 1e-6);  // the clear middle: what lies behind
+    }
+
+    @Test
+    void glassFrameIsTheOuterSixteenthOfAFace() {
+        org.junit.jupiter.api.Assertions.assertTrue(LayeredDepth.onGlassFrame(4.0, 10.02, 7.5));   // near the bottom edge
+        org.junit.jupiter.api.Assertions.assertTrue(LayeredDepth.onGlassFrame(4.97, 10.5, 7.0));   // face z = 7
+        org.junit.jupiter.api.Assertions.assertFalse(LayeredDepth.onGlassFrame(4.0, 10.5, 7.5));   // middle of face x = 4
+        org.junit.jupiter.api.Assertions.assertFalse(LayeredDepth.onGlassFrame(4.5, 10.5, 7.45)); // not on a face (pane)
+    }
 }

@@ -111,7 +111,9 @@ dispatched via `ClientBridge.handlePayload`.
    (`DepthUpsampler.agrees`; a shader pack may leave something else in the depth buffer), otherwise the grid is
    upsampled. Exposures ≥ 1/4 s accumulate every frame through PBOs. Without a shader pack the depth is also copied
    before and after the translucent blocks (`client/render/DepthLayers`): `processing/LayeredDepth` focuses through
-   water (apparent depth, /1.33), stained glass and ice. Without a pack `agrees` compares `LayeredDepth.rayView` (opaque
+   water (apparent depth, /1.33), stained glass and ice. Stained/tinted glass has an empty visual shape, so the
+   rays pass it: a second COLLIDER ray marks those cells `GLASS` (`CameraRays.glassBefore`); its texture frame (outer
+   1/16 of a face, `LayeredDepth.onGlassFrame` from the surface depth) keeps the glass depth, the middle gets what lies behind. Without a pack `agrees` compares `LayeredDepth.rayView` (opaque
    world + water surfaces: the rays stop at water, pass through stained glass, miss particles and rain) and
    `dropFixedLayer` is skipped (particles are flat billboards facing the lens; smoke was dropped as a "fixed layer").
    Rain/snow write depth on Fast/Fancy while depth is wanted (`mixin/client/LevelRendererWeatherMixin`); Fabulous: the

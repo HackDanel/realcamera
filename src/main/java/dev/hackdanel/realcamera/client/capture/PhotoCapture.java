@@ -658,7 +658,7 @@ public final class PhotoCapture {
         developing++;
         // development uses half the cores: the game keeps rendering smoothly (and a burst keeps its pace)
         WORKER.execute(() -> DEVELOP_POOL.submit(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, evGrid, entityGrid, gpuDepth, layers,
-                gw, gh, actualSeconds, remote, pack, emitters, profile, film, artist, maxUpload)).join());
+                gw, gh, actualSeconds, remote, pack, emitters, profile, film, artist, maxUpload, rays)).join());
     }
 
     /**
@@ -689,7 +689,7 @@ public final class PhotoCapture {
                                 int gw, int gh, double seconds, float[] remote,
                                 boolean pack, @javax.annotation.Nullable LightSources.Found emitters, ColorProfileSpec profile,
                                 @javax.annotation.Nullable dev.hackdanel.realcamera.spec.FilmStockSpec film, String artist,
-                                int maxUpload) {
+                                int maxUpload, @javax.annotation.Nullable CameraRays rays) {
         long t0 = System.nanoTime();
         try {
             int[] guide = rgb != null ? rgb : ImagePipeline.toSrgb(linear);
@@ -711,7 +711,14 @@ public final class PhotoCapture {
                     : DepthUpsampler.upsample(grid, gw, gh, guide, w, h);
             // the camera focuses through water, glass and ice on what lies behind them; particles and weather stay
             if (gpu && layers != null) {
-                depth = LayeredDepth.combine(depth, layers.opaque(), layers.surface(), layers.kind(), gw, gh, w, h, layers.inWater());
+                float[] surf = layers.surface();
+                // the opaque frame of stained glass stays a surface of its own, where the glass is
+                java.util.function.IntPredicate frame = rays == null ? null : i -> {
+                    double u = ((i % w) + 0.5) * 2 / w - 1, v = 1 - ((i / w) + 0.5) * 2 / h;
+                    var p = rays.point(u, v, surf[i]);
+                    return LayeredDepth.onGlassFrame(p.x, p.y, p.z);
+                };
+                depth = LayeredDepth.combine(depth, layers.opaque(), surf, layers.kind(), gw, gh, w, h, layers.inWater(), frame);
             }
             RealCamera.LOGGER.debug("Depth map: {}", gpu ? "GPU depth buffer" : gpuDepth == null ? "ray grid" : "ray grid (GPU depth rejected: " + DepthUpsampler.lastCheck + ")");
             float[] light = lightGrid == null ? null : DepthUpsampler.upsample(lightGrid, gw, gh, guide, w, h);

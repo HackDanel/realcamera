@@ -207,6 +207,10 @@ public final class CameraRays {
                 if (hit instanceof BlockHitResult bh && hit.getType() == HitResult.Type.BLOCK) {
                     kind[y * gw + x] = surfaceKind(bh);
                 }
+                if (light != null && kind[y * gw + x] == dev.hackdanel.realcamera.processing.LayeredDepth.NONE
+                        && glassBefore(dir, hit)) {
+                    kind[y * gw + x] = dev.hackdanel.realcamera.processing.LayeredDepth.GLASS;
+                }
                 if (light != null) {
                     light[y * gw + x] = hit.getType() == HitResult.Type.MISS ? 1f : lightAt(hit, skyFactor);
                     ev[y * gw + x] = hit.getType() == HitResult.Type.MISS ? Float.NaN
@@ -215,6 +219,20 @@ public final class CameraRays {
             }
         }
         return new float[][]{depth, light, entity, kind, ev};
+    }
+
+    /**
+     * Whether stained or tinted glass lies between the camera and what the ray hit: its visual shape is empty, so the
+     * ray passed through it; a ray against collision shapes stops at it.
+     */
+    private boolean glassBefore(Vec3 dir, HitResult hit) {
+        double far = hit.getType() == HitResult.Type.MISS ? maxDist : hit.getLocation().distanceTo(origin);
+        BlockHitResult solid = level.clip(new ClipContext(origin, origin.add(dir.scale(far)), ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE, viewer));
+        if (solid.getType() != HitResult.Type.BLOCK || solid.getLocation().distanceTo(origin) > far - 0.01) return false;
+        var block = level.getBlockState(solid.getBlockPos()).getBlock();
+        return block instanceof net.minecraft.world.level.block.StainedGlassBlock
+                || block instanceof net.minecraft.world.level.block.TintedGlassBlock;
     }
 
     private float surfaceKind(BlockHitResult hit) {
