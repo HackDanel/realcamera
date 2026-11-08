@@ -149,8 +149,9 @@ public final class SceneMeter {
 
     /**
      * The position whose light lights what a ray hit: the block in front of the hit face. Stairs, slabs and other
-     * partial blocks (roofs!) store no light in their own voxel, so when the front block is one, the brightest of its
-     * neighbours is used; reading the stored 0 there made a roof meter many stops darker than it is.
+     * partial blocks (roofs!) dim the light stored in their own voxel (sky 14 under open sky, less when stacked), and
+     * one sky level is 2.6 EV of shade here; so when the front block is not air, the brightest of it and its
+     * neighbours is used. Reading the voxel itself made a sunlit roof meter several stops darker than it is.
      */
     public static BlockPos litPos(ClientLevel level, HitResult hit) {
         BlockPos pos = hit instanceof BlockHitResult bhr
