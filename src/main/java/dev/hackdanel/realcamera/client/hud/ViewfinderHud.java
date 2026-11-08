@@ -268,7 +268,12 @@ public final class ViewfinderHud {
                 int ex = f.sx(eyeU(subject)), ey = f.sy(eyeV(subject));
                 corners(g, ex - 4, ey - 3, ex + 4, ey + 3, sc);
             }
-            if (Viewfinder.afState() == Viewfinder.AF_LOCKED) return;
+            if ("ovf".equals(Viewfinder.body().viewfinder())) {
+                if (Viewfinder.afState() == Viewfinder.AF_LOCKED) return;
+            } else {
+                // mirrorless: the AF area frame stays visible (dimmed) next to the subject box
+                color = 0x60FFFFFF;
+            }
         }
         int size = Math.max(10, f.w() / 22);
         switch (s.afArea()) {
