@@ -41,7 +41,7 @@ Generators (run from the repo root; their output is overwritten every run, so ed
 - `python3 tools/gen_assets.py` — all textures, item/block models, blockstates, sounds (`.ogg` via ffmpeg)
 - `python3 tools/gen_recipes.py` — everything in `src/main/resources/data/realcamera/recipe/` and block loot tables
 - `python3 tools/gen_settings.py` — `component/CameraSettings.java` (record, codecs, `withX` methods; the fields are
-  split into two codec groups of at most 16 — move `half` when adding one)
+  split into codec groups of at most 16, joined with nested `mapPair` — the generator does it, just append fields)
 - `python3 tools/gen_catalog.py` — the stage 6 catalog in `tools/catalog.py` (bodies, lenses, mounts, adapters,
   teleconverters, batteries, cards) → registry JSON + en/ru names. `gen_assets.py` and `gen_recipes.py` read the same
   file for models (body `style`, lens `look`) and recipes (tier/kind). Earlier-stage entries are hand-written JSON.

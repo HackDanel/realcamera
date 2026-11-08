@@ -280,6 +280,15 @@ public final class EditSession {
         });
     }
 
+    /** The photo developed at full resolution with default settings (for focus stacking); null until loaded. */
+    @Nullable
+    public PhotoEditor.Result developDefault() {
+        PhotoEditor.Source src = full;
+        if (src == null) return null;
+        EditSettings s = new EditSettings();
+        return PhotoEditor.apply(src, s, profileColour(s.profile));
+    }
+
     /** Full-resolution render, then upload as a new photo on the card in the computer. */
     public void saveCopy(Consumer<String> status) {
         PhotoEditor.Source src = full;

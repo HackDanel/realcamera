@@ -202,6 +202,33 @@ public final class DofAutotest {
             Minecraft.getInstance().options.keyUse.setDown(false);
             log("PASS ovf finder");
         }, 30);
+        // focus shift series: five frames from 2 m outwards (2, 2.3, 2.7, 3.3, 4.3 m at f/2.8, step 10)
+        step("give fs", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            ItemStack s = camera("sony_fe_50_f18", 2.8, 2.0f);
+            s.set(RCComponents.CAMERA_SETTINGS.get(), s.get(RCComponents.CAMERA_SETTINGS.get()).withFocusShots(5).withFocusStep(10));
+            mc.player.getInventory().setItem(0, s);
+            mc.gameMode.handleCreativeModeItemAdd(s, 36);
+            mc.player.setXRot(18);
+            mc.player.xRotO = 18;
+        }, 10);
+        step("raise fs", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.player.getInventory().selected = 0;
+            mc.options.keyUse.setDown(true);
+            mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
+        }, 15);
+        until("viewfinder fs", Viewfinder::isActive, 60);
+        step("settle fs", () -> {}, 30);
+        step("shoot fs", Viewfinder::debugPressShutter, 120);
+        until("stored fs", () -> !PhotoCapture.busy() && "FS 5".equals(Viewfinder.focusShiftLabel()), 1200);
+        step("lower fs", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.options.keyUse.setDown(false);
+            mc.player.setXRot(12);
+            mc.player.xRotO = 12;
+            log("PASS focus shift series");
+        }, 40);
         // lens character: Helios swirl and soft background, STF apodisation
         shoot("helios f2", "sony_a7iv", "helios_44_2", "m42_to_e", 2, 6.0f);
         shoot("stf f2.8", "sony_fe_100_stf", 2.8, 6.0f);

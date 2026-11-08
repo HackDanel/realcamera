@@ -517,6 +517,8 @@ public final class ViewfinderHud {
         g.drawString(font, left, x + 6, y + 6, WHITE, true);
         StringBuilder r = new StringBuilder();
         r.append(driveLabel(s.drive())).append("  ");
+        String fs = Viewfinder.focusShiftLabel();
+        if (fs != null) r.append(fs).append("  ");
         if (s.flashMode() != CameraSettings.FLASH_OFF) {
             boolean has = Viewfinder.flashGn() > 0;
             String f = switch (s.flashMode()) {

@@ -456,6 +456,7 @@ public final class Viewfinder {
     }
 
     private static void deactivate() {
+        focusShiftLeft = 0;
         shootWhenFocused = false;
         afState = AF_IDLE;
         hunting = false;
@@ -513,6 +514,12 @@ public final class Viewfinder {
         exposure = Exposure.solve(settings.mode(), meteredThroughFilter(), settings.evComp() / 3.0, settings.apertureIndex(),
                 Math.min(settings.shutterIndex(), ExposureScales.BULB_INDEX - 1), effectiveIsoIndex(), limits());
         updateFocus(mc);
+        if (focusShiftLeft > 0) {
+            focusDistance = shiftDistance; // the series drives the focus, not the AF or the ring
+            if (System.currentTimeMillis() >= nextShiftMs && PhotoCapture.canAccept()) {
+                fireShift(mc);
+            }
+        }
         boolean manual = settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable();
         if (manual && settings.peaking() && tick % 4 == 0) {
             updatePeaking(mc);
@@ -996,6 +1003,10 @@ public final class Viewfinder {
     // ------------------------------------------------------------------ shutter
 
     private static void pressShutter(Minecraft mc, Player player) {
+        if (focusShiftLeft > 0) {
+            focusShiftLeft = 0; // a second press stops a focus shift series
+            return;
+        }
         ItemStack cam = camera();
         if (!CameraHelper.canFire(mc.level.registryAccess(), cam)) {
             player.displayClientMessage(Component.translatable("message.realcamera.battery_empty"), true);
@@ -1034,8 +1045,60 @@ public final class Viewfinder {
         }
     }
 
+    // focus shift shooting (focus bracketing): a series stepping the focus from where it is towards infinity
+    private static int focusShiftLeft, focusShiftTotal;
+    private static float shiftDistance, shiftStart;
+    private static long nextShiftMs;
+
+    /** "FS 3/10" while a focus shift series runs, "FS 10" when one is set up, else null. */
+    @Nullable
+    public static String focusShiftLabel() {
+        if (focusShiftLeft > 0) return "FS " + (focusShiftTotal - focusShiftLeft + 1) + "/" + focusShiftTotal;
+        return settings.focusShots() > 0 && !body().isFilm() ? "FS " + settings.focusShots() : null;
+    }
+
+    private static void startFocusShift(Minecraft mc) {
+        focusShiftTotal = focusShiftLeft = settings.focusShots();
+        shiftStart = shiftDistance = focusDistance;
+        nextShiftMs = 0;
+        fireShift(mc);
+    }
+
+    /**
+     * One frame of the series, then the next focus distance: steps are even in dioptres, step width w moves the
+     * focus by w / 5 of the hyperfocal distance's inverse (w = 5: half the depth of field, frames overlapping by half).
+     */
+    private static void fireShift(Minecraft mc) {
+        focusDistance = shiftDistance;
+        Release r = prepare(mc);
+        if (r == null) {
+            focusShiftLeft = 0;
+            return;
+        }
+        dispatch(mc, r);
+        focusShiftLeft--;
+        double coc = Optics.FF_COC_MM / sensor().cropFactor();
+        double h = Optics.hyperfocalMm(focal(), r.shot().exposure().fNumber(), coc) / 1000;
+        double inv = 1 / Math.max(0.05, shiftDistance) - settings.focusStep() * 0.2 / h;
+        if (focusShiftLeft <= 0 || inv <= 1e-3) {
+            focusShiftLeft = 0;
+            focusDistance = shiftStart;
+            return;
+        }
+        shiftDistance = (float) Math.min(1000, 1 / inv);
+        // as fast as continuous-high drive, or as the card takes the files once the buffer is full
+        double cap = Math.max(1, body().shutter().bufferShots());
+        double fps = Math.min(6, electronic() ? body().shutter().burstElec() : body().shutter().burstMech());
+        double waitS = Math.max(1 / Math.max(0.5, fps), bufferFill >= cap ? (bufferFill - cap + 1) / writeRate() : 0);
+        nextShiftMs = System.currentTimeMillis() + (long) (1000 * waitS);
+    }
+
     /** Focus is done: start the timer (with the shot already composed) or fire now. */
     private static void release(Minecraft mc) {
+        if (settings.focusShots() > 0 && !body().isFilm()) {
+            startFocusShift(mc);
+            return;
+        }
         int drive = settings.drive();
         if (drive == CameraSettings.DRIVE_TIMER_2 || drive == CameraSettings.DRIVE_TIMER_10) {
             armed = prepare(mc);

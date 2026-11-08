@@ -36,6 +36,8 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     private int page;
     @Nullable
     private UUID selected;
+    /** Frames picked with Shift+click for focus stacking, in the order picked (the first is the reference). */
+    private final java.util.LinkedHashSet<UUID> stackPick = new java.util.LinkedHashSet<>();
     private long formatArmedUntil;
     private long lastClick;
     private Button[] actionButtons = new Button[0];
@@ -60,7 +62,10 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         addRenderableWidget(Button.builder(Component.literal(">"), b -> page = Math.min(pages() - 1, page + 1))
                 .bounds(l + 218, t + 14, 16, 14).build());
         int by = t + GRID_Y + ROWS * CELL_H;
-        Button edit = Button.builder(Component.translatable("gui.realcamera.computer.edit"), b -> openEditor())
+        Button edit = Button.builder(Component.translatable("gui.realcamera.computer.edit"), b -> {
+            if (stackPick.size() >= 2) stack();
+            else openEditor();
+        })
                 .bounds(l + GRID_X, by, 50, 14).build();
         Button copy = Button.builder(Component.translatable("gui.realcamera.computer.copy"), b -> action(Payloads.PC_COPY, 0))
                 .bounds(l + GRID_X + 52, by, 50, 14).build();
@@ -87,6 +92,25 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         card = c;
         page = 0;
         selected = null;
+        stackPick.clear();
+    }
+
+    /** Merges the Shift-picked frames into one picture sharp throughout (saved like an edit of the first). */
+    private void stack() {
+        if (minecraft == null) return;
+        List<PhotoMeta> frames = new java.util.ArrayList<>();
+        for (UUID id : stackPick) {
+            for (PhotoMeta m : photos()) {
+                if (m.id().equals(id)) frames.add(m);
+            }
+        }
+        if (frames.size() < 2) return;
+        int target = menu.isFilm(card) ? 1 - card : card;
+        stackPick.clear();
+        dev.hackdanel.realcamera.client.editor.StackJob.start(frames, menu.pos(), target, key -> {
+            if (minecraft.player != null) minecraft.player.displayClientMessage(Component.translatable(key), true);
+            if ("gui.realcamera.computer.stacked".equals(key) && cardId() != null) CardListings.refresh(cardId());
+        });
     }
 
     @Nullable
@@ -142,6 +166,12 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         boolean has = selectedMeta() != null;
         for (Button b : actionButtons) b.active = has;
         if (actionButtons.length == 4) {
+            boolean stacking = stackPick.size() >= 2;
+            actionButtons[0].active = has || stacking;
+            actionButtons[0].setMessage(stacking ? Component.translatable("gui.realcamera.computer.stack", stackPick.size())
+                    : Component.translatable("gui.realcamera.computer.edit"));
+        }
+        if (actionButtons.length == 4) {
             boolean other = menu.cardId(1 - card) != null || !menu.machineItem(1 - card).isEmpty();
             actionButtons[1].active = has && other && readable(1 - card);
             actionButtons[2].active = has && other && readable(1 - card);
@@ -171,6 +201,13 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
                 return true;
             }
             if (mx >= cx && mx < cx + THUMB_W && my >= cy && my < cy + THUMB_H) {
+                if (hasShiftDown()) {
+                    // pick frames for focus stacking
+                    if (!stackPick.remove(m.id())) stackPick.add(m.id());
+                    selected = m.id();
+                    return true;
+                }
+                stackPick.clear();
                 long now = System.currentTimeMillis();
                 boolean dbl = m.id().equals(selected) && now - lastClick < 350;
                 selected = m.id();
@@ -219,7 +256,9 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         for (int i = 0; i < COLS * ROWS && base + i < list.size(); i++) {
             PhotoMeta m = list.get(base + i);
             int cx = l + GRID_X + (i % COLS) * CELL_W, cy = t + GRID_Y + (i / COLS) * CELL_H;
-            if (m.id().equals(selected)) {
+            if (stackPick.contains(m.id())) {
+                g.fill(cx - 2, cy - 2, cx + THUMB_W + 2, cy + THUMB_H + 12, 0xFFE0A030);
+            } else if (m.id().equals(selected)) {
                 g.fill(cx - 2, cy - 2, cx + THUMB_W + 2, cy + THUMB_H + 12, 0xFF4A6FB0);
             }
             UiDraw.photo(g, m.id(), cx, cy, THUMB_W, THUMB_H);

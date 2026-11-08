@@ -78,13 +78,17 @@ public class CameraMenuScreen extends Screen {
                 s -> s.withFlashComp(s.flashComp() >= 6 ? -6 : s.flashComp() + 1)));
         rows.add(new Row("lens_correction", s -> onOff(s.lensCorrection()), s -> s.withLensCorrection(!s.lensCorrection())));
         rows.add(new Row("long_exposure_nr", s -> onOff(s.longExposureNr()), s -> s.withLongExposureNr(!s.longExposureNr())));
+        rows.add(new Row("focus_shots", s -> s.focusShots() == 0 ? onOff(false) : Component.literal(String.valueOf(s.focusShots())),
+                s -> s.withFocusShots(nextFocusShots(s.focusShots()))));
+        rows.add(new Row("focus_step", s -> Component.literal(String.valueOf(s.focusStep())),
+                s -> s.withFocusStep(s.focusStep() >= 10 ? 1 : s.focusStep() + 1)));
 
         boolean film = body != null && body.isFilm();
         if (film) {
             // nothing digital on a film camera: no file format, picture profiles or white balance
             java.util.Set<String> digital = java.util.Set.of("white_balance", "kelvin", "quality", "profile", "shutter_type",
                     "file_format", "crop_mode", "subject_detect", "peaking", "lens_correction", "stabilization",
-                    "long_exposure_nr");
+                    "long_exposure_nr", "focus_shots", "focus_step");
             rows.removeIf(r -> digital.contains(r.key()));
         }
         // two columns so all settings fit on small screens
@@ -112,6 +116,14 @@ public class CameraMenuScreen extends Screen {
         if (body == null) return Component.literal("-");
         return Specs.profile(minecraft.level.registryAccess(), body, index)
                 .map(ColorProfileSpec::name).<Component>map(Component::literal).orElse(Component.literal("-"));
+    }
+
+    private static int nextFocusShots(int n) {
+        int[] steps = {0, 3, 5, 10, 20, 50};
+        for (int i = 0; i < steps.length - 1; i++) {
+            if (n < steps[i + 1]) return steps[i + 1];
+        }
+        return 0;
     }
 
     private static Component onOff(boolean v) {
