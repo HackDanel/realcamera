@@ -188,6 +188,8 @@ public final class CameraRays {
         float[] light = withLight ? new float[gw * gh] : null;
         float[] entity = new float[gw * gh];
         float[] kind = new float[gw * gh];
+        float[] ev = withLight ? new float[gw * gh] : null;
+        double day = SceneMeter.daylightEv(level, 1f), ambient = SceneMeter.ambientEv(level);
         cellEntity = new Entity[gw * gh];
         lastGw = gw;
         lastGh = gh;
@@ -207,10 +209,12 @@ public final class CameraRays {
                 }
                 if (light != null) {
                     light[y * gw + x] = hit.getType() == HitResult.Type.MISS ? 1f : lightAt(hit, skyFactor);
+                    ev[y * gw + x] = hit.getType() == HitResult.Type.MISS ? Float.NaN
+                            : (float) SceneMeter.sampleEv(level, hit, dir, day, ambient);
                 }
             }
         }
-        return new float[][]{depth, light, entity, kind};
+        return new float[][]{depth, light, entity, kind, ev};
     }
 
     private float surfaceKind(BlockHitResult hit) {

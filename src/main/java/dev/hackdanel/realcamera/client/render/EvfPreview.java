@@ -51,6 +51,10 @@ public final class EvfPreview {
     /** Brightening of a shader pack's picture, smoothed (the pack's picture is measured every few frames). */
     private static double packRelight = 1;
     private static int frame;
+    /** The live light map as a small texture (log-encoded corrections, bilinear), and the version it holds. */
+    @Nullable
+    private static net.minecraft.client.renderer.texture.DynamicTexture shadeTex;
+    private static int shadeTexVersion = -1;
 
     private EvfPreview() {}
 
@@ -133,6 +137,9 @@ public final class EvfPreview {
         var n = view.noise();
         s.safeGetUniform("Noise").set((float) n.shot(), (float) n.read2(), (float) n.chroma(), (float) n.avg());
         s.safeGetUniform("NoiseRow").set((float) n.rowSigma(), (float) (frame % 997));
+        int shadeId = shadeTexture();
+        s.setSampler("LightMap", shadeId >= 0 ? shadeId : main.getColorTextureId());
+        s.safeGetUniform("LightMapOn").set(shadeId >= 0 ? 1f : 0f);
         out.bindWrite(true);
         s.apply();
         BufferBuilder b = RenderSystem.renderThreadTesselator().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
@@ -148,6 +155,34 @@ public final class EvfPreview {
         main.bindWrite(true);
         RenderSystem.depthMask(true);
         RenderSystem.enableDepthTest();
+    }
+
+    /** Uploads the viewfinder's light map when it changed; its texture id, or -1 when there is none. */
+    private static int shadeTexture() {
+        float[] map = Viewfinder.shadeMap();
+        if (map == null) return -1;
+        int gw = Viewfinder.SHADE_W, gh = Viewfinder.shadeMapHeight();
+        if (shadeTex == null || shadeTex.getPixels() == null || shadeTex.getPixels().getWidth() != gw
+                || shadeTex.getPixels().getHeight() != gh) {
+            if (shadeTex != null) shadeTex.close();
+            shadeTex = new net.minecraft.client.renderer.texture.DynamicTexture(gw, gh, false);
+            shadeTex.setFilter(true, false);
+            shadeTexVersion = -1;
+        }
+        if (shadeTexVersion != Viewfinder.shadeMapVersion()) {
+            var img = shadeTex.getPixels();
+            for (int y = 0; y < gh; y++) {
+                for (int x = 0; x < gw; x++) {
+                    // texture row 0 is the bottom of the frame (the shader's frame coordinates have y up)
+                    int e = dev.hackdanel.realcamera.processing.ShadeMap.encode(map[(gh - 1 - y) * gw + x]);
+                    img.setPixelRGBA(x, y, 0xFF000000 | e << 16 | e << 8 | e);
+                }
+            }
+            shadeTex.upload();
+            shadeTex.setFilter(true, false);
+            shadeTexVersion = Viewfinder.shadeMapVersion();
+        }
+        return shadeTex.getId();
     }
 
     /**

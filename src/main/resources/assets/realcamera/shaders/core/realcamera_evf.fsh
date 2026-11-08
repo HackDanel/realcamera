@@ -4,6 +4,8 @@
 // game's picture (processing/LiveView is the reference and documents the order; keep the two in step).
 
 uniform sampler2D DiffuseSampler;
+uniform sampler2D LightMap;  // per-region light correction (processing/ShadeMap), log2 encoded: v * 8 - 6
+uniform float LightMapOn;
 uniform vec4 FrameRect;     // photo frame on the screen: x, y, width, height (texture coordinates)
 uniform float FrameAspect;  // width / height of the photo
 uniform float Zoom;         // magnifier: the screen shows 1/Zoom of the frame around its centre
@@ -79,6 +81,8 @@ void main() {
 
     // light on the sensor
     float k = Gain;
+    // each part of the picture at its real light (shade darker than the game's flat light curve draws it)
+    if (LightMapOn > 0.5) k *= exp2(texture(LightMap, clamp(f, 0.0, 1.0)).r * 8.0 - 6.0);
     if (Gnd > 0.0) {
         float s = clamp((0.6 - t) / 0.2, 0.0, 1.0);
         k *= exp2(-Gnd * s * s * (3.0 - 2.0 * s));

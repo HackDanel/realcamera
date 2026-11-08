@@ -28,6 +28,7 @@ import dev.hackdanel.realcamera.client.photo.LocalOriginals;
 import dev.hackdanel.realcamera.processing.ImageParams;
 import dev.hackdanel.realcamera.processing.LayeredDepth;
 import dev.hackdanel.realcamera.processing.LightSources;
+import dev.hackdanel.realcamera.processing.ShadeMap;
 import dev.hackdanel.realcamera.processing.ImagePipeline;
 import dev.hackdanel.realcamera.processing.JpegCodec;
 import dev.hackdanel.realcamera.spec.ColorProfileSpec;
@@ -139,7 +140,7 @@ public final class PhotoCapture {
         final int[] pbo = new int[2];
         float[] sum;
         int frameIndex, accumulated;
-        float[] depthGrid, lightGrid, entityGrid;
+        float[] depthGrid, lightGrid, entityGrid, evGrid;
         ImageParams.MotionField field;
         int gw, gh;
         double savedViewScale = 1;
@@ -316,7 +317,7 @@ public final class PhotoCapture {
             finish(mc, a);
             int[] rgb = toRgb(image, a.cx, a.cy, a.w, a.h);
             image.close();
-            submit(mc, shot, rgb, null, a.w, a.h, grids[0], grids[1], grids[2], a.gpuDepth, layers(a, grids[3]), gw, gh,
+            submit(mc, shot, rgb, null, a.w, a.h, grids[0], grids[1], grids[4], grids[2], a.gpuDepth, layers(a, grids[3]), gw, gh,
                     a.shot.seconds(), remote, a.pack, rays);
             return;
         }
@@ -435,6 +436,7 @@ public final class PhotoCapture {
             a.lightGrid = grids[1];
             a.entityGrid = grids[2];
             a.kindGrid = grids[3];
+            a.evGrid = grids[4];
             for (int i = 0; i < 2; i++) {
                 a.pbo[i] = GL15.glGenBuffers();
                 GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, a.pbo[i]);
@@ -479,7 +481,7 @@ public final class PhotoCapture {
                         String.format(java.util.Locale.ROOT, "%.0f", Math.max(1, elapsed))), true);
             }
         }
-        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.entityGrid, a.gpuDepth, layers(a, a.kindGrid),
+        submit(mc, a.shot, null, linear, a.w, a.h, a.depthGrid, a.lightGrid, a.evGrid, a.entityGrid, a.gpuDepth, layers(a, a.kindGrid),
                 a.gw, a.gh, elapsed, a.remote, a.pack, a.rays);
     }
 
@@ -644,8 +646,8 @@ public final class PhotoCapture {
     }
 
     private static void submit(Minecraft mc, Shot shot, int[] rgb, float[] linear, int w, int h, float[] grid,
-                               float[] lightGrid, float[] entityGrid, float[] gpuDepth, @javax.annotation.Nullable DepthStack layers,
-                               int gw, int gh, double actualSeconds, float[] remote, boolean pack, CameraRays rays) {
+                               float[] lightGrid, float[] evGrid, float[] entityGrid, float[] gpuDepth,
+                               @javax.annotation.Nullable DepthStack layers, int gw, int gh, double actualSeconds, float[] remote, boolean pack, CameraRays rays) {
         LightSources.Found emitters = lightSources(shot, rays, rgb, linear, gpuDepth, w, h, pack);
         ColorProfileSpec profile = Specs.profile(mc.level.registryAccess(), shot.chain().body(), shot.settings().profile())
                 .orElse(null);
@@ -655,7 +657,7 @@ public final class PhotoCapture {
                 ? dev.hackdanel.realcamera.client.camera.Viewfinder.filmStock() : null;
         developing++;
         // development uses half the cores: the game keeps rendering smoothly (and a burst keeps its pace)
-        WORKER.execute(() -> DEVELOP_POOL.submit(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, entityGrid, gpuDepth, layers,
+        WORKER.execute(() -> DEVELOP_POOL.submit(() -> develop(shot, rgb, linear, w, h, grid, lightGrid, evGrid, entityGrid, gpuDepth, layers,
                 gw, gh, actualSeconds, remote, pack, emitters, profile, film, artist, maxUpload)).join());
     }
 
@@ -683,7 +685,7 @@ public final class PhotoCapture {
     // ------------------------------------------------------------------ worker thread
 
     private static void develop(Shot s, int[] rgb, float[] linear, int w, int h, float[] grid, float[] lightGrid,
-                                float[] entityGrid, float[] gpuDepth, @javax.annotation.Nullable DepthStack layers,
+                                float[] evGrid, float[] entityGrid, float[] gpuDepth, @javax.annotation.Nullable DepthStack layers,
                                 int gw, int gh, double seconds, float[] remote,
                                 boolean pack, @javax.annotation.Nullable LightSources.Found emitters, ColorProfileSpec profile,
                                 @javax.annotation.Nullable dev.hackdanel.realcamera.spec.FilmStockSpec film, String artist,
@@ -732,13 +734,27 @@ public final class PhotoCapture {
             if (relight != 1) {
                 for (int i = 0; i < img.length; i++) img[i] *= relight;
             }
+            // each part of the picture at its real light: shade and rooms darker, the sunlit part brighter than the
+            // game's flat light curve drew them (a shader pack draws its own shading: left alone)
+            float[] shade = null;
+            if (!pack && evGrid != null && lightGrid != null) {
+                float[] fac = ShadeMap.factors(evGrid, lightGrid, s.sceneEv(), s.gameLight());
+                shade = DepthUpsampler.upsample(fac, gw, gh, guide, w, h);
+                for (int i = 0, n = w * h; i < n; i++) {
+                    float f = shade[i];
+                    img[i * 3] *= f;
+                    img[i * 3 + 1] *= f;
+                    img[i * 3 + 2] *= f;
+                }
+            }
             // lamps and flames back to their real brightness (the game drew them no brighter than white), before the
             // depth of field spreads them into bokeh discs
             int raised = LightSources.restore(img, gpu ? emitters : null, s.sceneEv(), relight); // found from that depth
             if (raised > 0) RealCamera.LOGGER.debug("Light sources: {} pixels raised (EV {}, up to x{})", raised,
                     String.format(java.util.Locale.ROOT, "%.1f", s.sceneEv()), LightSources.sourceLevel(15, s.sceneEv()) / relight);
-            if (lightScale != 1 && light != null) {
-                for (int i = 0; i < light.length; i++) light[i] *= lightScale;
+            if ((lightScale != 1 || shade != null) && light != null) {
+                // the light on each surface, in step with the picture (flash reads the surface colour from it)
+                for (int i = 0; i < light.length; i++) light[i] *= lightScale * (shade == null ? 1 : shade[i]);
             }
             float[] sensor = ImagePipeline.developSensor(img, depth, light, w, h, params);
             int format = film != null ? CameraSettings.FORMAT_JPEG : s.settings().fileFormat();

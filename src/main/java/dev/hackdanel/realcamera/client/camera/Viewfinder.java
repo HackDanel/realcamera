@@ -701,6 +701,59 @@ public final class Viewfinder {
     private static double developEv = 12, developGameLight = 1, developAlbedo = -1;
     private static float[] developSurface = new float[54];
 
+    /** Columns of the live light map of an electronic finder ({@link #shadeMap()}). */
+    public static final int SHADE_W = 24;
+    private static float[] shadeMap;
+    private static int shadeH, shadeVersion;
+
+    /**
+     * Per-cell light corrections of the live picture ({@link dev.hackdanel.realcamera.processing.ShadeMap}), rows
+     * top-down, {@link #SHADE_W} wide, or null when the finder does not simulate them (optical finder, film, pack).
+     */
+    @javax.annotation.Nullable
+    public static float[] shadeMap() {
+        return shadeMap;
+    }
+
+    public static int shadeMapHeight() {
+        return shadeH;
+    }
+
+    /** Changes whenever the light map is recomputed. */
+    public static int shadeMapVersion() {
+        return shadeVersion;
+    }
+
+    /** The same light map the photo applies, on a coarser grid, for the electronic finder's exposure simulation. */
+    private static void updateShadeMap(Minecraft mc, CameraRays rays, double day, double ambient) {
+        if (!dev.hackdanel.realcamera.client.render.EvfPreview.electronicFinder() || body().isFilm()
+                || dev.hackdanel.realcamera.client.render.ShaderCompat.packInUse()) {
+            shadeMap = null;
+            return;
+        }
+        int gw = SHADE_W, gh = Math.max(1, (int) Math.round(gw / sensor().aspect()));
+        float[] ev = new float[gw * gh], light = new float[gw * gh];
+        for (int y = 0; y < gh; y++) {
+            double v = 1 - (y + 0.5) * 2 / gh;
+            for (int x = 0; x < gw; x++) {
+                double u = (x + 0.5) * 2 / gw - 1;
+                Vec3 dir = rays.direction(u, v);
+                var hit = rays.cast(dir);
+                int i = y * gw + x;
+                if (hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+                    ev[i] = Float.NaN;
+                    light[i] = 1;
+                } else {
+                    ev[i] = (float) SceneMeter.sampleEv(mc.level, hit, dir, day, ambient);
+                    light[i] = (float) SceneMeter.gameLight(mc.level, SceneMeter.litPos(mc.level, hit));
+                }
+            }
+        }
+        shadeMap = dev.hackdanel.realcamera.processing.ShadeMap.factors(ev, light, developEv, developGameLight);
+        shadeH = gh;
+        shadeVersion++;
+    }
+
     /** Scene EV the photo is developed against (incident light over the frame's surfaces). */
     public static double developEv() {
         return developEv;
@@ -831,6 +884,7 @@ public final class Viewfinder {
         developGameLight = devN > 0 ? Math.exp(devLight / devN) : meteredGameLight;
         developAlbedo = devN > 0 ? Math.exp(devAlbedo / devN) : -1;
         developSurface = devSurface;
+        updateShadeMap(mc, rays, day, ambient);
     }
 
     // ------------------------------------------------------------------ focus

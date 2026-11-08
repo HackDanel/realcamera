@@ -81,8 +81,13 @@ dispatched via `ClientBridge.handlePayload`.
    (`SceneMeter` converts game light to real EV: shade/night/rain calibrated, reflected-light meter via map-colour
    albedo, scene colour temperature), `optics/Exposure.solve` (P/A/S/M), AF/subject detection, drive modes, the
    camera buffer (drains at the card's write speed), shutter. Composes a `PhotoCapture.Shot`. A correct exposure
-   renders the metered area at middle grey however dark the game drew it (`PhotoCapture.relight`, global factor
-   from the game's light curve at the metered points; not per pixel). Light sources (torches, lamps, lava: blocks with
+   renders the metered area at middle grey however dark the game drew it (`PhotoCapture.relight`). The reference is NOT the metered area
+   (that made the whole picture follow the spot/centre aim in M): photo and EVF are developed against the incident light
+   and light curve averaged over all surfaces in the frame (`Viewfinder.developEv/developGameLight`, Shot.sceneEv/gameLight;
+   the meter needle `Exposure.Result.delta` stays the reflected reading). Then `processing/ShadeMap` puts each region at
+   its real light (2^(EV here - ref) / game light ratio: shade 2-3 stops darker than the game's flat curve) — photo:
+   192-wide ray grid (`CameraRays.grids()[4]`, edge-aware upsampled); EVF: `Viewfinder.shadeMap` 24-wide, texture
+   `LightMap` in `realcamera_evf`. Off with a shader pack (it draws its own shading). Light sources (torches, lamps, lava: blocks with
    light emission under each pixel, found from the GPU depth by `CameraRays.emitters`) are then raised to their real
    luminance vs the metered EV (`processing/LightSources`, before the DoF so bokeh discs carry it); the light is the
    texels near the block's brightest pixel in the frame (flame yes, torch stick no).
