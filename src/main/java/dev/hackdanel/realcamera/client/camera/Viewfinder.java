@@ -720,7 +720,8 @@ public final class Viewfinder {
 
     @javax.annotation.Nullable
     private static ShadeMapData shadeMap;
-    private static int shadeVersion;
+    private static int shadeVersion, shadeTicks;
+    private static long shadeNanos, volumeNanos;
     /** The map being cast: its basis, cells and next row. */
     @javax.annotation.Nullable
     private static ShadePass shadePass;
@@ -765,8 +766,12 @@ public final class Viewfinder {
                 || dev.hackdanel.realcamera.client.render.ShaderCompat.packInUse()) {
             shadeMap = null;
             shadePass = null;
+            dev.hackdanel.realcamera.client.render.LightVolume.clear();
             return;
         }
+        long tv = System.nanoTime();
+        dev.hackdanel.realcamera.client.render.LightVolume.tick(mc); // per-pixel light near the camera
+        volumeNanos += System.nanoTime() - tv;
         net.minecraft.client.Camera camera = mc.gameRenderer.getMainCamera();
         double aspect = sensor().aspect();
         int gw = SHADE_W, gh = Math.max(1, (int) Math.round(gw / aspect));
@@ -777,7 +782,10 @@ public final class Viewfinder {
                     new Vec3(-l.x(), -l.y(), -l.z()), tanV * aspect, tanV);
         }
         ShadePass p = shadePass;
-        CameraRays rays = new CameraRays(mc.level, mc.getCameraEntity(), camera, sensorVfov(), aspect, 128);
+        long t0 = System.nanoTime();
+        // as far as the photo's rays (PhotoCapture.rays): a shorter reach took far hills for sky (left bright) except
+        // where a ray happened to hit something closer (dark blotches on the horizon)
+        CameraRays rays = new CameraRays(mc.level, mc.getCameraEntity(), camera, sensorVfov(), aspect, 512);
         double day = SceneMeter.daylightEv(mc.level, 1f);
         double ambient = SceneMeter.ambientEv(mc.level);
         int rows = (gh + SHADE_TICKS - 1) / SHADE_TICKS;
@@ -800,6 +808,14 @@ public final class Viewfinder {
             }
         }
         p.row += rows;
+        shadeNanos += System.nanoTime() - t0;
+        if (++shadeTicks == 100) {
+            RealCamera.LOGGER.debug("EVF light map: {} ms per tick, light volume {} ms", shadeNanos / 1e6 / shadeTicks,
+                    volumeNanos / 1e6 / shadeTicks);
+            shadeNanos = 0;
+            volumeNanos = 0;
+            shadeTicks = 0;
+        }
         if (p.row >= gh) {
             float[] fac = dev.hackdanel.realcamera.processing.ShadeMap.factors(p.ev, p.light, developEv, developGameLight);
             shadeMap = new ShadeMapData(fac, p.dist, gw, gh, rays.origin(), p.forward, p.up, p.right, p.tanH, p.tanV,

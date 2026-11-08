@@ -15,6 +15,16 @@ uniform vec3 MapShift;       // camera move since the map was cast, in the map's
 uniform vec4 MapTan;         // map half-angle tangents (x, y), map size in cells
 uniform vec2 ScreenTan;      // half-angle tangents of the screen (x, y)
 uniform vec4 InvProj;        // inverse projection m22, m32, m23, m33: view z from NDC depth
+uniform sampler2D LightVolume; // client/render/LightVolume: per voxel r = sky / 15, g = block / 15, b = open (not
+                               // a full opaque cube); horizontal slices tiled VolumeSize.w per row
+uniform float VolumeOn;
+uniform vec3 CamRight;       // this frame's camera axes in the world
+uniform vec3 CamUp;
+uniform vec3 CamFwd;
+uniform vec3 CamToVolume;    // camera position minus the volume's minimum corner (blocks)
+uniform vec4 VolumeSize;     // x, y, z size in blocks, slices per texture row
+uniform vec4 LightModel;     // SceneMeter: daylight EV, ambient EV, the sky's darkening (light curve), unused
+uniform vec2 DevelopRef;     // the light the picture is developed against: EV, game light curve (ShadeMap.factor)
 uniform vec4 FrameRect;     // photo frame on the screen: x, y, width, height (texture coordinates)
 uniform float FrameAspect;  // width / height of the photo
 uniform float Zoom;         // magnifier: the screen shows 1/Zoom of the frame around its centre
@@ -84,12 +94,7 @@ float curve(float v, float contrast, float lift) {
 // The light map's correction for this pixel (stops). The pixel is re-projected into the map (cast a moment ago
 // from a slightly different view) by its depth, and only cells at about its own distance count: a cell's light
 // does not spill over an edge onto a nearer or farther surface. A pixel no nearby cell matches takes the closest.
-float lightMapStops() {
-    float d = texture(DepthSampler, texCoord).r;
-    vec3 ray = vec3((texCoord * 2.0 - 1.0) * ScreenTan, 1.0);
-    float z = d >= 1.0 ? 4096.0 : min(4096.0, -(InvProj.x * (d * 2.0 - 1.0) + InvProj.y)
-            / (InvProj.z * (d * 2.0 - 1.0) + InvProj.w));
-    vec3 p = ray * z;
+float lightMapStops(vec3 p, float d) {
     vec3 q = vec3(dot(MapRotX, p), dot(MapRotY, p), dot(MapRotZ, p)) + MapShift;
     if (q.z <= 0.01) return 0.0;
     vec2 cell = ((q.xy / q.z) / MapTan.xy * 0.5 + 0.5) * MapTan.zw - 0.5;
@@ -116,6 +121,54 @@ float lightMapStops() {
     return wsum > 1.0e-4 ? sum / wsum : best;
 }
 
+// ShadeMap.factor for light levels (SceneMeter.pointEv / gameLight), in stops
+float levelStops(float sky, float block) {
+    // interpolated levels can land a hair above 15: pow of a negative number is NaN (black and white specks)
+    sky = clamp(sky, 0.0, 15.0);
+    block = clamp(block, 0.0, 15.0);
+    float b = block / 15.0;
+    float falloff = sky <= 0.0 ? -40.0 : -2.6 * pow(max(15.0 - sky, 0.0), 0.85);
+    float lum = exp2(LightModel.x + falloff) + 128.0 * b * b * b + exp2(LightModel.y) + exp2(-10.0);
+    float f = max(sky * LightModel.z, block) / 15.0;
+    float game = 0.05 + 0.95 * f / (4.0 - 3.0 * f);
+    return clamp(log2(lum) - DevelopRef.x + log2(max(0.01, DevelopRef.y) / max(0.01, game)), -6.0, 2.0);
+}
+
+vec3 voxel(ivec3 v) {
+    int tiles = int(VolumeSize.w);
+    ivec2 t = ivec2((v.y % tiles) * int(VolumeSize.x) + v.x, (v.y / tiles) * int(VolumeSize.z) + v.z);
+    return texelFetch(LightVolume, t, 0).rgb;
+}
+
+// The correction from the world's light levels at a surface point (relative to the volume's corner) with its normal:
+// the light of the air half a block in front, interpolated between voxel centres over the open voxels only (as the
+// game's smooth lighting). `inside`: 1 well within the volume, fading to 0 over its last blocks.
+float volumeStops(vec3 wp, vec3 n, out float inside) {
+    inside = 0.0;
+    vec3 s = wp + n * 0.5 - 0.5;
+    vec3 fl = floor(s);
+    ivec3 b = ivec3(fl);
+    ivec3 size = ivec3(VolumeSize.xyz);
+    if (any(lessThan(b, ivec3(0))) || any(greaterThanEqual(b + 1, size))) return 0.0;
+    vec3 f = s - fl;
+    float sky = 0.0, block = 0.0, ws = 0.0;
+    for (int i = 0; i < 8; i++) {
+        ivec3 o = ivec3(i & 1, (i >> 1) & 1, (i >> 2) & 1);
+        vec3 c = voxel(b + o);
+        vec3 t = mix(1.0 - f, f, vec3(o));
+        float w = t.x * t.y * t.z * c.b;
+        sky += c.r * w;
+        block += c.g * w;
+        ws += w;
+    }
+    // only solid blocks around (a crevice, or a normal gone wrong at an edge): leave it to the light map
+    if (ws < 1.0e-3) return 0.0;
+    vec2 lv = vec2(sky, block) / ws;
+    vec3 edge = min(vec3(b), vec3(size - 2 - b));
+    inside = smoothstep(0.0, 4.0, min(edge.x, min(edge.y, edge.z)));
+    return levelStops(lv.x * 15.0, lv.y * 15.0);
+}
+
 void main() {
     vec3 c = toLinear(texture(DiffuseSampler, texCoord).rgb);
     vec2 f = 0.5 + ((texCoord - FrameRect.xy) / FrameRect.zw - 0.5) / Zoom;  // 0..1 in the photo frame, y up
@@ -123,10 +176,37 @@ void main() {
     vec2 d = f * 2.0 - 1.0;
     float r2 = (d.x * d.x * FrameAspect * FrameAspect + d.y * d.y) / (FrameAspect * FrameAspect + 1.0);
 
+    // the surface under this pixel: view-space point from the depth, world point relative to the light volume, and
+    // its normal from the screen-space derivatives (computed for every pixel: derivatives need uniform control flow)
+    float depth = texture(DepthSampler, texCoord).r;
+    vec3 ray = vec3((texCoord * 2.0 - 1.0) * ScreenTan, 1.0);
+    float z = depth >= 1.0 ? 4096.0 : min(4096.0, -(InvProj.x * (depth * 2.0 - 1.0) + InvProj.y)
+            / (InvProj.z * (depth * 2.0 - 1.0) + InvProj.w));
+    vec3 p = ray * z;
+    vec3 off = CamRight * p.x + CamUp * p.y + CamFwd * p.z;
+    vec3 wp = off + CamToVolume;
+    vec3 n = cross(dFdx(wp), dFdy(wp));
+    n = dot(n, n) > 1.0e-12 ? normalize(n) : -normalize(off);
+    if (dot(n, off) > 0.0) n = -n;
+    // blocks are boxes: snap to the dominant axis (the derivatives of a grazing surface are noisy and sent the
+    // lookup into the ground, black specks)
+    vec3 an = abs(n);
+    n = an.x > an.y && an.x > an.z ? vec3(sign(n.x), 0.0, 0.0)
+            : an.y > an.z ? vec3(0.0, sign(n.y), 0.0) : vec3(0.0, 0.0, sign(n.z));
+
     // light on the sensor
     float k = Gain;
-    // each part of the picture at its real light (shade darker than the game's flat light curve draws it)
-    if (LightMapOn > 0.5) k *= exp2(lightMapStops());
+    // each part of the picture at its real light (shade darker than the game's flat light curve draws it): per pixel
+    // from the world's light levels near the camera, from the cast light map farther out; the sky keeps 1
+    if (LightMapOn > 0.5 && depth < 1.0) {
+        float stops = lightMapStops(p, depth);
+        if (VolumeOn > 0.5) {
+            float inside;
+            float v = volumeStops(wp, n, inside);
+            stops = mix(stops, v, inside);
+        }
+        k *= exp2(stops);
+    }
     if (Gnd > 0.0) {
         float s = clamp((0.6 - t) / 0.2, 0.0, 1.0);
         k *= exp2(-Gnd * s * s * (3.0 - 2.0 * s));

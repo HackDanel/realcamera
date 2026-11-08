@@ -142,8 +142,14 @@ public final class EvfPreview {
         s.safeGetUniform("LightMapOn").set(shadeId >= 0 ? 1f : 0f);
         int depthTex = DepthLayers.surfaceTexture(); // opaque world + water surfaces, as the rays see it
         s.setSampler("DepthSampler", depthTex >= 0 ? depthTex : main.getDepthTextureId());
+        var box = shadeId >= 0 ? LightVolume.box() : null;
+        s.setSampler("LightVolume", box != null ? LightVolume.textureId() : main.getColorTextureId());
+        s.safeGetUniform("VolumeOn").set(box != null ? 1f : 0f);
         if (shadeId >= 0) {
             setMapUniforms(s, mc, Viewfinder.shadeMap());
+        }
+        if (box != null) {
+            setVolumeUniforms(s, mc, box);
         }
         out.bindWrite(true);
         s.apply();
@@ -199,6 +205,27 @@ public final class EvfPreview {
     static int encodeDistance(float metres) {
         double e = (Math.log(Math.max(1e-3, metres)) / Math.log(2) + 5) / 17;
         return (int) Math.round(Math.max(0, Math.min(1, e)) * 255);
+    }
+
+    /**
+     * The light volume and how to read it: this frame's camera axes in the world and its position relative to the
+     * box's corner (pixel to world), the box's size, and what {@link dev.hackdanel.realcamera.processing.ShadeMap}
+     * needs to turn light levels into a correction (daylight and ambient EV, the sky's darkening, the reference).
+     */
+    private static void setVolumeUniforms(ShaderInstance s, Minecraft mc, LightVolume.Box box) {
+        var cam = mc.gameRenderer.getMainCamera();
+        org.joml.Vector3f f = cam.getLookVector(), u = cam.getUpVector(), l = cam.getLeftVector();
+        s.safeGetUniform("CamRight").set(-l.x(), -l.y(), -l.z());
+        s.safeGetUniform("CamUp").set(u.x(), u.y(), u.z());
+        s.safeGetUniform("CamFwd").set(f.x(), f.y(), f.z());
+        var p = cam.getPosition();
+        s.safeGetUniform("CamToVolume").set((float) (p.x - box.ox()), (float) (p.y - box.oy()), (float) (p.z - box.oz()));
+        s.safeGetUniform("VolumeSize").set((float) LightVolume.SX, (float) LightVolume.SY, (float) LightVolume.SZ,
+                (float) LightVolume.TILES);
+        var level = mc.level;
+        s.safeGetUniform("LightModel").set((float) dev.hackdanel.realcamera.client.camera.SceneMeter.daylightEv(level, 1f),
+                (float) dev.hackdanel.realcamera.client.camera.SceneMeter.ambientEv(level), level.getSkyDarken(1f), 0f);
+        s.safeGetUniform("DevelopRef").set((float) Viewfinder.developEv(), (float) Viewfinder.developGameLight());
     }
 
     /**

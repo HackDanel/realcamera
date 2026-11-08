@@ -378,6 +378,22 @@ public final class DofAutotest {
         }
         step("evf after pan", () -> {}, 20);
         step("evf panned screenshot", () -> pendingScreenshot = "vf_evf_shade_panned", 10);
+        // the savanna's hills and acacias far away under the moon, the torch-lit bank in front
+        step("evf far scene", () -> {
+            server(p -> cmd(p, "fill ~-16 ~7 ~-6 ~16 ~7 ~40 minecraft:air"));
+            var pl = Minecraft.getInstance().player;
+            pl.setYRot(0);
+            pl.yRotO = 0;
+            pl.setXRot(10);
+            pl.xRotO = 10;
+        }, 80);
+        step("evf far screenshot", () -> pendingScreenshot = "vf_evf_far", 10);
+        step("evf far side", () -> {
+            var pl = Minecraft.getInstance().player;
+            pl.setYRot(60);
+            pl.yRotO = 60;
+        }, 40);
+        step("evf far side screenshot", () -> pendingScreenshot = "vf_evf_far_side", 10);
         step("lower evf", () -> {
             Minecraft.getInstance().options.keyUse.setDown(false);
             log("PASS evf shade");
@@ -451,6 +467,26 @@ public final class DofAutotest {
         Minecraft mc = Minecraft.getInstance();
         com.mojang.blaze3d.platform.NativeImage img = net.minecraft.client.Screenshot.takeScreenshot(mc.getMainRenderTarget());
         java.io.File dir = new java.io.File(mc.gameDirectory, "screenshots/autotest");
+        var map = Viewfinder.shadeMap();
+        if (name.startsWith("vf_evf") && map != null) {
+            // the electronic finder's light map beside the screenshot: correction as grey (log, -6..+2 EV), 8x
+            int s = 8;
+            var m = new com.mojang.blaze3d.platform.NativeImage(map.width() * s, map.height() * s, false);
+            for (int y = 0; y < map.height() * s; y++) {
+                for (int x = 0; x < map.width() * s; x++) {
+                    int e = dev.hackdanel.realcamera.processing.ShadeMap.encode(map.factors()[(y / s) * map.width() + x / s]);
+                    m.setPixelRGBA(x, y, 0xFF000000 | e << 16 | e << 8 | e);
+                }
+            }
+            net.minecraft.Util.ioPool().execute(() -> {
+                try (m) {
+                    dir.mkdirs();
+                    m.writeToFile(new java.io.File(dir, name + "_map.png"));
+                } catch (java.io.IOException e) {
+                    RealCamera.LOGGER.error("map dump failed", e);
+                }
+            });
+        }
         net.minecraft.Util.ioPool().execute(() -> {
             try (img) {
                 dir.mkdirs();
