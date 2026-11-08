@@ -125,6 +125,13 @@ public final class ViewfinderHud {
         g.fill(outer.x() + outer.w(), outer.y(), sw, outer.y() + outer.h(), 0xFF000000);
         if (!evf && !rangefinder) {
             opticalVignette(g, outer);
+            if (dev.hackdanel.realcamera.client.RCKeys.DOF_PREVIEW.isDown() && exp != null) {
+                // stopping the lens down for the depth-of-field preview darkens an optical finder
+                double stops = Math.max(0, Math.log(exp.fNumber() / Viewfinder.chain().maxApertureAt(Viewfinder.focal())) / Math.log(2));
+                int alpha = (int) (Math.min(0.88, 1 - Math.pow(2, -stops)) * 255);
+                if (alpha > 0) g.fill(outer.x(), outer.y(), outer.x() + outer.w(), outer.y() + outer.h(), alpha << 24);
+                g.drawString(font, "DOF", outer.x() + 8, outer.y() + 8, OVF_GREEN, true);
+            }
         }
         if (Viewfinder.magnified()) {
             g.drawString(font, "×5", outer.x() + 8, outer.y() + 22, YELLOW, true);
@@ -153,6 +160,9 @@ public final class ViewfinderHud {
         }
         if (disp == CameraSettings.DISP_CLEAN) {
             return;
+        }
+        if (Viewfinder.focusRingTurnedRecently() && exp != null && Viewfinder.chain().tiltDeg(s) == 0) {
+            dofScale(g, font, outer.cx(), outer.y() + outer.h() - (evf ? 52 : 44), evf ? WHITE : OVF_GREEN);
         }
         if (evf) {
             bottomBar(g, font, outer.x(), outer.y() + outer.h(), outer.w(), s, exp, WHITE, 0x90000000);
@@ -493,7 +503,12 @@ public final class ViewfinderHud {
         float d = Viewfinder.focusDistance();
         String dist = d >= 999 ? "∞" : d >= 10 ? String.format(Locale.ROOT, "%.0f m", d) : String.format(Locale.ROOT, "%.1f m", d);
         String area = mf ? "" : afAreaLabel(s.afArea()) + "  ";
-        String left = String.format(Locale.ROOT, "%.0f mm   %s %s  %s%s", Viewfinder.focal(), focus, dist, area, meter);
+        String range = "";
+        if (Viewfinder.exposure() != null && Viewfinder.chain().tiltDeg(s) == 0) {
+            double[] dof = Viewfinder.dofLimits();
+            range = " (" + distanceLabel(dof[0]) + "–" + distanceLabel(dof[1]) + ")";
+        }
+        String left = String.format(Locale.ROOT, "%.0f mm   %s %s%s  %s%s", Viewfinder.focal(), focus, dist, range, area, meter);
         // close-up: reproduction ratio, like the scale on a macro lens
         double mag = Viewfinder.chain() == null ? 0 : Viewfinder.chain().magnification(Viewfinder.focal(), d);
         if (mag >= 0.1) {
@@ -534,6 +549,48 @@ public final class ViewfinderHud {
         if (Math.abs(pitch) < 2.5f && s.disp() == CameraSettings.DISP_FULL) {
             g.drawString(font, "- 0° -", x + w / 2 - font.width("- 0° -") / 2, y + 18, GREEN, true);
         }
+    }
+
+    private static String distanceLabel(double m) {
+        if (Double.isInfinite(m) || m >= 999) return "∞";
+        if (m >= 10) return String.format(Locale.ROOT, "%.0f m", m);
+        if (m >= 1) return String.format(Locale.ROOT, "%.1f m", m);
+        return String.format(Locale.ROOT, "%.2f m", m);
+    }
+
+    /**
+     * Depth-of-field scale while the focus ring turns, like the one engraved on a manual lens: distances on a
+     * dioptre scale (1/d, infinity at the right end), the band that is acceptably sharp, the focus and the
+     * hyperfocal distance (H: focused there, everything from half of it to infinity is sharp).
+     */
+    private static void dofScale(GuiGraphics g, Font font, int cx, int y, int colour) {
+        double[] dof = Viewfinder.dofLimits();
+        double near = Math.max(0.3, Viewfinder.chain().lens().minFocusM());
+        int w = 220, x0 = cx - w / 2;
+        java.util.function.DoubleUnaryOperator pos = d -> x0 + w * Math.max(0, Math.min(1, 1 - near / Math.max(near, d)));
+        g.fill(x0 - 4, y - 12, x0 + w + 4, y + 10, 0x90000000);
+        g.fill(x0, y, x0 + w, y + 1, colour);
+        int a = (int) pos.applyAsDouble(dof[0]), b = (int) pos.applyAsDouble(Double.isInfinite(dof[1]) ? 1e9 : dof[1]);
+        g.fill(a, y - 3, Math.max(a + 1, b), y, 0xC0FFD040);
+        for (double d : new double[]{0.5, 1, 2, 3, 5, 10, 1e9}) {
+            if (d < near) continue;
+            int px = (int) pos.applyAsDouble(d);
+            g.fill(px, y + 1, px + 1, y + 3, colour);
+            String label = d >= 1e8 ? "∞" : d < 1 ? String.format(Locale.ROOT, "%.1f", d) : String.format(Locale.ROOT, "%.0f", d);
+            g.pose().pushPose();
+            g.pose().translate(px, y + 4, 0);
+            g.pose().scale(0.5f, 0.5f, 1);
+            g.drawCenteredString(font, label, 0, 0, colour);
+            g.pose().popPose();
+        }
+        int h = (int) pos.applyAsDouble(dof[2]);
+        g.pose().pushPose();
+        g.pose().translate(h, y - 10, 0);
+        g.pose().scale(0.5f, 0.5f, 1);
+        g.drawCenteredString(font, "H", 0, 0, ORANGE);
+        g.pose().popPose();
+        int f = (int) pos.applyAsDouble(Viewfinder.liveFocusDistance());
+        g.fill(f, y - 6, f + 1, y + 1, YELLOW);
     }
 
     private static void meterScale(GuiGraphics g, Font font, int cx, int y, double delta) {

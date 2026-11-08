@@ -235,6 +235,7 @@
   "key.realcamera.af_up": "Точка АФ вверх",
   "key.realcamera.af_down": "Точка АФ вниз",
   "key.realcamera.af_on": "AF-ON (фокус без спуска)",
+  "key.realcamera.dof_preview": "Репетир диафрагмы (удерживать)",
   "item.realcamera.flash": "Вспышка",
   "item.realcamera.filter": "Светофильтр",
   "item.realcamera.step_up_ring": "Повышающее кольцо",

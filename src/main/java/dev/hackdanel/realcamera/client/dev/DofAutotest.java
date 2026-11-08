@@ -179,6 +179,29 @@ public final class DofAutotest {
         shoot("cow f1.8", "sony_fe_85_f18", 1.8, 6.0f);
         shoot("near grass f1.8", "sony_fe_50_f18", 1.8, 2.5f);
         shoot("cow f8", "sony_fe_85_f18", 8, 6.0f);
+        // an SLR's optical finder: wide open until the depth-of-field preview is held; the depth-of-field scale
+        step("give ovf", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            ItemStack s = camera("nikon_d750", "nikon_afs_24_120_f4", null, 11, 6.0f);
+            mc.player.getInventory().setItem(0, s);
+            mc.gameMode.handleCreativeModeItemAdd(s, 36);
+        }, 10);
+        step("raise ovf", () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.player.getInventory().selected = 0;
+            mc.options.keyUse.setDown(true);
+            mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
+        }, 15);
+        until("viewfinder ovf", Viewfinder::isActive, 60);
+        step("settle ovf", Viewfinder::debugTouchFocusRing, 10);
+        step("ovf open screenshot", () -> pendingScreenshot = "vf_ovf_open_scale", 10);
+        step("dof preview", () -> dev.hackdanel.realcamera.client.RCKeys.DOF_PREVIEW.setDown(true), 20);
+        step("ovf dof screenshot", () -> pendingScreenshot = "vf_ovf_dof", 10);
+        step("lower ovf", () -> {
+            dev.hackdanel.realcamera.client.RCKeys.DOF_PREVIEW.setDown(false);
+            Minecraft.getInstance().options.keyUse.setDown(false);
+            log("PASS ovf finder");
+        }, 30);
         // lens character: Helios swirl and soft background, STF apodisation
         shoot("helios f2", "sony_a7iv", "helios_44_2", "m42_to_e", 2, 6.0f);
         shoot("stf f2.8", "sony_fe_100_stf", 2.8, 6.0f);

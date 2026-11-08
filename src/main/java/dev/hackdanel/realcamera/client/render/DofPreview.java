@@ -178,7 +178,7 @@ public final class DofPreview {
         Matrix4f inv = new Matrix4f(projection).invert();
         float m11 = projection.m11();
         float focal = Viewfinder.focal();
-        float fNumber = (float) Viewfinder.exposure().fNumber();
+        float fNumber = (float) Viewfinder.viewAperture(); // an SLR finder shows the lens wide open
         float focusMm = Math.max(1, Viewfinder.liveFocusDistance()) * 1000;
         // screen pixels per mm on the sensor: the frame's height in pixels over the sensor's height
         double frameTan = Math.tan(Math.toRadians(Viewfinder.sensorVfov()) / 2);
@@ -274,7 +274,7 @@ public final class DofPreview {
         var optics = Viewfinder.chain().lens().optics();
         var ch = optics.character();
         float focal = Viewfinder.focal();
-        double stopsDown = Math.max(0, Math.log(Viewfinder.exposure().fNumber() / Viewfinder.chain().maxApertureAt(focal)) / Math.log(2));
+        double stopsDown = Math.max(0, Math.log(Viewfinder.viewAperture() / Viewfinder.chain().maxApertureAt(focal)) / Math.log(2));
         boolean round = optics.rounded() || stopsDown < 0.17;
         return new float[]{Math.max(5, optics.blades()), round ? 1 : 0, ImageParams.bokeh(optics.bokeh()),
                 (float) (ch.spherical() * Math.max(0, 1 - stopsDown / 2)),

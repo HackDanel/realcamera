@@ -52,6 +52,8 @@ public final class RCKeys {
     public static final KeyMapping AF_DOWN = key("af_down", GLFW.GLFW_KEY_DOWN);
     /** Back-button focus: focuses without shooting; afterwards the shutter button fires at the locked distance. */
     public static final KeyMapping AF_ON = key("af_on", GLFW.GLFW_KEY_R);
+    /** Depth-of-field preview (hold): an SLR's optical finder shows the lens wide open until the aperture is stopped down. */
+    public static final KeyMapping DOF_PREVIEW = key("dof_preview", GLFW.GLFW_KEY_Y);
 
     /** The photo encyclopedia: works anywhere in game. */
     public static final KeyMapping JOURNAL = new KeyMapping("key.realcamera.journal",
@@ -59,7 +61,7 @@ public final class RCKeys {
 
     /** Keys that only do something with the camera at the eye (drained otherwise). */
     public static final KeyMapping[] VIEWFINDER_KEYS = {PREV_PARAM, NEXT_PARAM, MODE, FOCUS_MODE, DISP, MAGNIFY, DRIVE, FLASH,
-            AF_AREA, AF_LEFT, AF_RIGHT, AF_UP, AF_DOWN, AF_ON};
+            AF_AREA, AF_LEFT, AF_RIGHT, AF_UP, AF_DOWN, AF_ON, DOF_PREVIEW};
 
     private RCKeys() {}
 
@@ -96,6 +98,7 @@ public final class RCKeys {
         event.register(AF_UP);
         event.register(AF_DOWN);
         event.register(AF_ON);
+        event.register(DOF_PREVIEW);
     }
 
     public static void drain(KeyMapping key) {

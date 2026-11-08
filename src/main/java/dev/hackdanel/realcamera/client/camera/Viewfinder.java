@@ -197,6 +197,40 @@ public final class Viewfinder {
      * Focus distance right now, for the live depth-of-field preview: follows the AF motor between ticks and the
      * focus ring without waiting for the next tick.
      */
+    /** When the focus ring was last turned by hand (the depth-of-field scale shows for a moment). */
+    private static long manualFocusNanos = Long.MIN_VALUE / 2;
+
+    /** Autotest: as if the focus ring had just been turned. */
+    public static void debugTouchFocusRing() {
+        manualFocusNanos = System.nanoTime();
+    }
+
+    public static boolean focusRingTurnedRecently() {
+        return System.nanoTime() - manualFocusNanos < 1_500_000_000L;
+    }
+
+    /**
+     * The aperture the finder shows: the working one, except in an SLR's optical finder, where the lens stays wide
+     * open until the depth-of-field preview button stops it down.
+     */
+    public static double viewAperture() {
+        double working = exposure == null ? chain.maxApertureAt(focal()) : exposure.fNumber();
+        return stoppedDownView() ? working : Math.min(working, chain.maxApertureAt(focal()));
+    }
+
+    /** The finder shows the working aperture (electronic finders always; an optical one with the preview held). */
+    public static boolean stoppedDownView() {
+        return !"ovf".equals(body().viewfinder()) || dev.hackdanel.realcamera.client.RCKeys.DOF_PREVIEW.isDown();
+    }
+
+    /** Near and far limits of acceptable sharpness (m, far may be infinite) and the hyperfocal distance (m). */
+    public static double[] dofLimits() {
+        double f = focal(), n = exposure == null ? chain.maxApertureAt(focal()) : exposure.fNumber();
+        double coc = Optics.FF_COC_MM / sensor().cropFactor();
+        double[] dof = Optics.depthOfFieldM(f, n, Math.max(0.05, liveFocusDistance()), coc);
+        return new double[]{dof[0], dof[1], Optics.hyperfocalMm(f, n, coc) / 1000};
+    }
+
     public static float liveFocusDistance() {
         if (chain == null) return focusDistance;
         if (settings.focusMode() == CameraSettings.FOCUS_MF || !chain.afAvailable()) {
@@ -1302,6 +1336,7 @@ public final class Viewfinder {
                 float d = (float) Mth.clamp(settings.focusDistance() * Math.pow(magnified ? 1.03 : 1.12, steps),
                         chain.lens().minFocusM(), 1000);
                 update(settings.withFocusDistance(d));
+                manualFocusNanos = System.nanoTime();
             }
         } else if (Screen.hasControlDown() || !chain.isZoom()) {
             adjustSelected(steps);

@@ -235,6 +235,7 @@
   "key.realcamera.af_up": "AF point up",
   "key.realcamera.af_down": "AF point down",
   "key.realcamera.af_on": "AF-ON (focus without shooting)",
+  "key.realcamera.dof_preview": "Depth-of-field preview (hold)",
   "item.realcamera.flash": "Flash",
   "item.realcamera.filter": "Lens Filter",
   "item.realcamera.step_up_ring": "Step-up Ring",
