@@ -2,7 +2,7 @@
   "type": "realcamera:assembly",
   "ingredients": [
     {
-      "item": "minecraft:slime_ball",
+      "item": "minecraft:sugar_cane",
       "count": 1
     },
     {
