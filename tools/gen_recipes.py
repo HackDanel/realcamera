@@ -385,6 +385,12 @@ def main():
                            "ingredients": [{"item": mc("book")}, {"item": mc("ink_sac")}, {"item": mc("feather")},
                                            {"item": mc("leather")}],
                            "result": {"id": rc("field_journal"), "count": 1}})
+    save("banner_pattern_aperture_star", {"type": "minecraft:crafting_shapeless", "category": "misc",
+                                          "ingredients": [{"item": mc("paper")}, {"item": mc("coal")}],
+                                          "result": {"id": rc("banner_pattern_aperture_star"), "count": 1}})
+    save("banner_pattern_shutter_125", {"type": "minecraft:crafting_shapeless", "category": "misc",
+                                        "ingredients": [{"item": mc("paper")}, {"item": mc("diamond")}],
+                                        "result": {"id": rc("banner_pattern_shutter_125"), "count": 1}})
     print(len(os.listdir(OUT)), "recipes written")
 
     # --- block loot tables (each block drops itself; the photo stand only from its lower half)

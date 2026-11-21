@@ -107,6 +107,130 @@ def icon(draw_fn, name):
               "models/item", name + ".json")
 
 
+BANNER_PATTERNS = {
+    # Derived from the supplied asterisk reference: an eight-pointed aperture/sigil mark.
+    "aperture_star": (
+        "......####......",
+        "......####......",
+        "......####......",
+        "....#.####.#....",
+        "...##########...",
+        "...##########...",
+        "...##########...",
+        "...##########...",
+        "...##########...",
+        ".....######.....",
+        ".....######.....",
+        "....########....",
+        "....########....",
+        "....########....",
+        ".....##..##.....",
+        "......#..#......",
+    ),
+    # Derived from the supplied 1/125 shutter-speed reference, condensed for a 16x16 mask.
+    "shutter_125": (
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "111001110111111.",
+        "010001001100100.",
+        "010010010110110.",
+        "010100100001001.",
+        "111100111110110.",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+    ),
+}
+
+
+SHUTTER_VERTICAL = {
+    "1": ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
+    "/": ("00001", "00010", "00010", "00100", "01000", "01000", "10000"),
+    "2": ("01110", "10001", "00001", "00010", "00100", "01000", "11111"),
+    "5": ("11111", "10000", "11110", "00001", "00001", "10001", "01110"),
+}
+
+
+def banner_pattern_mask(name):
+    """Build a vanilla-sized 64x64 mask inside the approximately 42x41 cloth area."""
+    source = os.path.join(ROOT, "tools", "banner_patterns", name + ".png")
+    if os.path.exists(source):
+        with Image.open(source) as image:
+            if image.size != (64, 64):
+                raise ValueError(f"{source} must be a 64x64 RGBA PNG")
+            return image.convert("RGBA").copy()
+
+    mask = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    px = mask.load()
+    if name == "shutter_125":
+        # Stack the shutter marking vertically so it remains readable on a banner.
+        x0, y0 = 18, 1
+        for ch in "1/125":
+            glyph = SHUTTER_VERTICAL[ch]
+            for y, row in enumerate(glyph):
+                for x, bit in enumerate(row):
+                    if bit == "1":
+                        px[x0 + x, y0 + y] = (255, 255, 255, 255)
+            y0 += 8
+        return mask
+
+    # The front half of the 64x64 banner atlas is x=0..20, y=0..40. Crop away the transparent
+    # padding in the 16x16 source first, then fit the mark into the visible cloth.
+    pattern = BANNER_PATTERNS[name]
+    filled = [(x, y) for y, row in enumerate(pattern) for x, bit in enumerate(row) if bit == "1" or bit == "#"]
+    min_x = min(x for x, _ in filled)
+    max_x = max(x for x, _ in filled)
+    min_y = min(y for _, y in filled)
+    max_y = max(y for _, y in filled)
+    source_w = max_x - min_x + 1
+    source_h = max_y - min_y + 1
+    target_w, target_h, target_x, target_y = 18, 30, 2, 5
+    for y in range(target_h):
+        sy = min_y + y * source_h // target_h
+        for x in range(target_w):
+            sx = min_x + x * source_w // target_w
+            if pattern[sy][sx] == "1" or pattern[sy][sx] == "#":
+                px[target_x + x, target_y + y] = (255, 255, 255, 255)
+    return mask
+
+
+def banner_pattern_assets():
+    """White transparency masks for banners/shields plus stencilled item icons."""
+    ink = (44, 31, 25, 245)
+    paper = (224, 211, 177, 255)
+    edge = (116, 92, 65, 255)
+
+    def stencil(img, pattern, target=10):
+        px = img.load()
+        size = len(pattern)
+        for y in range(target):
+            for x in range(target):
+                sx = min(size - 1, x * size // target)
+                sy = min(size - 1, y * size // target)
+                if pattern[sy][sx] == "1" or pattern[sy][sx] == "#":
+                    px[3 + x, 3 + y] = ink
+
+    for name, pattern in BANNER_PATTERNS.items():
+        mask = banner_pattern_mask(name)
+        save_png(mask, "textures/entity/banner", name + ".png")
+        save_png(mask.copy(), "textures/entity/shield", name + ".png")
+
+        def item_icon(img, d, pattern=pattern):
+            d.polygon([(3, 1), (12, 1), (14, 3), (14, 13), (12, 15), (3, 15), (1, 13), (1, 3)],
+                      fill=paper, outline=edge)
+            d.line([(4, 2), (11, 2)], fill=(246, 238, 210, 255))
+            d.rectangle([3, 2, 4, 3], fill=(129, 77, 52, 255))
+            stencil(img, pattern)
+
+        icon(item_icon, "banner_pattern_" + name)
+
+
 def outline_rect(d, box, fill, edge):
     d.rectangle(box, fill=fill, outline=edge)
 
@@ -1606,6 +1730,7 @@ def main():
     stage5_assets()
     stage6_assets()
     stage7_assets()
+    banner_pattern_assets()
     print_model()
     sounds()
     print("assets written to", os.path.relpath(ASSETS, ROOT))
