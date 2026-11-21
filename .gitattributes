@@ -3,3 +3,11 @@
 # are changed when only line endings change.
 src/generated/**/.cache/* text eol=lf
 src/generated/**/*.json text eol=lf
+
+# для нормальной совместной разработки в разных средах и ОС
+* text=auto
+*.java text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
+*.gradle text eol=lf
+*.properties text eol=lf

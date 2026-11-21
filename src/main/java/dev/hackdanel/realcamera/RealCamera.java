@@ -5,6 +5,7 @@ import dev.hackdanel.realcamera.config.ClientConfig;
 import dev.hackdanel.realcamera.config.ServerConfig;
 import dev.hackdanel.realcamera.registry.RCBlockEntities;
 import dev.hackdanel.realcamera.registry.RCBlocks;
+import dev.hackdanel.realcamera.registry.RCBannerPatterns;
 import dev.hackdanel.realcamera.registry.RCComponents;
 import dev.hackdanel.realcamera.registry.RCCreativeTab;
 import dev.hackdanel.realcamera.registry.RCEntities;
@@ -30,6 +31,7 @@ public final class RealCamera {
         RCComponents.REGISTER.register(modBus);
         RCBlocks.REGISTER.register(modBus);
         RCItems.REGISTER.register(modBus);
+        RCBannerPatterns.register(modBus);
         RCBlockEntities.REGISTER.register(modBus);
         RCMenus.REGISTER.register(modBus);
         RCEntities.REGISTER.register(modBus);

@@ -54,6 +54,8 @@ public final class RCCreativeTab {
                 out.accept(RCItems.COMPUTER.get());
                 out.accept(RCItems.CFEXPRESS_READER.get());
                 out.accept(RCItems.PHOTO_ALBUM.get());
+                out.accept(RCBannerPatterns.APERTURE_STAR.item().get());
+                out.accept(RCBannerPatterns.SHUTTER_125.item().get());
                 out.accept(RCItems.TABLE_FRAME.get());
                 out.accept(RCItems.PHOTO_STAND.get());
                 r.lookup(RCRegistries.FILM_STOCK).ifPresent(l -> l.listElements().forEach(h -> {
